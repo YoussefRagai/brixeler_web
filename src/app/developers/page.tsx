@@ -98,9 +98,8 @@ async function getDeveloperData(developerIds?: string[] | null): Promise<{
 async function createDeveloperLogin(formData: FormData) {
   "use server";
   const admin = await requireAdminContext();
-  const allowedDeveloperIds = (
-    admin.roles.includes("super_admin") || !admin.developerIds?.length ? null : admin.developerIds
-  ) as string[] | null;
+  const allowedDeveloperIds: string[] | null =
+    admin.roles.includes("super_admin") || !admin.developerIds?.length ? null : admin.developerIds;
   const existingDeveloperId = formData.get("existingDeveloperId")?.toString() || "";
   const developerName = formData.get("developerName")?.toString().trim();
   const contactEmail = formData.get("contactEmail")?.toString().trim() || null;
