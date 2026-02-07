@@ -281,6 +281,14 @@ export type PropertyRenewalRequest = {
     id: string;
     property_name: string;
     expires_at: string | null;
+    unit_area?: number | null;
+    price?: number | null;
+    description?: string | null;
+    photos?: string[] | null;
+    bedrooms?: number | null;
+    bathrooms?: number | null;
+    property_type?: string | null;
+    amenities?: string[] | null;
     renewal_status?: string | null;
     approval_status?: string | null;
     developer_id?: string | null;
@@ -303,6 +311,14 @@ export async function fetchPropertyRenewalRequests(status: string = "pending"): 
         id,
         property_name,
         expires_at,
+        unit_area,
+        price,
+        description,
+        photos,
+        bedrooms,
+        bathrooms,
+        property_type,
+        amenities,
         renewal_status,
         approval_status,
         developer_id,
