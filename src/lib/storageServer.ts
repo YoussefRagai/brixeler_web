@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -7,8 +7,24 @@ if (!supabaseUrl || !serviceRoleKey) {
   console.warn("Supabase environment variables are not set for storage uploads.");
 }
 
-export const storageServer = createClient(supabaseUrl ?? "", serviceRoleKey ?? "", {
-  auth: { persistSession: false },
+let cachedStorage: SupabaseClient | null = null;
+
+function createStorageClient() {
+  if (cachedStorage) return cachedStorage;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("supabaseUrl is required.");
+  }
+  cachedStorage = createClient<any>(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+  return cachedStorage;
+}
+
+export const storageServer = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = createStorageClient();
+    return client[prop as keyof typeof client];
+  },
 });
 
 export const STORAGE_BUCKETS = {
