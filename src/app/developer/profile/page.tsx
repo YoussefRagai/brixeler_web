@@ -6,6 +6,19 @@ import { fetchDeveloperProfile, updateDeveloperProfile } from "@/lib/developerQu
 import { STORAGE_BUCKETS, isFile, uploadFileToBucket } from "@/lib/storageServer";
 
 export default async function DeveloperProfilePage() {
+  const isSupabaseConfigured = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+  );
+  if (!isSupabaseConfigured) {
+    return (
+      <DeveloperLayout title="Profile" description="Control how Brixeler presents your brand.">
+        <div className="rounded-3xl border border-black/5 bg-white p-6 text-sm text-neutral-600">
+          Supabase environment variables are missing. Set `NEXT_PUBLIC_SUPABASE_URL` and
+          `SUPABASE_SERVICE_ROLE_KEY` in your deployment environment to enable profile management.
+        </div>
+      </DeveloperLayout>
+    );
+  }
   const session = await requireDeveloperSession();
   const profile = await fetchDeveloperProfile(session.developerId);
 
