@@ -47,7 +47,7 @@ export default async function PropertyRenewalsPage() {
 async function loadRenewalEntries(requests: PropertyRenewalRequest[]): Promise<PropertyRenewalEntry[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return requests.map((request) => ({
-      id: request.property_id ?? request.id,
+      id: request.property?.id ?? request.id,
       requestId: request.id,
       name: request.property?.property_name ?? "Listing",
       area: request.property?.unit_area ? `${request.property.unit_area} m²` : "—",
@@ -66,7 +66,7 @@ async function loadRenewalEntries(requests: PropertyRenewalRequest[]): Promise<P
     }));
   }
 
-  const propertyIds = requests.map((request) => request.property_id).filter(Boolean) as string[];
+  const propertyIds = requests.map((request) => request.property?.id).filter(Boolean) as string[];
   const { data: properties } = propertyIds.length
     ? await supabaseServer
         .from("properties")
@@ -76,9 +76,9 @@ async function loadRenewalEntries(requests: PropertyRenewalRequest[]): Promise<P
   const propertyMap = new Map((properties ?? []).map((property: any) => [property.id, property]));
 
   return requests.map((request) => {
-    const property = request.property_id ? propertyMap.get(request.property_id) : request.property;
+    const property = request.property?.id ? propertyMap.get(request.property.id) : request.property;
     return {
-      id: request.property_id ?? request.id,
+      id: request.property?.id ?? request.id,
       requestId: request.id,
       name: property?.property_name ?? "Listing",
       area: property?.unit_area ? `${property.unit_area} m²` : "—",
