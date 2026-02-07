@@ -16,6 +16,7 @@ import {
   upsertProjectUnitVariant,
 } from "@/lib/developerQueries";
 import { STORAGE_BUCKETS, isFile, uploadFileToBucket } from "@/lib/storageServer";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 
@@ -68,9 +69,13 @@ export default async function DeveloperProjectsPage({
   }>;
 }) {
   const session = await requireDeveloperSession();
-  const [projects, profile] = await Promise.all([
+  const [projects, profile, commissionRules] = await Promise.all([
     fetchDeveloperProjects(session.developerId),
     fetchDeveloperProfile(session.developerId),
+    supabaseServer
+      .from("developer_commission_rules")
+      .select("id, developer_id, property_id, commission_rate, platform_share")
+      .eq("developer_id", session.developerId),
   ]);
   const resolvedSearchParams = (await searchParams) ?? {};
   const activeProjectId =
@@ -91,6 +96,9 @@ export default async function DeveloperProjectsPage({
       : projects[0]?.id ?? null;
   const selectedProject = selectedProjectId
     ? projects.find((project) => project.id === selectedProjectId)
+    : undefined;
+  const projectCommissionRule = selectedProjectId
+    ? (commissionRules.data ?? []).find((rule: any) => rule.property_id === selectedProjectId)
     : undefined;
   const visibleProjects = selectedProjectId
     ? projects.filter((project) => project.id === selectedProjectId)
@@ -144,6 +152,18 @@ export default async function DeveloperProjectsPage({
                 name="description"
                 placeholder="Key highlights, payment terms, delivery date..."
               />
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field
+                  label="Commission rate (%)"
+                  name="commissionRate"
+                  placeholder="2.50"
+                />
+                <Field
+                  label="Platform share (%)"
+                  name="platformShare"
+                  placeholder="0.25"
+                />
+              </div>
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project images</span>
                 <input
@@ -337,6 +357,28 @@ export default async function DeveloperProjectsPage({
                     name="description"
                     placeholder="Key highlights, payment terms, delivery date..."
                   />
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field
+                      label="Commission rate (%)"
+                      name="commissionRate"
+                      placeholder="2.50"
+                      defaultValue={
+                        projectCommissionRule?.commission_rate != null
+                          ? String(projectCommissionRule.commission_rate)
+                          : ""
+                      }
+                    />
+                    <Field
+                      label="Platform share (%)"
+                      name="platformShare"
+                      placeholder="0.25"
+                      defaultValue={
+                        projectCommissionRule?.platform_share != null
+                          ? String(projectCommissionRule.platform_share)
+                          : ""
+                      }
+                    />
+                  </div>
                   <label className="flex flex-col gap-1 text-sm">
                     <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project images</span>
                     <input
@@ -884,6 +926,8 @@ async function upsertProjectAction(formData: FormData) {
   const name = formData.get("name")?.toString().trim();
   if (!name) return;
   const description = formData.get("description")?.toString() ?? undefined;
+  const commissionRateRaw = formData.get("commissionRate")?.toString() ?? null;
+  const platformShareRaw = formData.get("platformShare")?.toString() ?? null;
   const amenities = formData
     .getAll("projectAmenities")
     .map((value) => value.toString())
@@ -964,6 +1008,12 @@ async function upsertProjectAction(formData: FormData) {
     amenities: amenities.length ? amenities : undefined,
   });
   if (!error && data?.id) {
+    await upsertProjectCommissionRule({
+      developerId: session.developerId,
+      projectId: data.id,
+      commissionRateRaw,
+      platformShareRaw,
+    });
     redirect(`/developer/projects?project=${data.id}&step=types`);
   }
   revalidatePath("/developer/projects");
@@ -976,6 +1026,41 @@ async function deleteProjectAction(formData: FormData) {
   if (!projectId) return;
   await deleteDeveloperProject(session.developerId, projectId);
   revalidatePath("/developer/projects");
+}
+
+async function upsertProjectCommissionRule(input: {
+  developerId: string;
+  projectId: string;
+  commissionRateRaw?: string | null;
+  platformShareRaw?: string | null;
+}) {
+  const commissionRateRaw = input.commissionRateRaw?.trim() ?? "";
+  const platformShareRaw = input.platformShareRaw?.trim() ?? "";
+  if (!commissionRateRaw && !platformShareRaw) return;
+
+  const commissionRate = Number(commissionRateRaw);
+  if (!Number.isFinite(commissionRate) || commissionRate <= 0) {
+    return;
+  }
+  const platformShare = platformShareRaw.length ? Number(platformShareRaw) : null;
+
+  const { data: existing } = await supabaseServer
+    .from("developer_commission_rules")
+    .select("id")
+    .eq("developer_id", input.developerId)
+    .eq("property_id", input.projectId)
+    .maybeSingle();
+
+  await supabaseServer.from("developer_commission_rules").upsert(
+    {
+      id: existing?.id,
+      developer_id: input.developerId,
+      property_id: input.projectId,
+      commission_rate: commissionRate,
+      platform_share: Number.isFinite(platformShare ?? NaN) ? platformShare : null,
+    },
+    { onConflict: "id" },
+  );
 }
 
 async function upsertProjectUnitTypeAction(formData: FormData) {

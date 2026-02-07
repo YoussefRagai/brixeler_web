@@ -1,11 +1,14 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { buildAdminUi } from "@/lib/adminUi";
 
 const logs = [
   { id: "exp-001", type: "Deals CSV", range: "Nov 1 - Nov 18", initiatedBy: "Laila Samir", status: "Ready" },
   { id: "exp-002", type: "Commissions XLSX", range: "Oct 1 - Oct 31", initiatedBy: "Finance Bot", status: "Expired" },
 ];
 
-export default function ExportsPage() {
+export default async function ExportsPage() {
+  const ui = await buildAdminUi(["super_admin"]);
   return (
     <AdminLayout
       title="Exports & archives"
@@ -15,8 +18,13 @@ export default function ExportsPage() {
           Start export
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
         <table className="w-full text-left text-sm text-slate-200">
           <thead className="text-xs uppercase tracking-[0.3em] text-slate-500">
             <tr>
@@ -40,7 +48,8 @@ export default function ExportsPage() {
         <p className="mt-4 text-xs text-slate-500">
           Exports expire after 5 days. Re-run to get fresh CSV/XLSX copies.
         </p>
-      </section>
+        </section>
+      )}
     </AdminLayout>
   );
 }

@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { propertyRows } from "@/data/mock";
+import { buildAdminUi } from "@/lib/adminUi";
 
-export default function PropertyDetailPage({ params }: { params: { id: string } }) {
+export default async function PropertyDetailPage({ params }: { params: { id: string } }) {
+  const ui = await buildAdminUi(["listing_admin"]);
   const property = propertyRows.find((row) => row.id === params.id);
   if (!property) return notFound();
 
@@ -19,8 +22,13 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           Back to queue
         </Link>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
         <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
           Submission
         </p>
@@ -30,7 +38,8 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           <p>Price: {property.price}</p>
           <p>Area: {property.area}</p>
         </div>
-      </section>
+        </section>
+      )}
     </AdminLayout>
   );
 }

@@ -26,6 +26,11 @@ export type SalesClaimEntry = {
   clientName?: string | null;
   salesClaimDocument?: string | null;
   attachments: string[];
+  feedbackReason?: string | null;
+  feedbackType?: string | null;
+  eoiDocument?: string | null;
+  cilDocument?: string | null;
+  reservationDocument?: string | null;
 };
 
 type StageRow = {
@@ -83,6 +88,17 @@ export async function fetchSalesClaims(limit = 50): Promise<SalesClaimEntry[]> {
   return rows.map((row) => {
     const payload = row.payload ?? {};
     const profile = profileMap.get(row.agent_id);
+    const pickFirst = (keys: string[], attachments?: string[]) => {
+      const direct =
+        keys.map((key) => (payload as any)[key]).find((value) => typeof value === "string" && value.length) ??
+        null;
+      if (direct) return direct;
+      if (!attachments?.length) return null;
+      const lower = keys.map((k) => k.toLowerCase());
+      const match = attachments.find((url) => lower.some((k) => url.toLowerCase().includes(k)));
+      return match ?? null;
+    };
+    const attachments = row.attachments ?? payload.attachments ?? [];
     return {
       id: row.id,
       agentId: row.agent_id,
@@ -97,7 +113,15 @@ export async function fetchSalesClaims(limit = 50): Promise<SalesClaimEntry[]> {
       commissionRate: payload.commissionRate ?? null,
       clientName: payload.clientName ?? null,
       salesClaimDocument: row.sales_claim_document ?? null,
-      attachments: row.attachments ?? payload.attachments ?? [],
+      attachments,
+      feedbackReason: (payload as any).feedback_reason ?? null,
+      feedbackType: (payload as any).feedback_type ?? null,
+      eoiDocument: pickFirst(["eoi_document", "eoi_doc", "eoiDocument", "eoi"], attachments),
+      cilDocument: pickFirst(["cil_document", "cil_doc", "cilDocument", "cil"], attachments),
+      reservationDocument: pickFirst(
+        ["reservation_document", "reservation_doc", "reservationDocument", "reservation"],
+        attachments,
+      ),
     };
   });
 }

@@ -1,8 +1,62 @@
-import Link from "next/link";
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { propertyRows } from "@/data/mock";
+import { buildAdminUi } from "@/lib/adminUi";
+import { supabaseServer } from "@/lib/supabaseServer";
+import { PropertyApprovalQueue, type PropertyApprovalEntry } from "@/components/PropertyApprovalQueue";
 
-export default function PropertiesPage() {
+async function loadPropertyQueue(): Promise<PropertyApprovalEntry[]> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return propertyRows.map((property) => ({
+      id: property.id,
+      name: property.name,
+      area: property.area,
+      price: property.price,
+      status: property.status ?? "pending",
+      rejectionReason: null,
+      submittedBy: property.agent,
+      submittedAt: property.date,
+    }));
+  }
+
+  const { data: properties } = await supabaseServer
+    .from("properties")
+    .select(
+      "id, property_name, unit_area, price, approval_status, rejection_reason, listed_by_agent_id, created_at, description, photos, bedrooms, bathrooms, property_type, amenities",
+    )
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  const agentIds = Array.from(
+    new Set((properties ?? []).map((property) => property.listed_by_agent_id).filter(Boolean)),
+  ) as string[];
+  const { data: agents } = agentIds.length
+    ? await supabaseServer.from("users_profile").select("id, display_name").in("id", agentIds)
+    : { data: [] };
+  const agentMap = new Map((agents ?? []).map((agent) => [agent.id, agent.display_name ?? "Agent"]));
+
+  return (properties ?? []).map((property: any) => ({
+    id: property.id,
+    name: property.property_name,
+    area: `${property.unit_area ?? "—"} m²`,
+    price: property.price ? `${property.price}` : "—",
+    status: property.approval_status ?? "pending",
+    rejectionReason: property.rejection_reason ?? null,
+    submittedBy: property.listed_by_agent_id ? agentMap.get(property.listed_by_agent_id) ?? "Agent" : "—",
+    submittedAt: property.created_at ? new Date(property.created_at).toLocaleString() : "—",
+    description: property.description ?? null,
+    photos: property.photos ?? [],
+    bedrooms: property.bedrooms ?? null,
+    bathrooms: property.bathrooms ?? null,
+    unitArea: property.unit_area ?? null,
+    propertyType: property.property_type ?? null,
+    amenities: property.amenities ?? [],
+  })) as PropertyApprovalEntry[];
+}
+
+export default async function PropertiesPage() {
+  const ui = await buildAdminUi(["listing_admin"]);
+  const queue = await loadPropertyQueue();
   return (
     <AdminLayout
       title="Property operations"
@@ -12,9 +66,15 @@ export default function PropertiesPage() {
           Bulk import
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
-        <header className="flex flex-wrap items-center justify-between gap-4">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <>
+          <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+            <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
               Approval queue
@@ -23,82 +83,12 @@ export default function PropertiesPage() {
               Developer + agent submitted listings
             </p>
           </div>
-          <div className="flex gap-3 text-sm">
-            <button className="rounded-full border border-white/10 px-4 py-2 text-white/80">
-              Filters
-            </button>
-            <button className="rounded-full border border-emerald-400 px-4 py-2 text-emerald-200">
-              Auto-approve config
-            </button>
-          </div>
+          <div />
         </header>
-        <div className="mt-6 space-y-4">
-          {propertyRows.map((property) => (
-            <article
-              key={property.id}
-              className="rounded-2xl border border-white/5 bg-black/20 p-4 text-sm"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="font-semibold text-white">{property.name}</p>
-                  <p className="text-slate-400">
-                    {property.area} · {property.price}
-                  </p>
-                </div>
-                <span
-                  className="rounded-full border border-white/10 px-3 py-1 text-xs"
-                  data-status={property.status}
-                >
-                  {property.status}
-                </span>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-slate-400">
-                <p>Submitted by: {property.agent}</p>
-                <p>Received: {property.date}</p>
-              </div>
-              <Link
-                href={`/properties/${property.id}`}
-                className="mt-3 inline-flex rounded-full border border-white/10 px-3 py-1 text-xs text-white/80 hover:bg-white/10"
-              >
-                Review details
-              </Link>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
-        <header className="mb-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
-              Spotlight
-            </p>
-            <p className="text-lg text-slate-300">Featured launches</p>
-          </div>
-          <button className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/80">
-            Update carousel
-          </button>
-        </header>
-        <div className="grid gap-4 md:grid-cols-2">
-          {propertyRows.slice(0, 2).map((property) => (
-            <article
-              key={`spotlight-${property.id}`}
-              className="rounded-2xl border border-white/5 bg-gradient-to-br from-slate-900/60 to-slate-900/20 p-4"
-            >
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                {property.area}
-              </p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {property.name}
-              </p>
-              <p className="text-slate-400">{property.price}</p>
-              <p className="mt-4 text-xs text-slate-500">
-                Conversion uplift +18% when pinned
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
+        <PropertyApprovalQueue entries={queue} />
+          </section>
+        </>
+      )}
     </AdminLayout>
   );
 }

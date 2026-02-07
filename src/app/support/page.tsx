@@ -1,4 +1,6 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 const macros = ["Verification docs matched", "Commission payout scheduled", "Forward to compliance"];
@@ -140,6 +142,7 @@ async function getSupportTickets(): Promise<Ticket[]> {
 }
 
 export default async function SupportPage() {
+  const ui = await buildAdminUi(["user_support_admin"]);
   const tickets = await getSupportTickets();
   const ticketsByStatus = statusColumns.reduce<Record<SupportTicketStatus, Ticket[]>>(
     (acc, column) => ({
@@ -158,8 +161,14 @@ export default async function SupportPage() {
           New macro
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statusColumns.map((column) => (
           <article key={column.key} className="rounded-3xl border border-white/5 bg-white/5 p-4">
             <header className="flex items-center justify-between">
@@ -187,7 +196,7 @@ export default async function SupportPage() {
         ))}
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+          <section className="grid gap-6 lg:grid-cols-2">
         <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
           <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Macros</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -206,7 +215,9 @@ export default async function SupportPage() {
             <button className="rounded-full bg-emerald-400 px-5 py-2 text-sm font-semibold text-emerald-950">Send response</button>
           </div>
         </article>
-      </section>
+          </section>
+        </>
+      )}
     </AdminLayout>
   );
 }

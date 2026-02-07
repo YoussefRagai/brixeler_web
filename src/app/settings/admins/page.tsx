@@ -1,170 +1,271 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { buildAdminUi } from "@/lib/adminUi";
+import { ADMIN_ROLE_LABELS, ADMIN_ROLE_DESCRIPTIONS, type AdminRole } from "@/lib/adminRoles";
+import { fetchAdminAccounts, logAdminActivity } from "@/lib/adminQueries";
+import { supabaseServer } from "@/lib/supabaseServer";
+import { requireAdminContext } from "@/lib/adminAuth";
+import { AdminRoleEditor } from "@/components/AdminRoleEditor";
 
-const admins = [
+const roleMatrix: { role: AdminRole; permissions: string[] }[] = [
   {
-    id: "adm-1",
-    name: "Laila Samir",
-    email: "laila@brixeler.com",
-    role: "Super Admin",
-    status: "Active",
-    lastActive: "2h ago",
+    role: "super_admin",
+    permissions: [
+      "Everything",
+      "Admin assignments",
+      "Admin activity log",
+      "All dashboard sections",
+    ],
   },
   {
-    id: "adm-2",
-    name: "Karim Fouad",
-    email: "karim@brixeler.com",
-    role: "Reviewer",
-    status: "Active",
-    lastActive: "1d ago",
+    role: "user_auth_admin",
+    permissions: ["User verification", "Agent profiles", "Verification approvals"],
   },
   {
-    id: "adm-3",
-    name: "Sara Amin",
-    email: "sara@brixeler.com",
-    role: "Support",
-    status: "Suspended",
-    lastActive: "Nov 12",
+    role: "user_support_admin",
+    permissions: ["Support tickets", "User escalations"],
+  },
+  {
+    role: "developers_admin",
+    permissions: ["Developers", "Projects", "Developer actions"],
+  },
+  {
+    role: "listing_admin",
+    permissions: ["Listings", "Properties", "Renewals"],
+  },
+  {
+    role: "deals_admin",
+    permissions: ["Deals pipeline", "Sales claims", "Payment approvals"],
+  },
+  {
+    role: "marketing_admin",
+    permissions: ["Notifications", "Gifts", "Tiers", "Badges", "Content"],
   },
 ];
 
-const roleMatrix = [
-  {
-    role: "Super Admin",
-    permissions: ["Agents", "Deals", "Properties", "Notifications", "Exports", "Settings"],
-  },
-  {
-    role: "Reviewer",
-    permissions: ["Deals", "Properties", "Verification"],
-  },
-  {
-    role: "Support",
-    permissions: ["Support tickets", "Notifications"],
-  },
-];
+async function inviteAdminAction(formData: FormData) {
+  "use server";
+  const admin = await requireAdminContext();
+  const email = formData.get("email")?.toString().toLowerCase().trim();
+  const password = formData.get("password")?.toString();
+  const displayName = formData.get("displayName")?.toString().trim() || null;
+  const roles = formData.getAll("roles").map((r) => r.toString()) as AdminRole[];
+  const developerIds = formData.getAll("developerIds").map((r) => r.toString());
 
-export default function AdminsPage() {
+  if (!email || !password) return;
+
+  const { data: userData, error: createUserError } = await supabaseServer.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+
+  if (createUserError || !userData?.user?.id) {
+    console.error("Failed to create admin auth user", createUserError);
+    return;
+  }
+
+  const permissions = {
+    display_name: displayName,
+    email,
+    developer_ids: developerIds,
+  };
+
+  const legacyRole = roles.includes("super_admin") ? "super_admin" : roles.length ? "admin" : "reviewer";
+
+  const { error: insertError } = await supabaseServer.from("admins").insert({
+    id: userData.user.id,
+    role: legacyRole,
+    roles,
+    permissions,
+    assigned_by: admin.adminId,
+    is_active: true,
+  });
+
+  if (insertError) {
+    console.error("Failed to create admin record", insertError);
+    await supabaseServer.auth.admin.deleteUser(userData.user.id);
+    return;
+  }
+
+  await logAdminActivity({
+    adminId: admin.adminId,
+    action: "admin.invite",
+    resourceType: "admins",
+    resourceId: userData.user.id,
+    metadata: { email, roles },
+  });
+}
+
+
+export default async function AdminsPage() {
+  const ui = await buildAdminUi(["super_admin"]);
+  const admins = await fetchAdminAccounts();
+  const { data: developers } = await supabaseServer.from("developers").select("id, name").order("name");
+
   return (
     <AdminLayout
-      title="Admin roles"
-      description="Invite, edit, and revoke access for Brixeler command center."
-      actions={
-        <button className="rounded-full border border-white/10 px-5 py-2 text-sm text-white/80 hover:bg-white/10">
-          Invite admin
-        </button>
-      }
+      title="Admins"
+      description="Assign roles, stack permissions, and manage admin access."
+      actions={<span className="text-xs uppercase tracking-[0.3em] text-slate-400">Super admin</span>}
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="grid gap-4 sm:grid-cols-3">
-        <article className="rounded-2xl border border-white/5 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Total admins
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-white">{admins.length}</p>
-        </article>
-        <article className="rounded-2xl border border-white/5 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Reviewers
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-white">
-            {admins.filter((a) => a.role === "Reviewer").length}
-          </p>
-        </article>
-        <article className="rounded-2xl border border-white/5 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Suspended
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-rose-300">
-            {admins.filter((a) => a.status === "Suspended").length}
-          </p>
-        </article>
-      </section>
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <>
+          <section className="grid gap-4 sm:grid-cols-3">
+            <article className="rounded-2xl border border-white/5 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Total admins</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{admins.length}</p>
+            </article>
+            <article className="rounded-2xl border border-white/5 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Active</p>
+              <p className="mt-2 text-2xl font-semibold text-white">
+                {admins.filter((a) => a.status === "active").length}
+              </p>
+            </article>
+            <article className="rounded-2xl border border-white/5 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Suspended</p>
+              <p className="mt-2 text-2xl font-semibold text-rose-300">
+                {admins.filter((a) => a.status === "suspended").length}
+              </p>
+            </article>
+          </section>
 
-      <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
-        <table className="w-full text-left text-sm text-slate-200">
-          <thead className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Admin</th>
-              <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Last active</th>
-            </tr>
-          </thead>
-          <tbody>
-            {admins.map((admin) => (
-              <tr key={admin.id} className="border-b border-white/5">
+          <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+            <table className="w-full text-left text-sm text-slate-200">
+              <thead className="text-xs uppercase tracking-[0.3em] text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Admin</th>
+                  <th className="px-4 py-3">Roles</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Last active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {admins.map((admin) => (
+                  <tr key={admin.id} className="border-b border-white/5">
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-white">{admin.display_name ?? "Admin"}</p>
+                      <p className="text-xs text-slate-400">{admin.email ?? ""}</p>
+                    </td>
                 <td className="px-4 py-4">
-                  <p className="font-semibold text-white">{admin.name}</p>
-                  <p className="text-xs text-slate-400">{admin.email}</p>
+                  <AdminRoleEditor
+                    adminId={admin.id}
+                    roles={admin.roles ?? []}
+                    developerIds={admin.developer_ids ?? null}
+                    developers={(developers ?? []) as { id: string; name: string | null }[]}
+                  />
                 </td>
-                <td className="px-4 py-4">{admin.role}</td>
-                <td className="px-4 py-4">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs ${
-                      admin.status === "Suspended"
-                        ? "bg-rose-500/20 text-rose-200"
-                        : "bg-white/10 text-white"
-                    }`}
-                  >
-                    {admin.status}
-                  </span>
-                </td>
-                <td className="px-4 py-4 text-slate-300">{admin.lastActive}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs ${
+                          admin.status === "suspended"
+                            ? "bg-rose-500/20 text-rose-200"
+                            : "bg-white/10 text-white"
+                        }`}
+                      >
+                        {admin.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-slate-300">
+                      {admin.created_at ? new Date(admin.created_at).toLocaleString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+                {!admins.length && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-400">
+                      No admins found yet. Add admins in the database or use the invite workflow.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
-            Role matrix
-          </p>
-          <div className="mt-4 space-y-4 text-sm text-slate-300">
-            {roleMatrix.map((role) => (
-              <div key={role.role} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-white">{role.role}</p>
-                <p className="text-xs text-slate-500">Permissions:</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {role.permissions.map((perm) => (
-                    <span key={perm} className="rounded-full border border-white/10 px-3 py-1 text-xs">
-                      {perm}
-                    </span>
-                  ))}
-                </div>
+          <section className="grid gap-6 lg:grid-cols-2">
+            <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
+              <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Role matrix</p>
+              <div className="mt-4 space-y-4 text-sm text-slate-300">
+                {roleMatrix.map((role) => (
+                  <div key={role.role} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-white">{ADMIN_ROLE_LABELS[role.role]}</p>
+                    <p className="text-xs text-slate-500">{ADMIN_ROLE_DESCRIPTIONS[role.role]}</p>
+                    <p className="mt-2 text-xs text-slate-500">Permissions:</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {role.permissions.map((perm) => (
+                        <span key={perm} className="rounded-full border border-white/10 px-3 py-1 text-xs">
+                          {perm}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </article>
-        <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
-            Invite new admin
-          </p>
-          <form className="mt-4 space-y-4 text-sm text-slate-300">
-            <div>
-              <label className="text-xs text-slate-500">Email</label>
-              <input
-                placeholder="name@brixeler.com"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500">Role</label>
-              <select className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-white">
-                <option>Super Admin</option>
-                <option>Reviewer</option>
-                <option>Support</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-slate-500">Notes</label>
-              <textarea className="mt-2 min-h-[100px] w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white" />
-            </div>
-            <button className="rounded-full bg-emerald-400 px-5 py-2 text-sm font-semibold text-emerald-950">
-              Send invitation
-            </button>
-          </form>
-        </article>
-      </section>
+            </article>
+            <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
+              <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Invite new admin</p>
+              <form action={inviteAdminAction} className="mt-4 space-y-4 text-sm text-slate-300">
+                <div>
+                  <label className="text-xs text-slate-500">Email</label>
+                  <input
+                    name="email"
+                    placeholder="name@brixeler.com"
+                    required
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Temporary password</label>
+                  <input
+                    name="password"
+                    type="password"
+                    required
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Display name</label>
+                  <input
+                    name="displayName"
+                    placeholder="Admin name"
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Assign roles</label>
+                  <div className="mt-2 grid gap-2 text-xs text-slate-300">
+                    {Object.entries(ADMIN_ROLE_LABELS).map(([role, label]) => (
+                      <label key={role} className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3 py-2">
+                        <input type="checkbox" name="roles" value={role} className="h-4 w-4" />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Developer scope (optional)</label>
+                  <div className="mt-2 grid gap-2 text-xs text-slate-300">
+                    {(developers ?? []).map((dev) => (
+                      <label key={dev.id} className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3 py-2">
+                        <input type="checkbox" name="developerIds" value={dev.id} className="h-4 w-4" />
+                        <span>{dev.name ?? dev.id}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">Only used for Developers admin role.</p>
+                </div>
+                <button className="rounded-full bg-emerald-400 px-5 py-2 text-sm font-semibold text-emerald-950">
+                  Create admin
+                </button>
+              </form>
+            </article>
+          </section>
+        </>
+      )}
     </AdminLayout>
   );
 }

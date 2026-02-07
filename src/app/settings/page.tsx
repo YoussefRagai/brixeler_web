@@ -1,4 +1,8 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { buildAdminUi } from "@/lib/adminUi";
+import { requireAdminContext } from "@/lib/adminAuth";
+import { logAdminActivity } from "@/lib/adminQueries";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
 
@@ -44,6 +48,7 @@ async function getSettingsData(): Promise<{ tiers: ReferralTier[]; badges: Badge
 
 async function upsertTier(formData: FormData) {
   "use server";
+  const admin = await requireAdminContext();
   const tierId = formData.get("tierId")?.toString() || undefined;
   const tierName = formData.get("tierName")?.toString() ?? "";
   const minReferrals = parseInt(formData.get("minReferrals")?.toString() ?? "0", 10);
@@ -66,20 +71,35 @@ async function upsertTier(formData: FormData) {
     requires_first_deal: requiresFirstDeal,
     behavior_requirement: behaviorRequirement,
   });
+  await logAdminActivity({
+    adminId: admin.adminId,
+    action: tierId ? "settings.update_tier" : "settings.create_tier",
+    resourceType: "referral_bonus_rules",
+    resourceId: tierId ?? null,
+    metadata: { tier_name: tierName.trim() },
+  });
 
   revalidatePath("/settings");
 }
 
 async function deleteTier(formData: FormData) {
   "use server";
+  const admin = await requireAdminContext();
   const tierId = formData.get("tierId")?.toString();
   if (!tierId) return;
   await supabaseServer.from("referral_bonus_rules").delete().eq("id", tierId);
+  await logAdminActivity({
+    adminId: admin.adminId,
+    action: "settings.delete_tier",
+    resourceType: "referral_bonus_rules",
+    resourceId: tierId,
+  });
   revalidatePath("/settings");
 }
 
 async function upsertBadge(formData: FormData) {
   "use server";
+  const admin = await requireAdminContext();
   const badgeId = formData.get("badgeId")?.toString() || undefined;
   const badgeName = formData.get("badgeName")?.toString() ?? "";
   const badgeType = formData.get("badgeType")?.toString() ?? "deal_milestone";
@@ -102,19 +122,33 @@ async function upsertBadge(formData: FormData) {
     display_order: Number.isNaN(displayOrder) ? null : displayOrder,
     is_active: isActive,
   });
+  await logAdminActivity({
+    adminId: admin.adminId,
+    action: badgeId ? "settings.update_badge" : "settings.create_badge",
+    resourceType: "badges",
+    resourceId: badgeId ?? null,
+  });
 
   revalidatePath("/settings");
 }
 
 async function deleteBadge(formData: FormData) {
   "use server";
+  const admin = await requireAdminContext();
   const badgeId = formData.get("badgeId")?.toString();
   if (!badgeId) return;
   await supabaseServer.from("badges").delete().eq("id", badgeId);
+  await logAdminActivity({
+    adminId: admin.adminId,
+    action: "settings.delete_badge",
+    resourceType: "badges",
+    resourceId: badgeId,
+  });
   revalidatePath("/settings");
 }
 
 export default async function SettingsPage() {
+  const ui = await buildAdminUi(["super_admin"]);
   const { tiers, badges } = await getSettingsData();
 
   return (
@@ -126,8 +160,13 @@ export default async function SettingsPage() {
           Auto-save enabled
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="grid gap-6 lg:grid-cols-2">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <section className="grid gap-6 lg:grid-cols-2">
         <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
           <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Referral tiers</p>
           <div className="mt-4 space-y-4 text-sm text-slate-200">
@@ -470,7 +509,8 @@ export default async function SettingsPage() {
             </form>
           </div>
         </article>
-      </section>
+        </section>
+      )}
     </AdminLayout>
   );
 }

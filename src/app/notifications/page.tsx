@@ -1,4 +1,6 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { buildAdminUi } from "@/lib/adminUi";
 
 const segments = [
   { label: "All Agents", value: "2,047" },
@@ -6,7 +8,8 @@ const segments = [
   { label: "New this week", value: "112" },
 ];
 
-export default function NotificationsPage() {
+export default async function NotificationsPage() {
+  const ui = await buildAdminUi(["marketing_admin"]);
   return (
     <AdminLayout
       title="Notifications"
@@ -16,8 +19,14 @@ export default function NotificationsPage() {
           View history
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="grid gap-4 sm:grid-cols-3">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <>
+          <section className="grid gap-4 sm:grid-cols-3">
         {segments.map((segment) => (
           <article key={segment.label} className="rounded-2xl border border-black/5 bg-white p-4 shadow-md">
             <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">
@@ -26,9 +35,9 @@ export default function NotificationsPage() {
             <p className="mt-2 text-2xl font-semibold text-[#050505]">{segment.value}</p>
           </article>
         ))}
-      </section>
+          </section>
 
-      <section className="rounded-3xl border border-black/5 bg-white p-6 shadow-lg">
+          <section className="rounded-3xl border border-black/5 bg-white p-6 shadow-lg">
         <form className="space-y-6">
           <div>
             <label className="text-xs uppercase tracking-[0.3em] text-neutral-500">
@@ -79,7 +88,9 @@ export default function NotificationsPage() {
             </button>
           </div>
         </form>
-      </section>
+          </section>
+        </>
+      )}
     </AdminLayout>
   );
 }

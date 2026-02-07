@@ -1,9 +1,12 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { buildAdminUi } from "@/lib/adminUi";
 
 const amenities = ["Infinity pool", "Clubhouse", "Smart locks", "Concierge"];
 const propertyTypes = ["Apartment", "Villa", "Townhouse", "Chalet"];
 
-export default function ContentPage() {
+export default async function ContentPage() {
+  const ui = await buildAdminUi(["marketing_admin"]);
   return (
     <AdminLayout
       title="Content management"
@@ -13,8 +16,13 @@ export default function ContentPage() {
           Publish changes
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="grid gap-6 lg:grid-cols-2">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <section className="grid gap-6 lg:grid-cols-2">
         <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
           <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
             Amenities
@@ -39,7 +47,8 @@ export default function ContentPage() {
             ))}
           </div>
         </article>
-      </section>
+        </section>
+      )}
     </AdminLayout>
   );
 }

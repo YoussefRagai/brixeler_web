@@ -1,7 +1,106 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { agentRows } from "@/data/mock";
+import { buildAdminUi } from "@/lib/adminUi";
+import { supabaseServer } from "@/lib/supabaseServer";
+import { AgentTable, type AgentRow } from "@/components/AgentTable";
 
-export default function AgentsPage() {
+type ReferralRule = {
+  tier_name: string;
+  min_referrals: number;
+  max_referrals: number | null;
+  bonus_percentage: number;
+  behavior_requirement: "none" | "verified" | "first_deal";
+};
+
+function resolveTier(
+  rules: ReferralRule[],
+  metrics: { total_referrals: number; verified_referrals: number; referrals_with_first_deal: number },
+) {
+  if (!rules.length) return "—";
+  const sorted = [...rules].sort((a, b) => b.min_referrals - a.min_referrals);
+  for (const rule of sorted) {
+    const value =
+      rule.behavior_requirement === "verified"
+        ? metrics.verified_referrals
+        : rule.behavior_requirement === "first_deal"
+        ? metrics.referrals_with_first_deal
+        : metrics.total_referrals;
+    const withinMax = rule.max_referrals == null || value <= rule.max_referrals;
+    if (value >= rule.min_referrals && withinMax) {
+      return rule.tier_name;
+    }
+  }
+  return "Tier 0";
+}
+
+async function loadAgents(): Promise<AgentRow[]> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return agentRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      deals: row.deals,
+      earnings: row.earnings,
+      status: row.status,
+      tier: "Tier 1",
+      badges: ["Starter"],
+      profile_picture_url: null,
+      language_preference: "en",
+    }));
+  }
+
+  const [{ data: profiles }, { data: rules }, { data: badgeRows }] = await Promise.all([
+    supabaseServer
+      .from("users_profile")
+      .select(
+        "id, display_name, phone, total_deals, total_earnings, account_status, total_referrals, verified_referrals, referrals_with_first_deal, profile_picture_url, language_preference",
+      )
+      .order("account_created_at", { ascending: false })
+      .limit(200),
+    supabaseServer
+      .from("referral_bonus_rules")
+      .select("tier_name, min_referrals, max_referrals, bonus_percentage, behavior_requirement")
+      .eq("is_active", true),
+    supabaseServer
+      .from("agent_badges")
+      .select("agent_id, badges(name)")
+      .order("unlocked_at", { ascending: false }),
+  ]);
+
+  const badgeMap = new Map<string, string[]>();
+  (badgeRows ?? []).forEach((row: any) => {
+    const name = row.badges?.name;
+    if (!name) return;
+    const list = badgeMap.get(row.agent_id) ?? [];
+    if (!list.includes(name)) list.push(name);
+    badgeMap.set(row.agent_id, list);
+  });
+
+  return (profiles ?? []).map((profile: any) => {
+    const tier = resolveTier((rules ?? []) as ReferralRule[], {
+      total_referrals: profile.total_referrals ?? 0,
+      verified_referrals: profile.verified_referrals ?? 0,
+      referrals_with_first_deal: profile.referrals_with_first_deal ?? 0,
+    });
+    return {
+      id: profile.id,
+      name: profile.display_name ?? "Agent",
+      phone: profile.phone ?? "—",
+      deals: profile.total_deals ?? 0,
+      earnings: profile.total_earnings ? `${profile.total_earnings}` : "—",
+      status: profile.account_status ?? "active",
+      tier,
+      badges: badgeMap.get(profile.id) ?? [],
+      profile_picture_url: profile.profile_picture_url ?? null,
+      language_preference: profile.language_preference ?? null,
+    };
+  });
+}
+
+export default async function AgentsPage() {
+  const ui = await buildAdminUi(["user_auth_admin"]);
+  const agents = await loadAgents();
   return (
     <AdminLayout
       title="Agents"
@@ -11,8 +110,13 @@ export default function AgentsPage() {
           Add admin note
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+  {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
@@ -29,48 +133,9 @@ export default function AgentsPage() {
             </button>
           </div>
         </header>
-        <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-white/5 text-xs uppercase tracking-[0.2em] text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Agent</th>
-                <th className="px-4 py-3">Contact</th>
-                <th className="px-4 py-3">Deals</th>
-                <th className="px-4 py-3">Earnings</th>
-                <th className="px-4 py-3">Commission</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agentRows.map((agent) => (
-                <tr
-                  key={agent.id}
-                  className="border-b border-white/5 text-slate-200"
-                >
-                  <td className="px-4 py-4 font-medium text-white">
-                    {agent.name}
-                  </td>
-                  <td className="px-4 py-4 text-slate-400">{agent.phone}</td>
-                  <td className="px-4 py-4">{agent.deals}</td>
-                  <td className="px-4 py-4">{agent.earnings}</td>
-                  <td className="px-4 py-4">{agent.commission}</td>
-                  <td className="px-4 py-4">
-                    <span className="rounded-full border border-white/10 px-3 py-1 text-xs">
-                      {agent.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <button className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/80 hover:bg-white/10">
-                      Open profile
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        <AgentTable agents={agents} />
+        </section>
+      )}
     </AdminLayout>
   );
 }

@@ -1,10 +1,12 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import {
   agentRows,
   dealRows,
   overviewMetrics,
   recentActivity,
 } from "@/data/mock";
+import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 async function loadMetrics() {
@@ -31,6 +33,15 @@ async function loadMetrics() {
 }
 
 export default async function Home() {
+  const ui = await buildAdminUi([
+    "super_admin",
+    "user_auth_admin",
+    "user_support_admin",
+    "developers_admin",
+    "listing_admin",
+    "deals_admin",
+    "marketing_admin",
+  ]);
   const metrics = await loadMetrics();
   return (
     <AdminLayout
@@ -41,8 +52,14 @@ export default async function Home() {
           Export dashboard
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
           <article
             key={metric.label}
@@ -185,6 +202,8 @@ export default async function Home() {
           </ul>
         </article>
       </section>
+        </>
+      )}
     </AdminLayout>
   );
 }

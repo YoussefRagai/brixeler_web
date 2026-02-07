@@ -1,7 +1,10 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { analyticsSummary } from "@/data/mock";
+import { buildAdminUi } from "@/lib/adminUi";
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage() {
+  const ui = await buildAdminUi(["super_admin"]);
   return (
     <AdminLayout
       title="Performance intelligence"
@@ -11,8 +14,14 @@ export default function AnalyticsPage() {
           Download PDF
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="grid gap-6 lg:grid-cols-3">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <>
+          <section className="grid gap-6 lg:grid-cols-3">
         {analyticsSummary.map((panel) => (
           <article
             key={panel.title}
@@ -31,9 +40,9 @@ export default function AnalyticsPage() {
             </ul>
           </article>
         ))}
-      </section>
+          </section>
 
-      <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+          <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
@@ -70,7 +79,9 @@ export default function AnalyticsPage() {
             <p className="text-sm text-slate-400">+18% vs target</p>
           </div>
         </div>
-      </section>
+          </section>
+        </>
+      )}
     </AdminLayout>
   );
 }

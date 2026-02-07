@@ -1,4 +1,6 @@
 import { AdminLayout } from "@/components/AdminLayout";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { buildAdminUi } from "@/lib/adminUi";
 
 const roadmapItems = [
   {
@@ -18,7 +20,8 @@ const roadmapItems = [
   },
 ];
 
-export default function GiftsPage() {
+export default async function GiftsPage() {
+  const ui = await buildAdminUi(["marketing_admin"]);
   return (
     <AdminLayout
       title="Gifts"
@@ -28,8 +31,14 @@ export default function GiftsPage() {
           Create reward
         </button>
       }
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="rounded-3xl border border-black/5 bg-white px-8 py-10 shadow-xl shadow-black/5">
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <>
+          <section className="rounded-3xl border border-black/5 bg-white px-8 py-10 shadow-xl shadow-black/5">
         <div className="flex flex-col gap-3">
           <p className="text-sm uppercase tracking-[0.4em] text-neutral-400">Program status</p>
           <h2 className="text-3xl font-semibold text-[#050505]">Agent gifting hub is under construction</h2>
@@ -40,7 +49,7 @@ export default function GiftsPage() {
         </div>
       </section>
 
-      <section className="grid gap-6 rounded-3xl border border-dashed border-black/10 bg-white/40 px-8 py-8 shadow-inner shadow-white">
+          <section className="grid gap-6 rounded-3xl border border-dashed border-black/10 bg-white/40 px-8 py-8 shadow-inner shadow-white">
         <div className="flex flex-col gap-2">
           <p className="text-xs uppercase tracking-[0.4em] text-neutral-500">Next up</p>
           <h3 className="text-2xl font-semibold text-[#050505]">Roadmap milestones</h3>
@@ -53,8 +62,9 @@ export default function GiftsPage() {
             </div>
           ))}
         </div>
-      </section>
+          </section>
+        </>
+      )}
     </AdminLayout>
   );
 }
-

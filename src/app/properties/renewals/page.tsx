@@ -1,6 +1,9 @@
-import { revalidatePath } from "next/cache";
 import { AdminLayout } from "@/components/AdminLayout";
-import { fetchPropertyRenewalRequests, reviewRenewalRequest, type PropertyRenewalRequest } from "@/lib/developerQueries";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { buildAdminUi } from "@/lib/adminUi";
+import { fetchPropertyRenewalRequests, type PropertyRenewalRequest } from "@/lib/developerQueries";
+import { PropertyRenewalQueue, type PropertyRenewalEntry } from "@/components/PropertyRenewalQueue";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -8,107 +11,89 @@ function formatDate(value?: string | null) {
 }
 
 export default async function PropertyRenewalsPage() {
+  const ui = await buildAdminUi(["listing_admin"]);
   const pendingRequests = await fetchPropertyRenewalRequests("pending");
+  const entries = await loadRenewalEntries(pendingRequests);
 
   return (
     <AdminLayout
       title="Listing renewals"
       description="Review agent and developer renewal requests—only approved listings remain visible for 90 days."
+      navItems={ui.navItems}
+      meta={ui.meta}
     >
-      <section className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-              Pending workflow
+      {!ui.hasAccess ? (
+        <AdminAccessDenied />
+      ) : (
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white">
+          <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                Pending workflow
+              </p>
+              <p className="text-lg text-white">Renewal approvals</p>
+            </div>
+            <p className="text-xs text-slate-400">
+              Showing {entries.length} request{entries.length === 1 ? "" : "s"}
             </p>
-            <p className="text-lg text-white">Renewal approvals</p>
-          </div>
-          <p className="text-xs text-slate-400">
-            Showing {pendingRequests.length} request{pendingRequests.length === 1 ? "" : "s"}
-          </p>
-        </header>
-        <div className="overflow-hidden rounded-2xl border border-white/10">
-          <table className="w-full text-left text-xs uppercase tracking-[0.2em] text-slate-400">
-            <thead className="bg-white/5">
-              <tr>
-                <th className="px-4 py-3">Listing</th>
-                <th className="px-4 py-3">Requested by</th>
-                <th className="px-4 py-3">Requested at</th>
-                <th className="px-4 py-3">Expires</th>
-                <th className="px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="text-[13px] tracking-normal text-slate-200">
-              {pendingRequests.length === 0 && (
-                <tr>
-                  <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
-                    No renewal requests awaiting review.
-                  </td>
-                </tr>
-              )}
-              {pendingRequests.map((request) => (
-                <RenewalRow key={request.id} request={request} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          </header>
+          <PropertyRenewalQueue entries={entries} />
+        </section>
+      )}
     </AdminLayout>
   );
 }
 
-function RenewalRow({ request }: { request: PropertyRenewalRequest }) {
-  const propertyName = request.property?.property_name ?? "Listing";
-  const developerRelation = request.property?.developers;
-  let developerName: string | undefined;
-  if (Array.isArray(developerRelation)) {
-    developerName = developerRelation[0]?.name ?? undefined;
-  } else if (developerRelation && typeof developerRelation === "object") {
-    developerName = developerRelation.name ?? undefined;
+async function loadRenewalEntries(requests: PropertyRenewalRequest[]): Promise<PropertyRenewalEntry[]> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return requests.map((request) => ({
+      id: request.property_id ?? request.id,
+      requestId: request.id,
+      name: request.property?.property_name ?? "Listing",
+      area: request.property?.unit_area ? `${request.property.unit_area} m²` : "—",
+      price: request.property?.price ? `${request.property.price}` : "—",
+      status: request.status ?? "pending",
+      rejectionReason: request.notes ?? null,
+      submittedBy: request.requested_by_role ?? "—",
+      submittedAt: formatDate(request.requested_at),
+      description: request.property?.description ?? null,
+      photos: request.property?.photos ?? [],
+      bedrooms: request.property?.bedrooms ?? null,
+      bathrooms: request.property?.bathrooms ?? null,
+      unitArea: request.property?.unit_area ?? null,
+      propertyType: request.property?.property_type ?? null,
+      amenities: request.property?.amenities ?? [],
+    }));
   }
-  const expiresAt = request.property?.expires_at;
 
-  return (
-    <tr className="border-t border-white/5">
-      <td className="px-4 py-4">
-        <div className="font-semibold text-white">{propertyName}</div>
-        {developerName && <div className="text-xs text-slate-500">{developerName}</div>}
-      </td>
-      <td className="px-4 py-4 capitalize">{request.requested_by_role}</td>
-      <td className="px-4 py-4">{formatDate(request.requested_at)}</td>
-      <td className="px-4 py-4">{formatDate(expiresAt)}</td>
-      <td className="px-4 py-4">
-        <div className="flex flex-wrap gap-2">
-          <form action={approveRenewalAction}>
-            <input type="hidden" name="requestId" value={request.id} />
-            <button className="rounded-full border border-emerald-300 px-3 py-1 text-xs font-semibold text-emerald-200" type="submit">
-              Approve
-            </button>
-          </form>
-          <form action={rejectRenewalAction}>
-            <input type="hidden" name="requestId" value={request.id} />
-            <button className="rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-200" type="submit">
-              Reject
-            </button>
-          </form>
-        </div>
-      </td>
-    </tr>
-  );
-}
+  const propertyIds = requests.map((request) => request.property_id).filter(Boolean) as string[];
+  const { data: properties } = propertyIds.length
+    ? await supabaseServer
+        .from("properties")
+        .select("id, property_name, unit_area, price, description, photos, bedrooms, bathrooms, property_type, amenities")
+        .in("id", propertyIds)
+    : { data: [] };
+  const propertyMap = new Map((properties ?? []).map((property: any) => [property.id, property]));
 
-async function approveRenewalAction(formData: FormData) {
-  "use server";
-  const requestId = formData.get("requestId")?.toString();
-  if (!requestId) return;
-  await reviewRenewalRequest(requestId, true, null, "Approved via admin console");
-  revalidatePath("/properties/renewals");
-}
-
-async function rejectRenewalAction(formData: FormData) {
-  "use server";
-  const requestId = formData.get("requestId")?.toString();
-  if (!requestId) return;
-  await reviewRenewalRequest(requestId, false, null, "Rejected via admin console");
-  revalidatePath("/properties/renewals");
+  return requests.map((request) => {
+    const property = request.property_id ? propertyMap.get(request.property_id) : request.property;
+    return {
+      id: request.property_id ?? request.id,
+      requestId: request.id,
+      name: property?.property_name ?? "Listing",
+      area: property?.unit_area ? `${property.unit_area} m²` : "—",
+      price: property?.price ? `${property.price}` : "—",
+      status: request.status ?? "pending",
+      rejectionReason: request.notes ?? null,
+      submittedBy: request.requested_by_role ?? "—",
+      submittedAt: formatDate(request.requested_at),
+      description: property?.description ?? null,
+      photos: property?.photos ?? [],
+      bedrooms: property?.bedrooms ?? null,
+      bathrooms: property?.bathrooms ?? null,
+      unitArea: property?.unit_area ?? null,
+      propertyType: property?.property_type ?? null,
+      amenities: property?.amenities ?? [],
+    } as PropertyRenewalEntry;
+  });
 }
