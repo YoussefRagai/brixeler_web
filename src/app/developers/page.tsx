@@ -98,7 +98,7 @@ async function getDeveloperData(developerIds?: string[] | null): Promise<{
 async function createDeveloperLogin(formData: FormData) {
   "use server";
   const admin = await requireAdminContext();
-  const allowedDeveloperIds: string[] | null =
+  const allowedDeveloperIds =
     admin.roles.includes("super_admin") || !admin.developerIds?.length ? null : admin.developerIds;
   const existingDeveloperId = formData.get("existingDeveloperId")?.toString() || "";
   const developerName = formData.get("developerName")?.toString().trim();
@@ -122,7 +122,7 @@ async function createDeveloperLogin(formData: FormData) {
       .eq("name", developerName)
       .maybeSingle();
     if (existing?.id) {
-      if (allowedDeveloperIds && !allowedDeveloperIds.includes(existing.id)) return;
+    if (Array.isArray(allowedDeveloperIds) && !allowedDeveloperIds.includes(existing.id)) return;
       developerId = existing.id;
       await supabaseServer
         .from("developers")
@@ -141,7 +141,7 @@ async function createDeveloperLogin(formData: FormData) {
       developerId = created.id;
     }
   } else if (contactEmail || contactPhone) {
-    if (allowedDeveloperIds && !allowedDeveloperIds.includes(developerId)) return;
+    if (Array.isArray(allowedDeveloperIds) && !allowedDeveloperIds.includes(developerId)) return;
     await supabaseServer
       .from("developers")
       .update({ contact_email: contactEmail, contact_phone: contactPhone })
