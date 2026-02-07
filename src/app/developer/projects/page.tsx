@@ -983,8 +983,8 @@ async function upsertProjectUnitTypeAction(formData: FormData) {
   const session = await requireDeveloperSession();
   const projectId = formData.get("projectId")?.toString();
   const unitTypeId = formData.get("unitTypeId")?.toString() || undefined;
-  const baseTypeRaw = formData.get("unitBaseType")?.toString().trim();
-  const baseType = PROPERTY_TYPES.includes(baseTypeRaw || "") ? baseTypeRaw : "Apartment";
+  const baseTypeRaw = formData.get("unitBaseType")?.toString().trim() || "";
+  const baseType = PROPERTY_TYPES.includes(baseTypeRaw) ? baseTypeRaw : "Apartment";
   if (!projectId) {
     return;
   }
@@ -992,7 +992,7 @@ async function upsertProjectUnitTypeAction(formData: FormData) {
   const finishingStatus = formData.get("unitFinishing")?.toString().trim() || undefined;
   const heroImageFile = formData.get("unitHeroImage");
   const description = formData.get("unitDescription")?.toString() || undefined;
-  const label = baseType;
+  const label: string = baseType;
 
   let heroImageUrl: string | undefined = undefined;
   if (isFile(heroImageFile)) {

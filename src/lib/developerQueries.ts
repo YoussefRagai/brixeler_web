@@ -59,7 +59,9 @@ export async function fetchDeveloperListings(developerId: string): Promise<Devel
     const id = assertDeveloperId(developerId);
     const { data, error } = await supabaseServer
       .from("properties")
-      .select("id, property_name, price, approval_status, visibility_status, updated_at, inquiries_count, expires_at, published_at, renewal_status")
+      .select(
+        "id, property_name, price, approval_status, visibility_status, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id",
+      )
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
     if (error || !data) {
@@ -448,11 +450,16 @@ export async function upsertProjectUnitVariant(
   },
 ) {
   const developer = assertDeveloperId(developerId);
+  type UnitTypeOwnerRow = {
+    id: string;
+    project_id: string;
+    developer_projects: { developer_id: string }[] | { developer_id: string } | null;
+  };
   const { data: unitType, error: unitTypeError } = await supabaseServer
     .from("project_unit_types")
     .select("id, project_id, developer_projects!inner(developer_id)")
     .eq("id", unitTypeId)
-    .maybeSingle();
+    .maybeSingle<UnitTypeOwnerRow>();
   if (unitTypeError) throw unitTypeError;
   const ownerId = Array.isArray(unitType?.developer_projects)
     ? unitType?.developer_projects?.[0]?.developer_id
@@ -491,11 +498,15 @@ export async function deleteProjectUnitVariant(developerId: string, variantId: s
     .maybeSingle();
   if (variantError) return { error: variantError };
   if (!variant) return { error: null };
+  type UnitTypeOwnerRow = {
+    id: string;
+    developer_projects: { developer_id: string }[] | { developer_id: string } | null;
+  };
   const { data: unitType } = await supabaseServer
     .from("project_unit_types")
     .select("id, developer_projects!inner(developer_id)")
     .eq("id", variant.project_unit_type_id)
-    .maybeSingle();
+    .maybeSingle<UnitTypeOwnerRow>();
   const ownerId = Array.isArray(unitType?.developer_projects)
     ? unitType?.developer_projects?.[0]?.developer_id
     : unitType?.developer_projects?.developer_id;
