@@ -2,30 +2,60 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseConfigured = Boolean(supabaseUrl && serviceRoleKey);
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.warn("Supabase environment variables are not set for storage uploads.");
 }
 
-let cachedStorage: SupabaseClient | null = null;
+let cachedStorage: SupabaseClient<any, any, any, any, any> | null = null;
+const disabledError = new Error("Supabase is not configured.");
+const disabledBuilder: any = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      if (prop === "then") {
+        return (resolve: (value: unknown) => void) =>
+          resolve({ data: null, error: disabledError });
+      }
+      if (prop === "catch") {
+        return () => disabledBuilder;
+      }
+      return () => disabledBuilder;
+    },
+  },
+);
+const disabledClient = new Proxy({} as SupabaseClient<any, any, any, any, any>, {
+  get(_target, prop) {
+    if (prop === "storage") {
+      return { from: () => disabledBuilder };
+    }
+    if (prop === "from" || prop === "rpc") {
+      return () => disabledBuilder;
+    }
+    return () => disabledBuilder;
+  },
+});
 
 function createStorageClient() {
   if (cachedStorage) return cachedStorage;
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("supabaseUrl is required.");
+  if (!supabaseConfigured) {
+    return disabledClient;
   }
-  cachedStorage = createClient<any>(supabaseUrl, serviceRoleKey, {
+  cachedStorage = createClient<any>(supabaseUrl!, serviceRoleKey!, {
     auth: { persistSession: false },
   });
   return cachedStorage;
 }
 
-export const storageServer = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    const client = createStorageClient();
-    return client[prop as keyof typeof client];
-  },
-});
+export const storageServer = supabaseConfigured
+  ? new Proxy({} as SupabaseClient<any, any, any, any, any>, {
+      get(_target, prop) {
+        const client = createStorageClient();
+        return client[prop as keyof typeof client];
+      },
+    })
+  : disabledClient;
 
 export const STORAGE_BUCKETS = {
   developerLogos: "developer-logos",
