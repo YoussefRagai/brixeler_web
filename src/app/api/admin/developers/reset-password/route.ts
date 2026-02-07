@@ -27,8 +27,14 @@ export async function POST(request: Request) {
   const account = await fetchAdminAccountByUser(session.authUserId);
   const allowedDeveloperIds = account?.developer_ids ?? null;
 
-  const { data: userData, error: userError } = await supabaseServer.auth.admin.getUserByEmail(body.email);
-  if (userError || !userData?.user?.id) {
+  const { data: userList, error: userError } = await supabaseServer.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (userError || !userList?.users?.length) {
+    return NextResponse.json({ error: "Unable to locate user" }, { status: 404 });
+  }
+  const targetUser = userList.users.find(
+    (user) => user.email && user.email.toLowerCase() === body.email!.toLowerCase(),
+  );
+  if (!targetUser?.id) {
     return NextResponse.json({ error: "Unable to locate user" }, { status: 404 });
   }
 
@@ -36,21 +42,21 @@ export async function POST(request: Request) {
     const { data: devAccount } = await supabaseServer
       .from("developer_accounts")
       .select("developer_id")
-      .eq("auth_user_id", userData.user.id)
+      .eq("auth_user_id", targetUser.id)
       .maybeSingle();
     if (!devAccount?.developer_id || !allowedDeveloperIds.includes(devAccount.developer_id)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
 
-  const { error } = await supabaseServer.auth.admin.updateUserById(userData.user.id, { password: body.newPassword });
+  const { error } = await supabaseServer.auth.admin.updateUserById(targetUser.id, { password: body.newPassword });
   if (error) return NextResponse.json({ error: error.message ?? "Update failed" }, { status: 500 });
 
   await logAdminActivity({
     adminId: session.adminId,
     action: "developer_account.update_password",
     resourceType: "developer_accounts",
-    resourceId: userData.user.id,
+    resourceId: targetUser.id,
   });
 
   return NextResponse.json({ success: true });
