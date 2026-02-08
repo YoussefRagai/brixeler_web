@@ -38,6 +38,23 @@ type RuleRow = {
   created_at: string | null;
 };
 
+type BadgeAssignmentRow = {
+  agent_id: string;
+  badge_id: string;
+  unlocked_at: string | null;
+  expires_at: string | null;
+  badges: { name: string | null; name_ar?: string | null }[] | null;
+  users_profile: { display_name: string | null; phone?: string | null }[] | null;
+};
+
+type TierAssignmentRow = {
+  user_id: string;
+  tier_id: string;
+  awarded_at: string | null;
+  tiers: { name: string | null; level?: number | null }[] | null;
+  users_profile: { display_name: string | null; phone?: string | null }[] | null;
+};
+
 export default async function RewardsPage() {
   const ui = await buildAdminUi(["marketing_admin"]);
   const { data: tiers } = await supabaseServer
@@ -64,6 +81,8 @@ export default async function RewardsPage() {
     .select("user_id, tier_id, awarded_at, tiers(name, level), users_profile(display_name, phone)")
     .order("awarded_at", { ascending: false })
     .limit(20);
+  const badgeRows = (badgeAssignments ?? []) as BadgeAssignmentRow[];
+  const tierRows = (tierAssignments ?? []) as TierAssignmentRow[];
 
   return (
     <AdminLayout
@@ -313,18 +332,18 @@ export default async function RewardsPage() {
             <div className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
               <h3 className="text-lg font-semibold text-[#050505]">Recent badge assignments</h3>
               <div className="mt-4 space-y-3 text-sm text-neutral-600">
-                {(badgeAssignments ?? []).map((row) => (
+                {badgeRows.map((row) => (
                   <div
                     key={`${row.agent_id}-${row.badge_id}-${row.unlocked_at}`}
                     className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-black/5 px-4 py-3"
                   >
                     <div>
                       <p className="font-semibold text-[#050505]">
-                        {row.users_profile?.display_name ?? row.agent_id}
+                        {row.users_profile?.[0]?.display_name ?? row.agent_id}
                       </p>
                       <p className="text-xs text-neutral-500">
-                        {row.badges?.name}
-                        {row.badges?.name_ar ? ` · ${row.badges?.name_ar}` : ""}
+                        {row.badges?.[0]?.name ?? "Badge"}
+                        {row.badges?.[0]?.name_ar ? ` · ${row.badges[0].name_ar}` : ""}
                       </p>
                     </div>
                     <div className="text-xs text-neutral-500">
@@ -339,17 +358,17 @@ export default async function RewardsPage() {
             <div className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
               <h3 className="text-lg font-semibold text-[#050505]">Recent tier promotions</h3>
               <div className="mt-4 space-y-3 text-sm text-neutral-600">
-                {(tierAssignments ?? []).map((row) => (
+                {tierRows.map((row) => (
                   <div
                     key={`${row.user_id}-${row.tier_id}-${row.awarded_at}`}
                     className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-black/5 px-4 py-3"
                   >
                     <div>
                       <p className="font-semibold text-[#050505]">
-                        {row.users_profile?.display_name ?? row.user_id}
+                        {row.users_profile?.[0]?.display_name ?? row.user_id}
                       </p>
                       <p className="text-xs text-neutral-500">
-                        Tier {row.tiers?.level ?? "—"} · {row.tiers?.name ?? "—"}
+                        Tier {row.tiers?.[0]?.level ?? "—"} · {row.tiers?.[0]?.name ?? "—"}
                       </p>
                     </div>
                     <div className="text-xs text-neutral-500">

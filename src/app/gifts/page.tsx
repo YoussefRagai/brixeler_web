@@ -35,6 +35,16 @@ type GiftRuleRow = {
   created_at: string | null;
 };
 
+type GiftClaimRow = {
+  id: string;
+  gift_id: string | null;
+  agent_id: string;
+  status: string | null;
+  claimed_at: string | null;
+  gifts: { title: string | null }[] | null;
+  users_profile: { display_name: string | null }[] | null;
+};
+
 export default async function GiftsPage() {
   const ui = await buildAdminUi(["marketing_admin"]);
   const { data: tiers } = await supabaseServer
@@ -58,7 +68,10 @@ export default async function GiftsPage() {
     .select("id, gift_id, agent_id, status, claimed_at, gifts(title), users_profile(display_name)")
     .order("claimed_at", { ascending: false })
     .limit(30);
-  const tierLookup = new Map((tiers ?? []).map((tier) => [tier.id, tier]));
+  const tierRows = (tiers ?? []) as TierRow[];
+  const giftRows = (gifts ?? []) as GiftRow[];
+  const claimRows = (giftClaims ?? []) as GiftClaimRow[];
+  const tierLookup = new Map(tierRows.map((tier) => [tier.id, tier]));
 
   return (
     <AdminLayout
@@ -105,7 +118,7 @@ export default async function GiftsPage() {
                 <h3 className="text-lg font-semibold text-[#050505]">Build gift rules</h3>
                 <p className="text-sm text-neutral-500">Preview who qualifies before you activate.</p>
               </div>
-              <GiftRuleBuilder gifts={(gifts ?? []).map((gift) => ({ id: gift.id, title: gift.title }))} />
+              <GiftRuleBuilder gifts={giftRows.map((gift) => ({ id: gift.id, title: gift.title }))} />
             </div>
 
             <div className="space-y-6">
@@ -161,7 +174,7 @@ export default async function GiftsPage() {
                       multiple
                       className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
                     >
-                      {(tiers ?? []).map((tier) => (
+                      {tierRows.map((tier) => (
                         <option key={tier.id} value={tier.id}>
                           Tier {tier.level ?? "—"} · {tier.name}
                         </option>
@@ -213,7 +226,7 @@ export default async function GiftsPage() {
               <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Gift catalog</summary>
               <p className="mt-2 text-sm text-neutral-500">Preview which tiers can unlock each reward.</p>
               <div className="mt-6 space-y-3 text-sm text-neutral-600">
-                {(gifts ?? []).map((gift) => (
+                {giftRows.map((gift) => (
                   <div key={gift.id} className="flex items-center gap-3 rounded-2xl border border-black/5 bg-black/5 px-4 py-3">
                     {gift.icon_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -237,7 +250,7 @@ export default async function GiftsPage() {
                         <p className="mt-1 text-[11px] text-neutral-400">
                           Eligible tiers:{" "}
                           {gift.tier_ids
-                            .map((id) => {
+                            .map((id: string) => {
                               const tier = tierLookup.get(id);
                               return tier ? `Tier ${tier.level ?? "—"}` : null;
                             })
@@ -260,16 +273,16 @@ export default async function GiftsPage() {
                 Approve redemptions in the claims queue.
               </p>
               <div className="mt-4 space-y-3 text-sm text-neutral-600">
-                {(giftClaims ?? []).map((claim) => (
+                {claimRows.map((claim) => (
                   <div
                     key={claim.id}
                     className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-black/5 px-4 py-3"
                   >
                     <div>
                       <p className="font-semibold text-[#050505]">
-                        {claim.users_profile?.display_name ?? claim.agent_id}
+                        {claim.users_profile?.[0]?.display_name ?? claim.agent_id}
                       </p>
-                      <p className="text-xs text-neutral-500">{claim.gifts?.title ?? "Gift"}</p>
+                      <p className="text-xs text-neutral-500">{claim.gifts?.[0]?.title ?? "Gift"}</p>
                     </div>
                     <div className="text-xs text-neutral-500">{claim.status}</div>
                   </div>
