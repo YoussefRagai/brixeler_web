@@ -17,7 +17,7 @@ type ClaimRow = {
   notes: string | null;
   claimed_at: string | null;
   agent_id: string;
-  gifts: { title: string; title_ar?: string | null } | null;
+  gifts: { title: string; title_ar?: string | null }[] | null;
   users_profile: { display_name: string | null; phone?: string | null }[] | null;
 };
 
@@ -76,8 +76,8 @@ export default async function GiftClaimsPage({
                     {claim.users_profile?.[0]?.display_name ?? claim.agent_id}
                   </p>
                   <p className="text-xs text-neutral-500">
-                    {claim.gifts?.title ?? "Gift"}
-                    {claim.gifts?.title_ar ? ` · ${claim.gifts.title_ar}` : ""}
+                    {claim.gifts?.[0]?.title ?? "Gift"}
+                    {claim.gifts?.[0]?.title_ar ? ` · ${claim.gifts[0].title_ar}` : ""}
                   </p>
                   <p className="text-[11px] text-neutral-400">{claim.claimed_at}</p>
                   {claim.notes ? <p className="mt-1 text-xs text-neutral-500">Notes: {claim.notes}</p> : null}
