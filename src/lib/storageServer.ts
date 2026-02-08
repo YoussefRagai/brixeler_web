@@ -64,6 +64,9 @@ export const STORAGE_BUCKETS = {
   projectVoiceNotes: "developer-project-voice-notes",
   projectVideos: "developer-project-videos",
   projectUnitImages: "developer-project-unit-images",
+  badgeIcons: "badge-icons",
+  tierIcons: "tier-icons",
+  giftIcons: "gift-icons",
 } as const;
 
 const sanitizeFilename = (name: string) =>

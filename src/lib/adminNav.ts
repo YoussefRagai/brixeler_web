@@ -9,6 +9,8 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/properties/renewals", label: "Renewals", icon: "renewals", roles: ["super_admin", "listing_admin"] },
   { href: "/developers", label: "Developers", icon: "home", roles: ["super_admin", "developers_admin"] },
   { href: "/gifts", label: "Gifts", icon: "gifts", roles: ["super_admin", "marketing_admin"] },
+  { href: "/gifts/claims", label: "Gift Claims", icon: "gifts", roles: ["super_admin", "marketing_admin"] },
+  { href: "/rewards", label: "Tiers & Badges", icon: "rewards", roles: ["super_admin", "marketing_admin"] },
   { href: "/analytics", label: "Analytics", icon: "analytics", roles: ["super_admin"] },
   { href: "/notifications", label: "Notifications", icon: "notifications", roles: ["super_admin", "marketing_admin"] },
   { href: "/exports", label: "Exports", icon: "exports", roles: ["super_admin"] },

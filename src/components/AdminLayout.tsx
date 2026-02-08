@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { clsx } from "clsx";
 import {
   Activity,
+  Award,
   Bell,
   BellRing,
   Download,
@@ -30,6 +31,7 @@ const defaultNavItems: AdminNavItem[] = [
   { href: "/properties/renewals", label: "Renewals", icon: "renewals" },
   { href: "/developers", label: "Developers", icon: "home" },
   { href: "/gifts", label: "Gifts", icon: "gifts" },
+  { href: "/rewards", label: "Tiers & Badges", icon: "rewards" },
   { href: "/analytics", label: "Analytics", icon: "analytics" },
   { href: "/notifications", label: "Notifications", icon: "notifications" },
   { href: "/exports", label: "Exports", icon: "exports" },
@@ -47,6 +49,7 @@ const iconMap = {
   home: Home,
   renewals: History,
   gifts: Gift,
+  rewards: Award,
   analytics: Bell,
   notifications: BellRing,
   exports: Download,

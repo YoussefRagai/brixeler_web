@@ -15,6 +15,7 @@ export type AdminNavIcon =
   | "home"
   | "renewals"
   | "gifts"
+  | "rewards"
   | "analytics"
   | "notifications"
   | "exports"
