@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   }
 
   const response = NextResponse.redirect(new URL("/", baseUrl));
-  setAdminSession(response.cookies as any, {
+  setAdminSession(response.cookies, {
     adminId: account.id,
     authUserId: account.auth_user_id,
     roles: account.roles ?? [],

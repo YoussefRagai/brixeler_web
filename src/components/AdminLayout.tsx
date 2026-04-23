@@ -2,23 +2,28 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { clsx } from "clsx";
 import {
   Activity,
   Award,
+  BarChart3,
   Bell,
   BellRing,
+  Building2,
+  CircleHelp,
   Download,
   FileCheck2,
   Gift,
   History,
   Home,
   LayoutDashboard,
+  Menu,
   Settings,
   Shield,
   Users2,
   ClipboardList,
+  X,
 } from "lucide-react";
 import type { AdminNavItem } from "@/lib/adminRoles";
 
@@ -50,14 +55,14 @@ const iconMap = {
   renewals: History,
   gifts: Gift,
   rewards: Award,
-  analytics: Bell,
+  analytics: BarChart3,
   notifications: BellRing,
   exports: Download,
   settings: Settings,
   admins: Users2,
   adminActivities: ClipboardList,
-  content: Home,
-  support: Shield,
+  content: Building2,
+  support: CircleHelp,
 };
 
 interface Props {
@@ -72,6 +77,7 @@ interface Props {
 export function AdminLayout({ title, description, actions, children, navItems, meta }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const items = navItems ?? defaultNavItems;
 
   return (
@@ -98,6 +104,7 @@ export function AdminLayout({ title, description, actions, children, navItems, m
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={isActive ? "page" : undefined}
                 className={clsx(
                   "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition",
                   isActive ? "bg-black text-white" : "text-neutral-500 hover:bg-black/5 hover:text-black",
@@ -112,13 +119,21 @@ export function AdminLayout({ title, description, actions, children, navItems, m
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="border-b border-black/5 bg-white px-6 py-5">
-          <div className="mx-auto flex max-w-6xl items-start justify-between gap-4">
+        <header className="border-b border-black/5 bg-white px-4 py-5 sm:px-6">
+          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-[#050505]">{title}</h1>
               {description && <p className="text-sm text-neutral-500">{description}</p>}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((current) => !current)}
+                className="rounded-full border border-black/10 p-2 text-neutral-700 lg:hidden"
+                aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              >
+                {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+              </button>
               {actions}
               <button
                 onClick={async () => {
@@ -134,8 +149,36 @@ export function AdminLayout({ title, description, actions, children, navItems, m
               </button>
             </div>
           </div>
+          {mobileMenuOpen ? (
+            <nav
+              aria-label="Admin mobile navigation"
+              className="mt-4 grid gap-2 rounded-2xl border border-black/10 bg-white p-3 shadow-lg shadow-black/5 lg:hidden"
+            >
+              {items.map((item) => {
+                const Icon = iconMap[item.icon] ?? LayoutDashboard;
+                const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+                return (
+                  <Link
+                    key={`mobile-${item.href}`}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={clsx(
+                      "flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition",
+                      isActive
+                        ? "border-black bg-black text-white"
+                        : "border-black/10 bg-white text-neutral-700 hover:border-black/25 hover:text-black",
+                    )}
+                  >
+                    <Icon size={14} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          ) : null}
         </header>
-        <main className="flex-1 px-6 py-8">
+        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8">
           <div className="glassless mx-auto flex max-w-6xl flex-col gap-8">{children}</div>
         </main>
       </div>

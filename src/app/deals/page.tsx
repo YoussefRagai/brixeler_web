@@ -13,7 +13,13 @@ export default async function DealsPage() {
       title="Deal room"
       description="Realtime snapshot from submission to payout with SLA tracking."
       actions={
-        <button className="rounded-full bg-emerald-400 px-5 py-2 text-sm font-semibold text-emerald-950">
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="Coming soon"
+          className="cursor-not-allowed rounded-full bg-emerald-200 px-5 py-2 text-sm font-semibold text-emerald-900/70"
+        >
           New admin task
         </button>
       }

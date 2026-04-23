@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes } from "react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { requireDeveloperSession } from "@/lib/developerAuth";
-import { createDeveloperListing } from "@/lib/developerQueries";
+import { createDeveloperListing, fetchDeveloperProjects, upsertDeveloperProject } from "@/lib/developerQueries";
 
 const PROPERTY_TYPES = ["apartment", "villa", "townhouse", "penthouse", "duplex"];
 const SALE_TYPES = [
@@ -11,12 +11,82 @@ const SALE_TYPES = [
 ];
 const FINISHING_STATUSES = ["finished", "semi_finished", "core_and_shell", "furnished"];
 
-export default function NewListingPage() {
+export default async function NewListingPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    project?: string | string[];
+    saleType?: string | string[];
+    createProject?: string | string[];
+  }>;
+}) {
+  const session = await requireDeveloperSession();
+  const projects = await fetchDeveloperProjects(session.developerId);
+  return <NewListingPageContent projects={projects} searchParams={searchParams} />;
+}
+
+async function NewListingPageContent({
+  projects,
+  searchParams,
+}: {
+  projects: Awaited<ReturnType<typeof fetchDeveloperProjects>>;
+  searchParams?: Promise<{
+    project?: string | string[];
+    saleType?: string | string[];
+    createProject?: string | string[];
+  }>;
+}) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const preselectedProjectId =
+    typeof resolvedSearchParams.project === "string" ? resolvedSearchParams.project : "";
+  const preselectedSaleType =
+    typeof resolvedSearchParams.saleType === "string" && SALE_TYPES.some((item) => item.value === resolvedSearchParams.saleType)
+      ? resolvedSearchParams.saleType
+      : "developer_sale";
+  const emphasizeCreateProject =
+    typeof resolvedSearchParams.createProject === "string" ? resolvedSearchParams.createProject === "1" : false;
   return (
-    <DeveloperLayout title="Create listing" description="Publish a property for Brixeler agents">
+    <DeveloperLayout
+      title={preselectedSaleType === "resale" ? "Create resale listing" : "Create listing"}
+      description={
+        preselectedSaleType === "resale"
+          ? "Attach resale inventory to an existing project or create a new linked project inline."
+          : "Publish a property for Brixeler agents"
+      }
+    >
       <form action={createListingAction} className="space-y-4 rounded-3xl border border-black/5 bg-white p-6">
         <Field label="Listing title" name="name" required placeholder="Palm Gardens – Tower B" />
         <Field label="Area / location" name="area" placeholder="New Cairo – Golden Square" />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Linked project</span>
+          <select
+            className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+            name="projectId"
+            defaultValue={preselectedProjectId}
+          >
+            <option value="">No linked project</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div
+          className={`rounded-2xl border border-dashed p-4 ${
+            emphasizeCreateProject ? "border-black/20 bg-black/[0.03]" : "border-black/10 bg-neutral-50"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Or create a new linked project</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            Useful when you are adding a resale unit for a project that is not in the dashboard yet.
+          </p>
+          <div className="mt-3 grid gap-4 md:grid-cols-3">
+            <Field label="New project name" name="createProjectName" placeholder="Palm Gardens Residences" />
+            <Field label="New project location" name="createProjectLocation" placeholder="New Cairo" />
+            <Field as="textarea" label="New project description" name="createProjectDescription" placeholder="Optional short brief" />
+          </div>
+        </div>
         <Field label="Price (EGP)" name="price" type="number" min="100000" required />
         <div className="grid gap-4 md:grid-cols-2">
           <SelectField label="Property type" name="propertyType" options={PROPERTY_TYPES} defaultValue={PROPERTY_TYPES[0]} required />
@@ -28,7 +98,7 @@ export default function NewListingPage() {
               acc[option.value] = option.label;
               return acc;
             }, {})}
-            defaultValue="developer_sale"
+            defaultValue={preselectedSaleType}
             required
           />
         </div>
@@ -131,6 +201,10 @@ async function createListingAction(formData: FormData) {
   "use server";
   const session = await requireDeveloperSession();
   const name = formData.get("name")?.toString();
+  const selectedProjectId = formData.get("projectId")?.toString() || null;
+  const createProjectName = formData.get("createProjectName")?.toString().trim() || "";
+  const createProjectLocation = formData.get("createProjectLocation")?.toString().trim() || "";
+  const createProjectDescription = formData.get("createProjectDescription")?.toString().trim() || "";
   const price = Number(formData.get("price") ?? 0);
   const area = formData.get("area")?.toString() ?? undefined;
   const description = formData.get("description")?.toString() ?? undefined;
@@ -165,6 +239,16 @@ async function createListingAction(formData: FormData) {
     return;
   }
 
+  let projectId = selectedProjectId;
+  if (!projectId && createProjectName) {
+    const { data } = await upsertDeveloperProject(session.developerId, {
+      name: createProjectName,
+      location: createProjectLocation || undefined,
+      description: createProjectDescription || undefined,
+    });
+    projectId = data?.id ?? null;
+  }
+
   const monthlyInstallment = monthlyInstallmentRaw > 0 ? monthlyInstallmentRaw : undefined;
   const amenities = amenitiesRaw
     .split(",")
@@ -174,6 +258,7 @@ async function createListingAction(formData: FormData) {
   await createDeveloperListing(session.developerId, {
     name,
     area,
+    projectId,
     price,
     description,
     photoUrls,

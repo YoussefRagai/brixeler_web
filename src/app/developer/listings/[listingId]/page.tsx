@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { requireDeveloperSession } from "@/lib/developerAuth";
-import { deleteListing, fetchDeveloperListing, updateDeveloperListing, requestListingRenewal } from "@/lib/developerQueries";
+import { deleteListing, fetchDeveloperListing, fetchDeveloperProjects, updateDeveloperListing, requestListingRenewal } from "@/lib/developerQueries";
 import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes } from "react";
 
 const PROPERTY_TYPES = ["apartment", "villa", "townhouse", "penthouse", "duplex"];
@@ -17,7 +17,10 @@ interface Props {
 
 export default async function EditListingPage({ params }: Props) {
   const session = await requireDeveloperSession();
-  const listing = await fetchDeveloperListing(params.listingId, session.developerId);
+  const [listing, projects] = await Promise.all([
+    fetchDeveloperListing(params.listingId, session.developerId),
+    fetchDeveloperProjects(session.developerId),
+  ]);
   if (!listing) {
     notFound();
   }
@@ -76,6 +79,17 @@ export default async function EditListingPage({ params }: Props) {
         <input type="hidden" name="listingId" value={params.listingId} />
         <Field label="Listing title" name="name" defaultValue={listing.property_name} readOnly />
         <Field label="Area / location" name="area" defaultValue={listing.specific_location ?? ""} readOnly />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Linked project</span>
+          <select className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3" name="projectId" defaultValue={listing.project_id ?? ""}>
+            <option value="">No linked project</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <Field label="Price (EGP)" name="price" type="number" min="100000" defaultValue={price} required />
         <div className="grid gap-4 md:grid-cols-2">
           <SelectField label="Property type" name="propertyType" options={PROPERTY_TYPES} defaultValue={propertyType} required />
@@ -206,6 +220,7 @@ async function updateListingAction(formData: FormData) {
   "use server";
   const session = await requireDeveloperSession();
   const listingId = formData.get("listingId")?.toString();
+  const projectId = formData.get("projectId")?.toString() || null;
   const name = formData.get("name")?.toString() ?? "";
   const area = formData.get("area")?.toString() ?? undefined;
   const price = Number(formData.get("price") ?? 0);
@@ -252,6 +267,7 @@ async function updateListingAction(formData: FormData) {
     visibility,
     name,
     area,
+    projectId,
     photoUrls,
     propertyType,
     saleType,

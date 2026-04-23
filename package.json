@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "security:deps": "npm audit --audit-level=high",
+    "security:shannon": "./scripts/security/run-shannon.sh",
+    "security:all": "npm run security:deps && npm run lint && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",

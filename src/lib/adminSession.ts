@@ -3,10 +3,10 @@ import crypto from "crypto";
 const COOKIE_NAME = "brixeler_admin_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
-const sessionSecret = process.env.ADMIN_SESSION_SECRET ?? process.env.DEVELOPER_SESSION_SECRET ?? "";
+const sessionSecret = process.env.ADMIN_SESSION_SECRET ?? "";
 
 if (!sessionSecret) {
-  console.warn("ADMIN_SESSION_SECRET is not set. Admin sessions will be insecure.");
+  console.warn("ADMIN_SESSION_SECRET is not set. Admin sessions cannot be signed.");
 }
 
 export type AdminSession = {
@@ -17,8 +17,11 @@ export type AdminSession = {
 };
 
 function signPayload(payload: string) {
+  if (!sessionSecret) {
+    throw new Error("ADMIN_SESSION_SECRET is required to sign admin sessions.");
+  }
   return crypto
-    .createHmac("sha256", sessionSecret || "admin-secret-fallback")
+    .createHmac("sha256", sessionSecret)
     .update(payload)
     .digest("base64url");
 }
@@ -30,6 +33,7 @@ function encodeSession(session: AdminSession) {
 }
 
 function decodeSession(value: string | undefined | null): AdminSession | null {
+  if (!sessionSecret) return null;
   if (!value) return null;
   const [payload, signature] = value.split(".");
   if (!payload || !signature) return null;
@@ -56,6 +60,8 @@ type CookieReader = {
 type CookieWriter = CookieReader & {
   set(name: string, value: string, options: Record<string, unknown>): void;
   delete(name: string): void;
+  setCookie?(name: string, value: string, options: Record<string, unknown>): void;
+  deleteCookie?(name: string): void;
 };
 
 export function getAdminSession(store: CookieReader) {
@@ -91,8 +97,8 @@ export function setAdminSession(store: CookieWriter, session: AdminSession) {
     });
     return;
   }
-  if (typeof (store as any).setCookie === "function") {
-    (store as any).setCookie(COOKIE_NAME, value, {
+  if (typeof store.setCookie === "function") {
+    store.setCookie(COOKIE_NAME, value, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -109,8 +115,8 @@ export function clearAdminSession(store: CookieWriter) {
     store.delete(COOKIE_NAME);
     return;
   }
-  if (typeof (store as any).deleteCookie === "function") {
-    (store as any).deleteCookie(COOKIE_NAME);
+  if (typeof store.deleteCookie === "function") {
+    store.deleteCookie(COOKIE_NAME);
     return;
   }
   throw new Error("Cannot clear admin session; cookies store is immutable.");

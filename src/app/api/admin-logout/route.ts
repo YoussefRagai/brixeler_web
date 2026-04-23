@@ -4,6 +4,6 @@ import { getRequestBaseUrl } from "@/lib/requestUrl";
 
 export async function POST(request: NextRequest) {
   const response = NextResponse.redirect(new URL("/admin/login", getRequestBaseUrl(request)));
-  clearAdminSession(response.cookies as any);
+  clearAdminSession(response.cookies);
   return response;
 }

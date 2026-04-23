@@ -1,0 +1,28 @@
+name: Shannon Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Staging URL to scan (never production)"
+        required: true
+        type: string
+
+jobs:
+  shannon:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Shannon
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TARGET_URL: ${{ inputs.target_url }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "Missing ANTHROPIC_API_KEY secret"
+            exit 1
+          fi
+          npm ci
+          npm run security:shannon

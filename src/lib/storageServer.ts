@@ -8,24 +8,35 @@ if (!supabaseUrl || !serviceRoleKey) {
   console.warn("Supabase environment variables are not set for storage uploads.");
 }
 
-let cachedStorage: SupabaseClient<any, any, any, any, any> | null = null;
+type StorageSupabaseClient = SupabaseClient;
+
+type DisabledQuery = {
+  then(resolve: (value: { data: null; error: Error }) => void): void;
+  catch(): DisabledQuery;
+} & Record<string, () => DisabledQuery>;
+
 const disabledError = new Error("Supabase is not configured.");
-const disabledBuilder: any = new Proxy(
-  {},
+
+const disabledBuilder: DisabledQuery = new Proxy(
   {
-    get(_target, prop) {
-      if (prop === "then") {
-        return (resolve: (value: unknown) => void) =>
-          resolve({ data: null, error: disabledError });
-      }
-      if (prop === "catch") {
-        return () => disabledBuilder;
+    then(resolve) {
+      resolve({ data: null, error: disabledError });
+    },
+    catch() {
+      return disabledBuilder;
+    },
+  } as DisabledQuery,
+  {
+    get(target, prop, receiver) {
+      if (prop in target) {
+        return Reflect.get(target, prop, receiver);
       }
       return () => disabledBuilder;
     },
   },
 );
-const disabledClient = new Proxy({} as SupabaseClient<any, any, any, any, any>, {
+
+const disabledClient = new Proxy({} as StorageSupabaseClient, {
   get(_target, prop) {
     if (prop === "storage") {
       return { from: () => disabledBuilder };
@@ -35,24 +46,24 @@ const disabledClient = new Proxy({} as SupabaseClient<any, any, any, any, any>, 
     }
     return () => disabledBuilder;
   },
-});
+}) as StorageSupabaseClient;
 
-function createStorageClient() {
+let cachedStorage: StorageSupabaseClient | null = null;
+
+function createStorageClient(): StorageSupabaseClient {
   if (cachedStorage) return cachedStorage;
-  if (!supabaseConfigured) {
-    return disabledClient;
-  }
-  cachedStorage = createClient<any>(supabaseUrl!, serviceRoleKey!, {
+  if (!supabaseConfigured) return disabledClient;
+  cachedStorage = createClient(supabaseUrl!, serviceRoleKey!, {
     auth: { persistSession: false },
   });
   return cachedStorage;
 }
 
 export const storageServer = supabaseConfigured
-  ? new Proxy({} as SupabaseClient<any, any, any, any, any>, {
+  ? new Proxy({} as StorageSupabaseClient, {
       get(_target, prop) {
         const client = createStorageClient();
-        return client[prop as keyof typeof client];
+        return Reflect.get(client, prop, client);
       },
     })
   : disabledClient;
@@ -97,5 +108,5 @@ export async function uploadFileToBucket(params: {
 }
 
 export function isFile(value: FormDataEntryValue | null): value is File {
-  return !!value && typeof value !== "string";
+  return !!value && typeof value !== "string" && value.size > 0;
 }

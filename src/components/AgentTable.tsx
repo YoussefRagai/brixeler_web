@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
 
 export type AgentRow = {
@@ -88,6 +88,7 @@ export function AgentTable({ agents }: Props) {
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [profileData, setProfileData] = useState<AgentProfileResponse | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const previousAgentIdRef = useRef<string | null>(null);
 
   const activeAgent = useMemo(
     () => agents.find((agent) => agent.id === activeAgentId) ?? null,
@@ -97,7 +98,12 @@ export function AgentTable({ agents }: Props) {
   useEffect(() => {
     if (!activeAgentId) return;
     let mounted = true;
-    setProfileLoading(true);
+    if (previousAgentIdRef.current !== activeAgentId) {
+      previousAgentIdRef.current = activeAgentId;
+      queueMicrotask(() => {
+        if (mounted) setProfileLoading(true);
+      });
+    }
     fetch("/api/admin/agents/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

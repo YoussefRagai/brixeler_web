@@ -34,6 +34,20 @@ type AdminRow = {
   created_at: string | null;
 };
 
+type AuthMetadata = {
+  full_name?: string | null;
+};
+
+type AdminActivityLogRow = {
+  id: string;
+  admin_id: string;
+  action_type: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+};
+
 function extractDeveloperIds(permissions: Record<string, unknown> | null) {
   const ids = permissions?.developer_ids;
   if (Array.isArray(ids)) {
@@ -49,9 +63,10 @@ async function enrichAdminAccounts(rows: AdminRow[]): Promise<AdminAccount[]> {
   for (const id of adminIds) {
     try {
       const { data } = await supabaseServer.auth.admin.getUserById(id);
+      const metadata = (data?.user?.user_metadata ?? {}) as AuthMetadata;
       authMap.set(id, {
         email: data?.user?.email ?? null,
-        display_name: (data?.user?.user_metadata as any)?.full_name ?? null,
+        display_name: metadata.full_name ?? null,
       });
     } catch {
       authMap.set(id, { email: null, display_name: null });
@@ -64,8 +79,10 @@ async function enrichAdminAccounts(rows: AdminRow[]): Promise<AdminAccount[]> {
     return {
       id: row.id,
       auth_user_id: row.id,
-      email: auth?.email ?? (row.permissions?.email as string | null) ?? null,
-      display_name: auth?.display_name ?? (row.permissions?.display_name as string | null) ?? null,
+      email: auth?.email ?? (typeof row.permissions?.email === "string" ? row.permissions.email : null),
+      display_name:
+        auth?.display_name ??
+        (typeof row.permissions?.display_name === "string" ? row.permissions.display_name : null),
       roles,
       status: row.is_active === false ? "suspended" : "active",
       assigned_by: row.assigned_by ?? null,
@@ -139,7 +156,7 @@ export async function fetchAdminActivity(limit = 100) {
     console.error("Failed to load admin activity", error);
     return [] as AdminActivityEntry[];
   }
-  return (data ?? []).map((row: any) => ({
+  return ((data ?? []) as AdminActivityLogRow[]).map((row) => ({
     id: row.id,
     admin_id: row.admin_id,
     admin_name: null,

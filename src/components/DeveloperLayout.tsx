@@ -49,29 +49,34 @@ export function DeveloperLayout({ title, description, actions, children }: Props
           <p className="text-xs text-neutral-400">Empower your listings</p>
         </div>
         <nav className="space-y-2">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={clsx(
-                "block rounded-2xl px-4 py-3 text-sm transition",
-                pathname === item.href
-                  ? "bg-black text-white"
-                  : "text-neutral-500 hover:bg-black/5 hover:text-black",
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={isActive ? "page" : undefined}
+                className={clsx(
+                  "block rounded-2xl px-4 py-3 text-sm transition",
+                  isActive
+                    ? "bg-black text-white"
+                    : "text-neutral-500 hover:bg-black/5 hover:text-black",
+                )}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
           <div className="pt-3">
             <p className="text-xs uppercase tracking-[0.3em] text-neutral-400">Projects</p>
             <div className="mt-2 space-y-1">
               {projects.map((project) => {
-                const isActive = pathname === `/developer/projects?project=${project.id}`;
+                const isActive = pathname === "/developer/projects";
                 return (
                   <Link
                     key={project.id}
                     href={`/developer/projects?project=${project.id}`}
+                    aria-current={isActive ? "page" : undefined}
                     className={clsx(
                       "block rounded-2xl px-4 py-2 text-xs transition",
                       isActive
@@ -112,6 +117,44 @@ export function DeveloperLayout({ title, description, actions, children }: Props
               </form>
             </div>
           </div>
+          <nav aria-label="Developer mobile navigation" className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={`mobile-${item.href}`}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={clsx(
+                    "shrink-0 rounded-full border px-4 py-2 text-xs font-medium transition",
+                    isActive
+                      ? "border-black bg-black text-white"
+                      : "border-black/10 bg-white text-neutral-600 hover:border-black/25 hover:text-black",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+            {projects.map((project) => {
+              const isActive = pathname === "/developer/projects";
+              return (
+                <Link
+                  key={`mobile-project-${project.id}`}
+                  href={`/developer/projects?project=${project.id}`}
+                  aria-current={isActive ? "page" : undefined}
+                  className={clsx(
+                    "shrink-0 rounded-full border px-4 py-2 text-xs transition",
+                    isActive
+                      ? "border-black bg-black text-white"
+                      : "border-black/10 bg-white text-neutral-600 hover:border-black/25 hover:text-black",
+                  )}
+                >
+                  {project.name}
+                </Link>
+              );
+            })}
+          </nav>
         </header>
         <main className="flex-1 px-6 py-8">
           <div className="mx-auto flex max-w-5xl flex-col gap-8">{children}</div>

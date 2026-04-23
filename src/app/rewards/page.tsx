@@ -10,6 +10,9 @@ type TierRow = {
   level: number | null;
   icon_url: string | null;
   description: string | null;
+  benefit_type: string | null;
+  benefit_value: number | null;
+  benefit_description: string | null;
   is_active: boolean | null;
 };
 
@@ -55,11 +58,17 @@ type TierAssignmentRow = {
   users_profile: { display_name: string | null; phone?: string | null }[] | null;
 };
 
+const formatIdentifier = (value?: string | null) => {
+  if (!value) return "—";
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+};
+
 export default async function RewardsPage() {
   const ui = await buildAdminUi(["marketing_admin"]);
   const { data: tiers } = await supabaseServer
     .from("tiers")
-    .select("id, name, level, icon_url, description, is_active")
+    .select("id, name, level, icon_url, description, benefit_type, benefit_value, benefit_description, is_active")
     .order("level", { ascending: true });
   const { data: badges } = await supabaseServer
     .from("badges")
@@ -95,7 +104,7 @@ export default async function RewardsPage() {
         <AdminAccessDenied />
       ) : (
         <>
-          <section className="rounded-3xl border border-black/5 bg-gradient-to-br from-white via-white to-black/5 px-8 py-7 shadow-xl shadow-black/5">
+          <section className="rounded-3xl border border-black/5 bg-gradient-to-br from-white via-white to-black/5 px-5 py-6 shadow-xl shadow-black/5 sm:px-8 sm:py-7">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.4em] text-neutral-400">Rewards studio</p>
@@ -123,7 +132,7 @@ export default async function RewardsPage() {
             </div>
           </section>
 
-          <section className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+          <section className="grid gap-6 xl:grid-cols-[1.15fr_1fr]">
             <div className="space-y-4">
               <div className="rounded-3xl border border-black/5 bg-white px-6 py-4 shadow-xl shadow-black/5">
                 <h3 className="text-lg font-semibold text-[#050505]">Build rules</h3>
@@ -133,7 +142,7 @@ export default async function RewardsPage() {
             </div>
 
             <div className="space-y-6">
-              <details open className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+              <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
                 <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Create tier</summary>
                 <p className="mt-2 text-sm text-neutral-500">Higher levels override lower ones. Promotion only.</p>
                 <form
@@ -169,6 +178,39 @@ export default async function RewardsPage() {
                     />
                   </div>
                   <div>
+                    <label className="text-xs text-neutral-500">Benefit type</label>
+                    <select
+                      name="benefitType"
+                      defaultValue="none"
+                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
+                    >
+                      <option value="none">None</option>
+                      <option value="commission_boost">Commission boost</option>
+                      <option value="priority_support">Priority support</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-500">Benefit value</label>
+                    <input
+                      name="benefitValue"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.25"
+                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-500">Benefit description</label>
+                    <textarea
+                      name="benefitDescription"
+                      rows={2}
+                      placeholder="Adds +0.25% on top of the project commission."
+                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
+                    />
+                  </div>
+                  <div>
                     <label className="text-xs text-neutral-500">Icon</label>
                     <input name="icon" type="file" accept="image/*" required className="mt-2 w-full text-sm" />
                   </div>
@@ -178,7 +220,7 @@ export default async function RewardsPage() {
                 </form>
               </details>
 
-              <details className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+              <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
                 <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Create badge</summary>
                 <p className="mt-2 text-sm text-neutral-500">Badges can be permanent or expiring.</p>
                 <form
@@ -245,8 +287,8 @@ export default async function RewardsPage() {
             </div>
           </section>
 
-          <section className="grid gap-6 lg:grid-cols-2">
-            <details open className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+          <section className="grid gap-6 xl:grid-cols-2">
+            <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
               <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Catalog</summary>
               <div className="mt-6 space-y-6 text-sm text-neutral-600">
                 <div>
@@ -265,6 +307,13 @@ export default async function RewardsPage() {
                             Level {tier.level ?? "—"} · {tier.name}
                           </p>
                           <p className="text-xs text-neutral-500">{tier.description ?? "No description"}</p>
+                          {tier.benefit_type && tier.benefit_type !== "none" ? (
+                            <p className="mt-1 text-xs text-neutral-500">
+                              {tier.benefit_type === "commission_boost"
+                                ? `Commission boost: +${tier.benefit_value ?? 0}%`
+                                : tier.benefit_description ?? tier.benefit_type}
+                            </p>
+                          ) : null}
                         </div>
                         <span className="rounded-full border border-black/10 px-3 py-1 text-xs">
                           {tier.is_active ? "Active" : "Inactive"}
@@ -306,7 +355,7 @@ export default async function RewardsPage() {
               </div>
             </details>
 
-            <details className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+            <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
               <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Active rules</summary>
               <div className="mt-4 space-y-3 text-sm text-neutral-600">
                 {(rules ?? []).map((rule) => (
@@ -328,8 +377,8 @@ export default async function RewardsPage() {
             </details>
           </section>
 
-          <section className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+          <section className="grid gap-6 xl:grid-cols-2">
+            <div className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
               <h3 className="text-lg font-semibold text-[#050505]">Recent badge assignments</h3>
               <div className="mt-4 space-y-3 text-sm text-neutral-600">
                 {badgeRows.map((row) => (
@@ -339,7 +388,7 @@ export default async function RewardsPage() {
                   >
                     <div>
                       <p className="font-semibold text-[#050505]">
-                        {row.users_profile?.[0]?.display_name ?? row.agent_id}
+                        {row.users_profile?.[0]?.display_name ?? formatIdentifier(row.agent_id)}
                       </p>
                       <p className="text-xs text-neutral-500">
                         {row.badges?.[0]?.name ?? "Badge"}
@@ -355,7 +404,7 @@ export default async function RewardsPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+            <div className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
               <h3 className="text-lg font-semibold text-[#050505]">Recent tier promotions</h3>
               <div className="mt-4 space-y-3 text-sm text-neutral-600">
                 {tierRows.map((row) => (
@@ -365,7 +414,7 @@ export default async function RewardsPage() {
                   >
                     <div>
                       <p className="font-semibold text-[#050505]">
-                        {row.users_profile?.[0]?.display_name ?? row.user_id}
+                        {row.users_profile?.[0]?.display_name ?? formatIdentifier(row.user_id)}
                       </p>
                       <p className="text-xs text-neutral-500">
                         Tier {row.tiers?.[0]?.level ?? "—"} · {row.tiers?.[0]?.name ?? "—"}

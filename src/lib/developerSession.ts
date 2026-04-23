@@ -3,10 +3,10 @@ import crypto from "crypto";
 const COOKIE_NAME = "brixeler_dev_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
-const sessionSecret = process.env.DEVELOPER_SESSION_SECRET ?? process.env.NEXTAUTH_SECRET ?? "";
+const sessionSecret = process.env.DEVELOPER_SESSION_SECRET ?? "";
 
 if (!sessionSecret) {
-  console.warn("DEVELOPER_SESSION_SECRET is not set. Developer console sessions will be insecure.");
+  console.warn("DEVELOPER_SESSION_SECRET is not set. Developer sessions cannot be signed.");
 }
 
 export type DeveloperSession = {
@@ -17,7 +17,10 @@ export type DeveloperSession = {
 };
 
 function signPayload(payload: string) {
-  return crypto.createHmac("sha256", sessionSecret || "dev-secret-fallback").update(payload).digest("base64url");
+  if (!sessionSecret) {
+    throw new Error("DEVELOPER_SESSION_SECRET is required to sign developer sessions.");
+  }
+  return crypto.createHmac("sha256", sessionSecret).update(payload).digest("base64url");
 }
 
 function encodeSession(session: DeveloperSession) {
@@ -27,6 +30,7 @@ function encodeSession(session: DeveloperSession) {
 }
 
 function decodeSession(value: string | undefined | null): DeveloperSession | null {
+  if (!sessionSecret) return null;
   if (!value) return null;
   const [payload, signature] = value.split(".");
   if (!payload || !signature) return null;
@@ -53,6 +57,8 @@ type CookieReader = {
 type CookieWriter = CookieReader & {
   set(name: string, value: string, options: Record<string, unknown>): void;
   delete(name: string): void;
+  setCookie?(name: string, value: string, options: Record<string, unknown>): void;
+  deleteCookie?(name: string): void;
 };
 
 export function getDeveloperSession(store: CookieReader) {
@@ -77,8 +83,8 @@ export function setDeveloperSession(store: CookieWriter, session: DeveloperSessi
     });
     return;
   }
-  if (typeof (store as any).setCookie === "function") {
-    (store as any).setCookie(COOKIE_NAME, value, {
+  if (typeof store.setCookie === "function") {
+    store.setCookie(COOKIE_NAME, value, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -95,8 +101,8 @@ export function clearDeveloperSession(store: CookieWriter) {
     store.delete(COOKIE_NAME);
     return;
   }
-  if (typeof (store as any).deleteCookie === "function") {
-    (store as any).deleteCookie(COOKIE_NAME);
+  if (typeof store.deleteCookie === "function") {
+    store.deleteCookie(COOKIE_NAME);
     return;
   }
   throw new Error("Cannot clear developer session; cookies store is immutable.");

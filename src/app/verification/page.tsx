@@ -1,13 +1,12 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
-import { verificationQueue } from "@/data/mock";
 import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { VerificationCarousel } from "@/components/VerificationCarousel";
 
 async function loadVerificationQueue() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return verificationQueue;
+    return [];
   }
 
   const { data, error } = await supabaseServer
@@ -20,7 +19,10 @@ async function loadVerificationQueue() {
     .limit(10);
 
   if (error || !data?.length) {
-    return verificationQueue;
+    if (error) {
+      console.warn("Failed to load verification queue", error);
+    }
+    return [];
   }
 
   return data.map((profile) => ({
@@ -42,7 +44,7 @@ export default async function VerificationPage() {
       title="Verification queue"
       description="Process agent KYC within 48 hours to keep onboarding SLAs healthy."
       actions={
-        <button className="rounded-full border border-white/10 px-5 py-2 text-sm text-white/80 hover:bg-white/10">
+        <button className="rounded-full border border-black/10 px-5 py-2 text-sm text-neutral-700 hover:bg-black/5">
           Open SOP
         </button>
       }
@@ -52,7 +54,7 @@ export default async function VerificationPage() {
       {!ui.hasAccess ? (
         <AdminAccessDenied />
       ) : (
-        <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+        <section className="rounded-3xl border border-black/5 bg-white p-6 shadow-xl shadow-black/5">
           <VerificationCarousel queue={queue} />
         </section>
       )}

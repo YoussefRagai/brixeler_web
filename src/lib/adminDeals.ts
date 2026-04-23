@@ -52,6 +52,11 @@ type AgentProfile = {
   phone: string | null;
 };
 
+type FeedbackPayload = StagePayload & {
+  feedback_reason?: string | null;
+  feedback_type?: string | null;
+};
+
 import { supabaseServer } from "./supabaseServer";
 
 export async function fetchSalesClaims(limit = 50): Promise<SalesClaimEntry[]> {
@@ -89,9 +94,9 @@ export async function fetchSalesClaims(limit = 50): Promise<SalesClaimEntry[]> {
     const payload = row.payload ?? {};
     const profile = profileMap.get(row.agent_id);
     const pickFirst = (keys: string[], attachments?: string[]) => {
-      const direct =
-        keys.map((key) => (payload as any)[key]).find((value) => typeof value === "string" && value.length) ??
-        null;
+      const direct = keys
+        .map((key) => payload[key])
+        .find((value): value is string => typeof value === "string" && value.length > 0) ?? null;
       if (direct) return direct;
       if (!attachments?.length) return null;
       const lower = keys.map((k) => k.toLowerCase());
@@ -114,8 +119,8 @@ export async function fetchSalesClaims(limit = 50): Promise<SalesClaimEntry[]> {
       clientName: payload.clientName ?? null,
       salesClaimDocument: row.sales_claim_document ?? null,
       attachments,
-      feedbackReason: (payload as any).feedback_reason ?? null,
-      feedbackType: (payload as any).feedback_type ?? null,
+      feedbackReason: (payload as FeedbackPayload).feedback_reason ?? null,
+      feedbackType: (payload as FeedbackPayload).feedback_type ?? null,
       eoiDocument: pickFirst(["eoi_document", "eoi_doc", "eoiDocument", "eoi"], attachments),
       cilDocument: pickFirst(["cil_document", "cil_doc", "cilDocument", "cil"], attachments),
       reservationDocument: pickFirst(

@@ -21,6 +21,12 @@ type ClaimRow = {
   users_profile: { display_name: string | null; phone?: string | null }[] | null;
 };
 
+const formatIdentifier = (value?: string | null) => {
+  if (!value) return "—";
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+};
+
 export default async function GiftClaimsPage({
   searchParams,
 }: {
@@ -47,7 +53,7 @@ export default async function GiftClaimsPage({
         <AdminAccessDenied />
       ) : (
         <section className="space-y-6">
-          <div className="rounded-3xl border border-black/5 bg-white px-6 py-4 shadow-xl shadow-black/5">
+          <div className="rounded-3xl border border-black/5 bg-white px-5 py-4 shadow-xl shadow-black/5 sm:px-6">
             <div className="flex flex-wrap gap-2">
               {statusTabs.map((tab) => (
                 <a
@@ -55,8 +61,8 @@ export default async function GiftClaimsPage({
                   href={`/gifts/claims?status=${tab.value}`}
                   className={`rounded-full px-4 py-2 text-xs font-semibold ${
                     activeStatus === tab.value
-                      ? "bg-black text-white"
-                      : "border border-black/10 bg-white text-neutral-500"
+                      ? "border border-black bg-black text-white"
+                      : "border border-black/20 bg-white text-neutral-700 hover:border-black/40"
                   }`}
                 >
                   {tab.label}
@@ -69,11 +75,11 @@ export default async function GiftClaimsPage({
             {(claims ?? []).map((claim) => (
               <div
                 key={claim.id}
-                className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-black/5 bg-white px-6 py-4 shadow-lg shadow-black/5"
+                className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-black/5 bg-white px-5 py-4 shadow-lg shadow-black/5 sm:px-6"
               >
                 <div>
                   <p className="text-sm font-semibold text-[#050505]">
-                    {claim.users_profile?.[0]?.display_name ?? claim.agent_id}
+                    {claim.users_profile?.[0]?.display_name ?? formatIdentifier(claim.agent_id)}
                   </p>
                   <p className="text-xs text-neutral-500">
                     {claim.gifts?.[0]?.title ?? "Gift"}

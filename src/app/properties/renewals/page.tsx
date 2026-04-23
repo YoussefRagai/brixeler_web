@@ -5,6 +5,19 @@ import { fetchPropertyRenewalRequests, type PropertyRenewalRequest } from "@/lib
 import { PropertyRenewalQueue, type PropertyRenewalEntry } from "@/components/PropertyRenewalQueue";
 import { supabaseServer } from "@/lib/supabaseServer";
 
+type PropertyRow = {
+  id: string;
+  property_name: string;
+  unit_area: number | null;
+  price: number | null;
+  description: string | null;
+  photos: string[] | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  property_type: string | null;
+  amenities: string[] | null;
+};
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -73,7 +86,7 @@ async function loadRenewalEntries(requests: PropertyRenewalRequest[]): Promise<P
         .select("id, property_name, unit_area, price, description, photos, bedrooms, bathrooms, property_type, amenities")
         .in("id", propertyIds)
     : { data: [] };
-  const propertyMap = new Map((properties ?? []).map((property: any) => [property.id, property]));
+  const propertyMap = new Map(((properties ?? []) as PropertyRow[]).map((property) => [property.id, property]));
 
   return requests.map((request) => {
     const property = request.property?.id ? propertyMap.get(request.property.id) : request.property;

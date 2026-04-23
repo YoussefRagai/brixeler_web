@@ -45,6 +45,12 @@ type GiftClaimRow = {
   users_profile: { display_name: string | null }[] | null;
 };
 
+const formatIdentifier = (value?: string | null) => {
+  if (!value) return "—";
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+};
+
 export default async function GiftsPage() {
   const ui = await buildAdminUi(["marketing_admin"]);
   const { data: tiers } = await supabaseServer
@@ -84,7 +90,7 @@ export default async function GiftsPage() {
         <AdminAccessDenied />
       ) : (
         <>
-          <section className="rounded-3xl border border-black/5 bg-gradient-to-br from-white via-white to-black/5 px-8 py-7 shadow-xl shadow-black/5">
+          <section className="rounded-3xl border border-black/5 bg-gradient-to-br from-white via-white to-black/5 px-5 py-6 shadow-xl shadow-black/5 sm:px-8 sm:py-7">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.4em] text-neutral-400">Gift studio</p>
@@ -112,7 +118,7 @@ export default async function GiftsPage() {
             </div>
           </section>
 
-          <section className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+          <section className="grid gap-6 xl:grid-cols-[1.15fr_1fr]">
             <div className="space-y-4">
               <div className="rounded-3xl border border-black/5 bg-white px-6 py-4 shadow-xl shadow-black/5">
                 <h3 className="text-lg font-semibold text-[#050505]">Build gift rules</h3>
@@ -122,7 +128,7 @@ export default async function GiftsPage() {
             </div>
 
             <div className="space-y-6">
-              <details open className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+              <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
                 <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Create gift</summary>
                 <p className="mt-2 text-sm text-neutral-500">Define eligibility, exclusivity, and limits.</p>
                 <form
@@ -198,7 +204,7 @@ export default async function GiftsPage() {
                 </form>
               </details>
 
-              <details className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+              <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
                 <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Active gift rules</summary>
                 <div className="mt-4 space-y-3 text-sm text-neutral-600">
                   {(giftRules ?? []).map((rule) => (
@@ -221,8 +227,8 @@ export default async function GiftsPage() {
             </div>
           </section>
 
-          <section className="grid gap-6 lg:grid-cols-2">
-            <details open className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+          <section className="grid gap-6 xl:grid-cols-2">
+            <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
               <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Gift catalog</summary>
               <p className="mt-2 text-sm text-neutral-500">Preview which tiers can unlock each reward.</p>
               <div className="mt-6 space-y-3 text-sm text-neutral-600">
@@ -267,7 +273,7 @@ export default async function GiftsPage() {
               </div>
             </details>
 
-            <details className="rounded-3xl border border-black/5 bg-white px-6 py-6 shadow-xl shadow-black/5">
+            <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
               <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Gift claims</summary>
               <p className="mt-2 text-sm text-neutral-500">
                 Approve redemptions in the claims queue.
@@ -280,7 +286,7 @@ export default async function GiftsPage() {
                   >
                     <div>
                       <p className="font-semibold text-[#050505]">
-                        {claim.users_profile?.[0]?.display_name ?? claim.agent_id}
+                        {claim.users_profile?.[0]?.display_name ?? formatIdentifier(claim.agent_id)}
                       </p>
                       <p className="text-xs text-neutral-500">{claim.gifts?.[0]?.title ?? "Gift"}</p>
                     </div>

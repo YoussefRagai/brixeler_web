@@ -219,7 +219,7 @@ export default async function DevelopersPage() {
       actions={
         <a
           href="#developer-invite"
-          className="rounded-full border border-white/10 px-5 py-2 text-sm text-white/80 hover:bg-white/10"
+          className="rounded-full border border-black/10 bg-white px-5 py-2 text-sm text-neutral-700 hover:bg-black/5"
         >
           Invite developer
         </a>
@@ -233,20 +233,20 @@ export default async function DevelopersPage() {
         <div className="space-y-6">
           <AdminDevelopersTable developers={tableRows} projects={projects} properties={properties} />
 
-          <section id="developer-invite" className="rounded-3xl border border-white/5 bg-white/5 p-6">
+          <section id="developer-invite" className="rounded-3xl border border-black/5 bg-white p-6 shadow-xl shadow-black/5">
             <header className="mb-4">
-              <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Create developer login</p>
-              <p className="text-slate-300">
+              <p className="text-sm uppercase tracking-[0.3em] text-neutral-500">Create developer login</p>
+              <p className="text-neutral-600">
                 Provision partners with access to the developer portal. Temporary passwords should be rotated after first login.
               </p>
             </header>
             <form
               action={createDeveloperLogin}
-              className="grid gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white md:grid-cols-2"
+              className="grid gap-4 rounded-2xl border border-black/10 bg-[#f8f8f8] p-4 text-sm text-neutral-700 md:grid-cols-2"
             >
               <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Existing developer</span>
-                <select name="existingDeveloperId" className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-white">
+                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Existing developer</span>
+                <select name="existingDeveloperId" className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505]">
                   <option value="">Create new</option>
                   {developers.map((developer) => (
                     <option key={developer.id} value={developer.id}>
@@ -256,55 +256,55 @@ export default async function DevelopersPage() {
                 </select>
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Developer name</span>
+                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Developer name</span>
                 <input
                   name="developerName"
                   placeholder="Atlas Developments"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-white"
+                  className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505]"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Contact email</span>
+                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Contact email</span>
                 <input
                   type="email"
                   name="contactEmail"
                   placeholder="partners@developer.com"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-white"
+                  className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505]"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Contact phone</span>
+                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Contact phone</span>
                 <input
                   name="contactPhone"
                   placeholder="+20 100 000 0000"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-white"
+                  className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505]"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Portal email</span>
+                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Portal email</span>
                 <input
                   type="email"
                   name="loginEmail"
                   required
                   placeholder="login@developer.com"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-white"
+                  className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505]"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Temporary password</span>
+                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Temporary password</span>
                 <input
                   name="tempPassword"
                   required
                   minLength={8}
                   placeholder="Temporary password"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-white"
+                  className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505]"
                 />
               </label>
               <div className="space-y-2 md:col-span-2">
-                <button type="submit" className="w-full rounded-full bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-slate-100">
+                <button type="submit" className="w-full rounded-full bg-black px-5 py-3 text-sm font-semibold text-white hover:bg-black/90">
                   Provision access
                 </button>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-neutral-500">
                   Selecting an existing developer updates their contact info and creates a portal login. Leave blank to onboard a new partner.
                 </p>
               </div>

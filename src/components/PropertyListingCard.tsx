@@ -64,22 +64,11 @@ export function PropertyListingCard({
     onCardClick?.(propertyId);
   }, [loading, error, onCardClick, propertyId]);
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      handleCardClick();
-    }
-  };
-
   const stop = (event: React.MouseEvent) => event.stopPropagation();
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={`Open ${projectName} listing details`}
+    <article
       onClick={handleCardClick}
-      onKeyDown={handleKeyDown}
       className="relative rounded-2xl border border-black/5 bg-white p-4 shadow-[0_10px_25px_-20px_rgba(0,0,0,0.45)] outline-none transition hover:-translate-y-0.5 hover:shadow-[0_20px_35px_-24px_rgba(0,0,0,0.55)] focus-visible:ring-2 focus-visible:ring-black/40"
     >
       <div className="relative overflow-hidden rounded-xl bg-slate-100">
@@ -154,6 +143,18 @@ export function PropertyListingCard({
 
       <button
         type="button"
+        aria-label={`Open ${projectName} listing details`}
+        onClick={(event) => {
+          stop(event);
+          handleCardClick();
+        }}
+        className="mt-3 rounded-full border border-black/10 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-black/5"
+      >
+        View details
+      </button>
+
+      <button
+        type="button"
         aria-label="Open payment calculator"
         onClick={(event) => {
           stop(event);
@@ -163,7 +164,7 @@ export function PropertyListingCard({
       >
         <Calculator size={18} />
       </button>
-    </div>
+    </article>
   );
 }
 

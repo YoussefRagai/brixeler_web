@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   }
 
   const response = NextResponse.redirect(new URL("/developer", baseUrl));
-  setDeveloperSession(response.cookies as any, {
+  setDeveloperSession(response.cookies, {
     developerId: account.developerId,
     developerName: account.developerName,
     userId: data.user.id,

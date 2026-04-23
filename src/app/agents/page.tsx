@@ -1,6 +1,5 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
-import { agentRows } from "@/data/mock";
 import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { AgentTable, type AgentRow } from "@/components/AgentTable";
@@ -11,6 +10,32 @@ type ReferralRule = {
   max_referrals: number | null;
   bonus_percentage: number;
   behavior_requirement: "none" | "verified" | "first_deal";
+};
+
+type BadgeRow = {
+  agent_id: string;
+  badges?:
+    | {
+        name: string | null;
+      }
+    | {
+        name: string | null;
+      }[]
+    | null;
+};
+
+type AgentProfileRow = {
+  id: string;
+  display_name: string | null;
+  phone: string | null;
+  total_deals: number | null;
+  total_earnings: number | string | null;
+  account_status: string | null;
+  total_referrals: number | null;
+  verified_referrals: number | null;
+  referrals_with_first_deal: number | null;
+  profile_picture_url: string | null;
+  language_preference: string | null;
 };
 
 function resolveTier(
@@ -36,18 +61,7 @@ function resolveTier(
 
 async function loadAgents(): Promise<AgentRow[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return agentRows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      phone: row.phone,
-      deals: row.deals,
-      earnings: row.earnings,
-      status: row.status,
-      tier: "Tier 1",
-      badges: ["Starter"],
-      profile_picture_url: null,
-      language_preference: "en",
-    }));
+    return [];
   }
 
   const [{ data: profiles }, { data: rules }, { data: badgeRows }] = await Promise.all([
@@ -69,15 +83,16 @@ async function loadAgents(): Promise<AgentRow[]> {
   ]);
 
   const badgeMap = new Map<string, string[]>();
-  (badgeRows ?? []).forEach((row: any) => {
-    const name = row.badges?.name;
+  ((badgeRows ?? []) as BadgeRow[]).forEach((row) => {
+    const badge = Array.isArray(row.badges) ? row.badges[0] : row.badges;
+    const name = badge?.name;
     if (!name) return;
     const list = badgeMap.get(row.agent_id) ?? [];
     if (!list.includes(name)) list.push(name);
     badgeMap.set(row.agent_id, list);
   });
 
-  return (profiles ?? []).map((profile: any) => {
+  return ((profiles ?? []) as AgentProfileRow[]).map((profile) => {
     const tier = resolveTier((rules ?? []) as ReferralRule[], {
       total_referrals: profile.total_referrals ?? 0,
       verified_referrals: profile.verified_referrals ?? 0,

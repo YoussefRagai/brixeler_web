@@ -23,6 +23,10 @@ function isImageUrl(url: string) {
   return /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(url.split("?")[0] || "");
 }
 
+function isDocumentUrl(value: string) {
+  return /^https?:\/\//i.test(value) || value.startsWith("/");
+}
+
 function normalizeDocLabel(url: string) {
   try {
     const parsed = new URL(url);
@@ -46,6 +50,8 @@ export function VerificationCarousel({ queue }: Props) {
   const next = queue[activeIndex + 1];
 
   const docs = useMemo(() => current?.docs ?? [], [current]);
+  const activeDoc = docs[activeDocIndex];
+  const activeDocIsUrl = activeDoc ? isDocumentUrl(activeDoc) : false;
 
   const advanceCard = (dir: SwipeDirection) => {
     setDirection(dir);
@@ -166,16 +172,21 @@ export function VerificationCarousel({ queue }: Props) {
               </div>
               <div className="mt-4 flex h-64 items-center justify-center overflow-hidden rounded-2xl bg-black/50">
                 {docs.length ? (
-                  isImageUrl(docs[activeDocIndex]) ? (
+                  !activeDocIsUrl ? (
+                    <div className="px-4 text-center text-sm text-slate-300">
+                      <p className="font-medium text-white">Attachment label only</p>
+                      <p className="mt-2 break-words">{activeDoc}</p>
+                    </div>
+                  ) : isImageUrl(activeDoc) ? (
                     <img
-                      src={docs[activeDocIndex]}
-                      alt={normalizeDocLabel(docs[activeDocIndex])}
+                      src={activeDoc}
+                      alt={normalizeDocLabel(activeDoc)}
                       className="h-full w-full object-cover"
                     />
                   ) : (
                     <iframe
-                      src={docs[activeDocIndex]}
-                      title={normalizeDocLabel(docs[activeDocIndex])}
+                      src={activeDoc}
+                      title={normalizeDocLabel(activeDoc)}
                       className="h-full w-full"
                     />
                   )
@@ -187,7 +198,7 @@ export function VerificationCarousel({ queue }: Props) {
                 <div className="mt-4 flex flex-wrap gap-2">
                   {docs.map((doc, idx) => (
                     <button
-                      key={doc}
+                      key={`${doc}-${idx}`}
                       type="button"
                       onClick={() => setActiveDocIndex(idx)}
                       className={clsx(
@@ -224,7 +235,7 @@ export function VerificationCarousel({ queue }: Props) {
           type="button"
           onClick={goPrev}
           disabled={activeIndex === 0}
-          className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 rounded-full border border-white/10 bg-black/60 px-4 py-3 text-white shadow-lg shadow-black/40 disabled:opacity-40"
+          className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/60 px-4 py-3 text-white shadow-lg shadow-black/40 disabled:opacity-40 sm:left-0 sm:-translate-x-full"
         >
           ←
         </button>
@@ -232,7 +243,7 @@ export function VerificationCarousel({ queue }: Props) {
           type="button"
           onClick={goNext}
           disabled={activeIndex >= queue.length - 1}
-          className="absolute right-0 top-1/2 translate-x-full -translate-y-1/2 rounded-full border border-white/10 bg-black/60 px-4 py-3 text-white shadow-lg shadow-black/40 disabled:opacity-40"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/60 px-4 py-3 text-white shadow-lg shadow-black/40 disabled:opacity-40 sm:right-0 sm:translate-x-full"
         >
           →
         </button>

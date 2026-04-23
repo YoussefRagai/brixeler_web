@@ -1,22 +1,29 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
-import { propertyRows } from "@/data/mock";
 import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { PropertyApprovalQueue, type PropertyApprovalEntry } from "@/components/PropertyApprovalQueue";
 
+type PropertyQueueRow = {
+  id: string;
+  property_name: string | null;
+  unit_area: number | null;
+  price: number | null;
+  approval_status: string | null;
+  rejection_reason: string | null;
+  listed_by_agent_id: string | null;
+  created_at: string | null;
+  description: string | null;
+  photos: string[] | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  property_type: string | null;
+  amenities: string[] | null;
+};
+
 async function loadPropertyQueue(): Promise<PropertyApprovalEntry[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return propertyRows.map((property) => ({
-      id: property.id,
-      name: property.name,
-      area: property.area,
-      price: property.price,
-      status: property.status ?? "pending",
-      rejectionReason: null,
-      submittedBy: property.agent,
-      submittedAt: property.date,
-    }));
+    return [];
   }
 
   const { data: properties } = await supabaseServer
@@ -35,7 +42,7 @@ async function loadPropertyQueue(): Promise<PropertyApprovalEntry[]> {
     : { data: [] };
   const agentMap = new Map((agents ?? []).map((agent) => [agent.id, agent.display_name ?? "Agent"]));
 
-  return (properties ?? []).map((property: any) => ({
+  return ((properties ?? []) as PropertyQueueRow[]).map((property) => ({
     id: property.id,
     name: property.property_name,
     area: `${property.unit_area ?? "—"} m²`,
@@ -62,7 +69,13 @@ export default async function PropertiesPage() {
       title="Property operations"
       description="Moderate listings, monitor inquiry velocity, and spotlight launches."
       actions={
-        <button className="rounded-full border border-white/10 px-5 py-2 text-sm text-white/80 hover:bg-white/10">
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="Coming soon"
+          className="cursor-not-allowed rounded-full border border-black/10 px-5 py-2 text-sm text-neutral-500"
+        >
           Bulk import
         </button>
       }
@@ -73,13 +86,13 @@ export default async function PropertiesPage() {
         <AdminAccessDenied />
       ) : (
         <>
-          <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+          <section className="rounded-3xl border border-black/5 bg-white p-6 shadow-xl shadow-black/5">
             <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-500">
+            <p className="text-sm uppercase tracking-[0.3em] text-neutral-500">
               Approval queue
             </p>
-            <p className="text-lg text-slate-300">
+            <p className="text-lg text-neutral-700">
               Developer + agent submitted listings
             </p>
           </div>

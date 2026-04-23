@@ -1,5 +1,4 @@
 import { revalidatePath } from "next/cache";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
@@ -11,6 +10,8 @@ import {
   deleteProjectUnitVariant,
   fetchDeveloperProfile,
   fetchDeveloperProjects,
+  type LimitedTimeOffer,
+  type StructuredPaymentPlan,
   upsertDeveloperProject,
   upsertProjectUnitType,
   upsertProjectUnitVariant,
@@ -27,15 +28,58 @@ const FINISHING_STATUSES = [
   { value: "furnished", label: "Furnished" },
 ];
 
-const PROPERTY_TYPES = [
-  "Studio",
-  "Apartment",
-  "Duplex",
-  "Quadhouse",
-  "Townhouse",
-  "Twinhouse",
-  "Standalone",
-];
+const PROPERTY_TYPES_BY_CATEGORY = {
+  Residential: [
+    "Studio",
+    "Apt",
+    "Apartment",
+    "Duplex",
+    "Penthouse",
+    "Loft",
+    "Quadro",
+    "Quadhouse",
+    "Townhouse",
+    "Twinhouse",
+    "Challet",
+    "Chalet",
+    "Villa",
+    "Cabin",
+    "Family house",
+    "Standalone",
+  ],
+  Commercial: [
+    "Office",
+    "Retail",
+    "Clinic",
+    "Pharmacy",
+    "Building",
+    "Bank",
+    "Supermarket",
+    "Gas station",
+    "Showroom",
+    "School",
+    "Club",
+  ],
+} as const;
+
+type PropertyCategory = keyof typeof PROPERTY_TYPES_BY_CATEGORY;
+const PROPERTY_CATEGORIES: PropertyCategory[] = ["Residential", "Commercial"];
+
+const normalizeCategory = (value?: string | null): PropertyCategory =>
+  value === "Commercial" ? "Commercial" : "Residential";
+
+const inferCategoryFromType = (label?: string | null): PropertyCategory => {
+  if (!label) return "Residential";
+  return PROPERTY_TYPES_BY_CATEGORY.Commercial.includes(label as (typeof PROPERTY_TYPES_BY_CATEGORY.Commercial)[number])
+    ? "Commercial"
+    : "Residential";
+};
+
+const normalizeTypeForCategory = (category: PropertyCategory, value?: string | null) => {
+  const allowed = PROPERTY_TYPES_BY_CATEGORY[category];
+  if (value && allowed.some((item) => item === value)) return value;
+  return allowed[0];
+};
 
 const AMENITIES = [
   { slug: "garden", label: "Garden" },
@@ -56,6 +100,67 @@ const AMENITIES = [
   { slug: "sea_view", label: "Sea View" },
 ];
 
+type CommissionRuleRow = {
+  id: string;
+  developer_id: string;
+  property_id: string | null;
+  commission_rate: number | null;
+  platform_share: number | null;
+};
+
+type ProjectMedia = {
+  images?: string[];
+  heroImageUrl?: string;
+  brochureUrl?: string;
+  masterplanUrl?: string;
+  [key: string]: unknown;
+};
+
+const parseOptionalNumber = (value?: string | null) => {
+  if (!value || !value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseProjectTypes = (value?: string | null) =>
+  Array.from(
+    new Set(
+      (value ?? "")
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+
+const PAYMENT_FREQUENCIES = ["Quarterly", "Monthly", "Semi-annual", "Annual"];
+const INVENTORY_TEMPLATE_PATH = "/templates/developer-project-import.xlsx";
+
+const toPlanNumber = (value?: string | null) => {
+  if (!value || !value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const isExcelTemplateFile = (file: File) => file.name.trim().toLowerCase().endsWith(".xlsx");
+
+const asStructuredPlans = (value: unknown): StructuredPaymentPlan[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is StructuredPaymentPlan => Boolean(item) && typeof item === "object")
+    : [];
+
+const asLimitedTimeOffers = (value: unknown): LimitedTimeOffer[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is LimitedTimeOffer => Boolean(item) && typeof item === "object")
+    : [];
+
+const formatPlanSummary = (plan: StructuredPaymentPlan) => {
+  const down = plan.down_payment_percent != null ? `${plan.down_payment_percent}% upfront` : null;
+  const years = plan.installment_years != null ? `rest over ${plan.installment_years} years` : null;
+  const frequency = plan.payment_frequency ? `${plan.payment_frequency.toLowerCase()} payments` : null;
+  const discount = plan.discount_percent ? `${plan.discount_percent}% discount` : null;
+  return [plan.title, down, years, frequency, discount].filter(Boolean).join(" · ");
+};
+
 export default async function DeveloperProjectsPage({
   searchParams,
 }: {
@@ -66,6 +171,8 @@ export default async function DeveloperProjectsPage({
     variant?: string | string[];
     create?: string | string[];
     step?: string | string[];
+    template?: string | string[];
+    error?: string | string[];
   }>;
 }) {
   const session = await requireDeveloperSession();
@@ -90,6 +197,16 @@ export default async function DeveloperProjectsPage({
     typeof resolvedSearchParams?.variants === "string" ? resolvedSearchParams.variants === "1" : false;
   const focusVariantId =
     typeof resolvedSearchParams?.variant === "string" ? resolvedSearchParams.variant : null;
+  const templateProjectId =
+    typeof resolvedSearchParams?.template === "string" ? resolvedSearchParams.template : null;
+  const pageError =
+    typeof resolvedSearchParams?.error === "string" ? decodeURIComponent(resolvedSearchParams.error) : null;
+  const templateProject =
+    showCreateWizard && templateProjectId
+      ? projects.find((project) => project.id === templateProjectId)
+      : undefined;
+  const templatePlanDefaults = asStructuredPlans(templateProject?.payment_plan_templates).slice(0, 3);
+  const templateOfferDefaults = asLimitedTimeOffers(templateProject?.limited_time_offers).slice(0, 1);
   const selectedProjectId =
     activeProjectId && projects.some((project) => project.id === activeProjectId)
       ? activeProjectId
@@ -98,7 +215,7 @@ export default async function DeveloperProjectsPage({
     ? projects.find((project) => project.id === selectedProjectId)
     : undefined;
   const projectCommissionRule = selectedProjectId
-    ? (commissionRules.data ?? []).find((rule: any) => rule.property_id === selectedProjectId)
+    ? ((commissionRules.data ?? []) as CommissionRuleRow[]).find((rule) => rule.property_id === selectedProjectId)
     : undefined;
   const visibleProjects = selectedProjectId
     ? projects.filter((project) => project.id === selectedProjectId)
@@ -126,6 +243,12 @@ export default async function DeveloperProjectsPage({
       title="Projects"
       description="Keep launch briefs, media, and talking points up to date for agents."
     >
+      {pageError ? (
+        <div className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {pageError}
+        </div>
+      ) : null}
+
       {showCreateWizard ? (
         <section className="rounded-3xl border border-black/5 bg-white p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -145,13 +268,149 @@ export default async function DeveloperProjectsPage({
           </div>
           <div className="mt-4">
             <form action={upsertProjectAction} className="space-y-4">
-              <Field label="Project name" name="name" placeholder="Marina Vista Residences" required />
+              {projects.length ? (
+                <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Reuse an existing setup</p>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Copy payment plans, amenities, CH fees, location, description, and types from a previous project.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {projects.slice(0, 6).map((project) => (
+                      <a
+                        key={project.id}
+                        href={`/developer/projects?create=1&template=${project.id}`}
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                          templateProject?.id === project.id
+                            ? "border-black bg-black text-white"
+                            : "border-black/10 text-neutral-600 hover:border-black/30 hover:text-black"
+                        }`}
+                      >
+                        {project.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <Field label="Project name" name="name" placeholder="Marina Vista Residences" required defaultValue={templateProject?.name ? `${templateProject.name} Copy` : ""} />
               <Field
                 as="textarea"
                 label="Description"
                 name="description"
                 placeholder="Key highlights, payment terms, delivery date..."
+                defaultValue={templateProject?.description ?? ""}
               />
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Field label="Acres" name="acres" type="number" min="0" step="0.01" placeholder="120" defaultValue={templateProject?.acres ?? ""} />
+                <Field label="Footprint (%)" name="footprint" type="number" min="0" step="0.01" placeholder="18" defaultValue={templateProject?.footprint ?? ""} />
+                <Field label="Maintenance" name="maintenance" type="number" min="0" step="0.01" placeholder="8" defaultValue={templateProject?.maintenance ?? ""} />
+                <Field label="CH fees" name="chFees" type="number" min="0" step="0.01" placeholder="250000" defaultValue={templateProject?.ch_fees ?? ""} />
+              </div>
+              <Field label="Location" name="location" placeholder="North Coast, Ras El Hekma" defaultValue={templateProject?.location ?? ""} />
+              <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Original payment plans</p>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Reusable plans for this project. Start prices on property types should reflect the original plan.
+                </p>
+                <div className="mt-4 space-y-3">
+                  {[0, 1, 2].map((index) => {
+                    const plan = templatePlanDefaults[index];
+                    return (
+                      <div key={`plan-${index}`} className="rounded-2xl border border-black/10 bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-400">Plan {index + 1}</p>
+                        <div className="mt-3 grid gap-3 md:grid-cols-4">
+                          <Field label="Title" name={`paymentPlanTitle_${index}`} placeholder="Original plan" defaultValue={plan?.title ?? ""} />
+                          <Field label="Down payment %" name={`paymentPlanDown_${index}`} type="number" min="0" max="100" step="0.01" placeholder="10" defaultValue={plan?.down_payment_percent ?? ""} />
+                          <Field label="Installment years" name={`paymentPlanYears_${index}`} type="number" min="1" step="1" placeholder="8" defaultValue={plan?.installment_years ?? ""} />
+                          <Field label="Discount %" name={`paymentPlanDiscount_${index}`} type="number" min="0" max="100" step="0.01" placeholder="0" defaultValue={plan?.discount_percent ?? ""} />
+                        </div>
+                        <label className="mt-3 flex flex-col gap-1 text-sm">
+                          <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Payment frequency</span>
+                          <select
+                            className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                            name={`paymentPlanFrequency_${index}`}
+                            defaultValue={plan?.payment_frequency ?? "Quarterly"}
+                          >
+                            {PAYMENT_FREQUENCIES.map((frequency) => (
+                              <option key={frequency} value={frequency}>
+                                {frequency}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-amber-700">Limited-time offer</p>
+                <p className="mt-1 text-xs text-amber-700/80">
+                  Example: Ramadan offer or developer anniversary pricing that temporarily replaces the original plan.
+                </p>
+                <div className="mt-3 grid gap-3 md:grid-cols-5">
+                  <Field label="Offer title" name="offerTitle_0" placeholder="Ramadan offer" defaultValue={templateOfferDefaults[0]?.offer_title ?? ""} />
+                  <Field label="Down payment %" name="offerDown_0" type="number" min="0" max="100" step="0.01" placeholder="5" defaultValue={templateOfferDefaults[0]?.down_payment_percent ?? ""} />
+                  <Field label="Installment years" name="offerYears_0" type="number" min="1" step="1" placeholder="10" defaultValue={templateOfferDefaults[0]?.installment_years ?? ""} />
+                  <Field label="Discount %" name="offerDiscount_0" type="number" min="0" max="100" step="0.01" placeholder="15" defaultValue={templateOfferDefaults[0]?.discount_percent ?? ""} />
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Payment frequency</span>
+                    <select
+                      className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                      name="offerFrequency_0"
+                      defaultValue={templateOfferDefaults[0]?.payment_frequency ?? "Quarterly"}
+                    >
+                      {PAYMENT_FREQUENCIES.map((frequency) => (
+                        <option key={frequency} value={frequency}>
+                          {frequency}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <Field
+                as="textarea"
+                label="Types"
+                name="projectTypes"
+                rows={2}
+                placeholder="Apartment, Duplex, Townhouse"
+                defaultValue={templateProject?.project_types?.join(", ") ?? ""}
+              />
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-1 text-sm">
+                  <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Launch status</span>
+                  <select
+                    className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                    name="launchStatus"
+                    defaultValue={templateProject?.launch_status ?? "live"}
+                  >
+                    <option value="live">Live</option>
+                    <option value="new_launch">New launch</option>
+                    <option value="upcoming">Upcoming</option>
+                  </select>
+                </label>
+                <Field label="Launch date" name="launchDate" type="date" defaultValue={templateProject?.launch_date?.slice?.(0, 10) ?? ""} />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field
+                  label="EOI value (Apt)"
+                  name="eoiValueApt"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="100000"
+                  defaultValue={templateProject?.eoi_value_apt ?? ""}
+                />
+                <Field
+                  label="EOI value (Villa)"
+                  name="eoiValueVilla"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="250000"
+                  defaultValue={templateProject?.eoi_value_villa ?? ""}
+                />
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field
                   label="Commission rate (%)"
@@ -185,6 +444,15 @@ export default async function DeveloperProjectsPage({
                 />
               </label>
               <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Masterplan</span>
+                <input
+                  className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                  type="file"
+                  name="project_masterplan"
+                  accept="application/pdf,image/*"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Voice notes</span>
                 <input
                   className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
@@ -204,6 +472,22 @@ export default async function DeveloperProjectsPage({
                   multiple
                 />
               </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Inventory template upload</span>
+                <input
+                  className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                  type="file"
+                  name="project_inventory"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                />
+                <span className="text-xs text-neutral-500">
+                  Use the Brixeler customer Excel template only.{" "}
+                  <a href={INVENTORY_TEMPLATE_PATH} download className="font-semibold text-black underline underline-offset-2">
+                    Download template
+                  </a>
+                  , fill it, then upload the `.xlsx` file here.
+                </span>
+              </label>
               <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3">
                 <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add amenities</p>
                 <p className="mt-1 text-xs text-neutral-500">
@@ -217,6 +501,7 @@ export default async function DeveloperProjectsPage({
                         className="peer sr-only"
                         name="projectAmenities"
                         value={amenity.slug}
+                        defaultChecked={templateProject?.amenities?.includes(amenity.slug) ?? false}
                       />
                       <span className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-600 transition peer-checked:border-black peer-checked:bg-black peer-checked:text-white hover:border-black/30">
                         {amenity.label}
@@ -248,7 +533,7 @@ export default async function DeveloperProjectsPage({
             <div className="rounded-3xl border border-black/10 bg-neutral-50 p-4">
               <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Fill on website</p>
               <p className="mt-2 text-sm text-neutral-600">
-                Add property types and variants directly in the dashboard.
+                Add property types directly in the dashboard. Variants stay optional for advanced inventory.
               </p>
               <a
                 href={`/developer/projects?project=${selectedProjectId}`}
@@ -264,7 +549,7 @@ export default async function DeveloperProjectsPage({
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <a
-                  href="/templates/developer-project-import.xlsx"
+                  href={INVENTORY_TEMPLATE_PATH}
                   download
                   className="rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
                 >
@@ -306,7 +591,7 @@ export default async function DeveloperProjectsPage({
                 {!showCreateWizard && setupStep !== "types" ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <a
-                      href="/templates/developer-project-import.xlsx"
+                      href={INVENTORY_TEMPLATE_PATH}
                       download
                       className="rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
                     >
@@ -350,13 +635,130 @@ export default async function DeveloperProjectsPage({
                 </p>
                 <form action={upsertProjectAction} className="mt-4 space-y-4">
                   <input type="hidden" name="projectId" value={selectedProjectId} />
-                  <Field label="Project name" name="name" placeholder="Marina Vista Residences" required />
+                  <Field label="Project name" name="name" placeholder="Marina Vista Residences" required defaultValue={selectedProject?.name ?? ""} />
+                  <Field label="Location" name="location" placeholder="North Coast, Ras El Hekma" defaultValue={selectedProject?.location ?? ""} />
                   <Field
                     as="textarea"
                     label="Description"
                     name="description"
                     placeholder="Key highlights, payment terms, delivery date..."
+                    defaultValue={selectedProject?.description ?? ""}
                   />
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <Field label="Acres" name="acres" type="number" min="0" step="0.01" placeholder="120" defaultValue={selectedProject?.acres ?? ""} />
+                    <Field label="Footprint (%)" name="footprint" type="number" min="0" step="0.01" placeholder="18" defaultValue={selectedProject?.footprint ?? ""} />
+                    <Field label="Maintenance" name="maintenance" type="number" min="0" step="0.01" placeholder="8" defaultValue={selectedProject?.maintenance ?? ""} />
+                    <Field label="CH fees" name="chFees" type="number" min="0" step="0.01" placeholder="250000" defaultValue={selectedProject?.ch_fees ?? ""} />
+                  </div>
+                  <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
+                    <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Original payment plans</p>
+                    <div className="mt-4 space-y-3">
+                      {(() => {
+                        const projectPlans = asStructuredPlans(selectedProject?.payment_plan_templates).slice(0, 3);
+                        return [0, 1, 2].map((index) => {
+                          const plan = projectPlans[index];
+                          return (
+                            <div key={`edit-plan-${index}`} className="rounded-2xl border border-black/10 bg-white p-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-400">Plan {index + 1}</p>
+                              <div className="mt-3 grid gap-3 md:grid-cols-4">
+                                <Field label="Title" name={`paymentPlanTitle_${index}`} placeholder="Original plan" defaultValue={plan?.title ?? ""} />
+                                <Field label="Down payment %" name={`paymentPlanDown_${index}`} type="number" min="0" max="100" step="0.01" defaultValue={plan?.down_payment_percent ?? ""} />
+                                <Field label="Installment years" name={`paymentPlanYears_${index}`} type="number" min="1" step="1" defaultValue={plan?.installment_years ?? ""} />
+                                <Field label="Discount %" name={`paymentPlanDiscount_${index}`} type="number" min="0" max="100" step="0.01" defaultValue={plan?.discount_percent ?? ""} />
+                              </div>
+                              <label className="mt-3 flex flex-col gap-1 text-sm">
+                                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Payment frequency</span>
+                                <select
+                                  className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                                  name={`paymentPlanFrequency_${index}`}
+                                  defaultValue={plan?.payment_frequency ?? "Quarterly"}
+                                >
+                                  {PAYMENT_FREQUENCIES.map((frequency) => (
+                                    <option key={frequency} value={frequency}>
+                                      {frequency}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-xs uppercase tracking-[0.3em] text-amber-700">Limited-time offer</p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-5">
+                      {(() => {
+                        const offer = asLimitedTimeOffers(selectedProject?.limited_time_offers)[0];
+                        return (
+                          <>
+                            <Field label="Offer title" name="offerTitle_0" placeholder="Sodic 30th birthday" defaultValue={offer?.offer_title ?? ""} />
+                            <Field label="Down payment %" name="offerDown_0" type="number" min="0" max="100" step="0.01" defaultValue={offer?.down_payment_percent ?? ""} />
+                            <Field label="Installment years" name="offerYears_0" type="number" min="1" step="1" defaultValue={offer?.installment_years ?? ""} />
+                            <Field label="Discount %" name="offerDiscount_0" type="number" min="0" max="100" step="0.01" defaultValue={offer?.discount_percent ?? ""} />
+                            <label className="flex flex-col gap-1 text-sm">
+                              <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Payment frequency</span>
+                              <select
+                                className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                                name="offerFrequency_0"
+                                defaultValue={offer?.payment_frequency ?? "Quarterly"}
+                              >
+                                {PAYMENT_FREQUENCIES.map((frequency) => (
+                                  <option key={frequency} value={frequency}>
+                                    {frequency}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  <Field
+                    as="textarea"
+                    label="Types"
+                    name="projectTypes"
+                    rows={2}
+                    placeholder="Apartment, Duplex, Townhouse"
+                    defaultValue={selectedProject?.project_types?.join(", ") ?? ""}
+                  />
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Launch status</span>
+                      <select
+                        className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                        name="launchStatus"
+                        defaultValue={selectedProject?.launch_status ?? "live"}
+                      >
+                        <option value="live">Live</option>
+                        <option value="new_launch">New launch</option>
+                        <option value="upcoming">Upcoming</option>
+                      </select>
+                    </label>
+                    <Field label="Launch date" name="launchDate" type="date" defaultValue={selectedProject?.launch_date?.slice?.(0, 10) ?? ""} />
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field
+                      label="EOI value (Apt)"
+                      name="eoiValueApt"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="100000"
+                      defaultValue={selectedProject?.eoi_value_apt ?? ""}
+                    />
+                    <Field
+                      label="EOI value (Villa)"
+                      name="eoiValueVilla"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="250000"
+                      defaultValue={selectedProject?.eoi_value_villa ?? ""}
+                    />
+                  </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <Field
                       label="Commission rate (%)"
@@ -400,6 +802,15 @@ export default async function DeveloperProjectsPage({
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Masterplan</span>
+                    <input
+                      className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                      type="file"
+                      name="project_masterplan"
+                      accept="application/pdf,image/*"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm">
                     <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Voice notes</span>
                     <input
                       className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
@@ -419,6 +830,21 @@ export default async function DeveloperProjectsPage({
                       multiple
                     />
                   </label>
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Inventory template upload</span>
+                    <input
+                      className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+                      type="file"
+                      name="project_inventory"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    />
+                    {selectedProject?.inventory_url ? (
+                      <span className="text-xs text-neutral-500">Current inventory template uploaded</span>
+                    ) : null}
+                    <span className="text-xs text-neutral-500">
+                      Replace inventory only with the latest filled Brixeler Excel template.
+                    </span>
+                  </label>
                   <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3">
                     <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add amenities</p>
                     <p className="mt-1 text-xs text-neutral-500">
@@ -426,7 +852,7 @@ export default async function DeveloperProjectsPage({
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {AMENITIES.map((amenity) => {
-                        const isSelected = (selectedProject as any)?.amenities?.includes(amenity.slug);
+                        const isSelected = selectedProject?.amenities?.includes(amenity.slug) ?? false;
                         return (
                           <label key={amenity.slug} className="cursor-pointer">
                             <input
@@ -467,7 +893,7 @@ export default async function DeveloperProjectsPage({
                 </p>
                 {!resolvedUnitType ? (
                   <p className="mt-1 text-xs text-amber-600">
-                    This property type wasn't loaded yet. You can still add a variant.
+                    This property type wasn&apos;t loaded yet. You can still add a variant.
                   </p>
                 ) : null}
               </div>
@@ -513,20 +939,50 @@ export default async function DeveloperProjectsPage({
                 </form>
               </div>
               {(() => {
-                const heroMedia = project.hero_media as Record<string, any> | null;
+                const heroMedia = (project.hero_media as ProjectMedia | null) ?? null;
                 const imageCount = Array.isArray(heroMedia?.images) ? heroMedia?.images.length : 0;
                 const hasBrochure = Boolean(heroMedia?.brochureUrl);
+                const hasMasterplan = Boolean(heroMedia?.masterplanUrl);
                 return (
-                  (imageCount || hasBrochure || project.voice_notes?.length || project.video_links?.length) ? (
+                  (imageCount || hasBrochure || hasMasterplan || project.inventory_url || project.voice_notes?.length || project.video_links?.length) ? (
                     <div className="mt-3 space-y-2 text-xs text-neutral-500">
                       {imageCount ? <p>Images: {imageCount}</p> : null}
                       {hasBrochure ? <p>Brochure: uploaded</p> : null}
+                      {hasMasterplan ? <p>Masterplan: uploaded</p> : null}
+                      {project.inventory_url ? <p>Inventory: uploaded</p> : null}
                       {project.voice_notes?.length ? <p>Voice notes: {project.voice_notes.length}</p> : null}
                       {project.video_links?.length ? <p>Videos: {project.video_links.length}</p> : null}
                     </div>
                   ) : null
                 );
               })()}
+              <div className="mt-3 grid gap-2 text-xs text-neutral-500 sm:grid-cols-2">
+                {project.location ? <p>Location: {project.location}</p> : null}
+                {project.acres != null ? <p>Acres: {project.acres}</p> : null}
+                {project.footprint != null ? <p>Footprint: {project.footprint}%</p> : null}
+                {project.maintenance != null ? <p>Maintenance: {project.maintenance}</p> : null}
+                {project.ch_fees != null ? <p>CH fees: {project.ch_fees}</p> : null}
+                {project.project_types?.length ? <p>Types: {project.project_types.join(", ")}</p> : null}
+                {project.launch_status ? <p>Launch status: {project.launch_status.replace(/_/g, " ")}</p> : null}
+                {project.launch_date ? <p>Launch date: {project.launch_date}</p> : null}
+                {project.eoi_value_apt != null ? <p>EOI (Apt): EGP {Number(project.eoi_value_apt).toLocaleString()}</p> : null}
+                {project.eoi_value_villa != null ? <p>EOI (Villa): EGP {Number(project.eoi_value_villa).toLocaleString()}</p> : null}
+              </div>
+              {asStructuredPlans(project.payment_plan_templates).length ? (
+                <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3">
+                  <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Payment plans</p>
+                  <div className="mt-2 space-y-1 text-xs text-neutral-600">
+                    {asStructuredPlans(project.payment_plan_templates).slice(0, 3).map((plan, index) => (
+                      <p key={`${project.id}-plan-${index}`}>{formatPlanSummary(plan)}</p>
+                    ))}
+                    {asLimitedTimeOffers(project.limited_time_offers).map((offer, index) => (
+                      <p key={`${project.id}-offer-${index}`} className="font-semibold text-amber-700">
+                        Limited offer: {formatPlanSummary(offer)}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-4 rounded-2xl border border-dashed border-black/10 bg-neutral-50/60 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Property types</p>
@@ -549,6 +1005,27 @@ export default async function DeveloperProjectsPage({
                                 {unit.finishing_status.replace(/_/g, " ")}
                               </p>
                             ) : null}
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500">
+                              <span>
+                                Price: EGP {Number(unit.min_price ?? 0).toLocaleString()}
+                                {unit.max_price != null ? ` - ${Number(unit.max_price).toLocaleString()}` : ""}
+                              </span>
+                              {unit.category ? <span>{unit.category}</span> : null}
+                              {unit.unit_area_min != null ? (
+                                <span>
+                                  BUA: {unit.unit_area_min}
+                                  {unit.unit_area_max && unit.unit_area_max !== unit.unit_area_min ? `-${unit.unit_area_max}` : ""}
+                                  m²
+                                </span>
+                              ) : null}
+                              {unit.land_area_min != null ? (
+                                <span>
+                                  Land: {unit.land_area_min}
+                                  {unit.land_area_max && unit.land_area_max !== unit.land_area_min ? `-${unit.land_area_max}` : ""}
+                                  m²
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
                           <form action={deleteUnitTypeAction}>
                             <input type="hidden" name="unitTypeId" value={unit.id} />
@@ -583,7 +1060,7 @@ export default async function DeveloperProjectsPage({
                         ) : (
                           <div className="mt-2 rounded-xl border border-dashed border-black/10 bg-neutral-50 p-3">
                             <p className="text-xs text-neutral-500">
-                              No variants yet. Add your first one below — you can add more variants later if the area or payment plan changes.
+                              No variants yet. That is fine. Add one only if you need advanced bedroom, payment-plan, or stock variations.
                             </p>
                             <a
                               href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1`}
@@ -596,7 +1073,7 @@ export default async function DeveloperProjectsPage({
                         <details className="mt-3 rounded-xl border border-black/10 bg-neutral-50 p-3">
                           <summary className="text-xs font-semibold text-neutral-600">Edit {unit.label}</summary>
                           <div className="mt-3 space-y-3">
-                            <UnitTypeForm projectId={project.id} unitType={unit} />
+                            <UnitTypeForm projectId={project.id} unitType={unit} paymentPlanSummary={project.payment_plans ?? null} />
                           </div>
                         </details>
                         {showVariantWizard && resolvedUnitTypeId === unit.id ? (
@@ -608,12 +1085,12 @@ export default async function DeveloperProjectsPage({
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-2 text-sm text-neutral-500">No property types yet. Add each bedroom mix below.</p>
+                  <p className="mt-2 text-sm text-neutral-500">No property types yet. Add the commercial ranges below.</p>
                 )}
                 <div id="add-property-types" className="mt-4 rounded-2xl border border-black/5 bg-white p-4">
                   <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add property type</p>
                   <div className="mt-3 space-y-3">
-                    <UnitTypeForm projectId={project.id} />
+                    <UnitTypeForm projectId={project.id} paymentPlanSummary={project.payment_plans ?? null} />
                   </div>
                 </div>
               </div>
@@ -636,19 +1113,32 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & { label: string; as?: 
 type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; as: "textarea" };
 type UnitTypeFormProps = {
   projectId: string;
+  paymentPlanSummary?: string | null;
   unitType?: {
     id: string;
+    category?: string | null;
     label: string;
+    min_price: number;
+    max_price?: number | null;
+    unit_area_min?: number | null;
+    unit_area_max?: number | null;
+    land_area_min?: number | null;
+    land_area_max?: number | null;
     finishing_status?: string | null;
     hero_image_url?: string | null;
     description?: string | null;
     project_unit_variants?: Array<{
       id: string;
+      category?: string | null;
+      label?: string | null;
       bedrooms?: number | null;
       bathrooms?: number | null;
       min_price: number;
+      max_price?: number | null;
       unit_area_min?: number | null;
       unit_area_max?: number | null;
+      land_area_min?: number | null;
+      land_area_max?: number | null;
       down_payment_percent?: number | null;
       installment_years?: number | null;
       stock_count?: number | null;
@@ -679,28 +1169,124 @@ function Field(props: InputProps | TextareaProps) {
   );
 }
 
-function UnitTypeForm({ projectId, unitType }: UnitTypeFormProps) {
-  const baseTypeValue =
-    PROPERTY_TYPES.find((type) => unitType?.label?.startsWith(type)) ?? "Apartment";
+function UnitTypeForm({ projectId, paymentPlanSummary, unitType }: UnitTypeFormProps) {
+  const categoryValue = normalizeCategory(unitType?.category ?? inferCategoryFromType(unitType?.label));
+  const baseTypeValue = normalizeTypeForCategory(categoryValue, unitType?.label);
   return (
     <form action={upsertProjectUnitTypeAction} className="space-y-3 text-sm">
       <input type="hidden" name="projectId" value={projectId} />
       {unitType ? <input type="hidden" name="unitTypeId" value={unitType.id} /> : null}
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Property type</span>
-        <select
-          className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-          name="unitBaseType"
-          defaultValue={baseTypeValue}
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Category</span>
+          <select
+            className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+            name="unitCategory"
+            defaultValue={categoryValue}
+            required
+          >
+            {PROPERTY_CATEGORIES.map((category) => (
+              <option key={`unit-category-${category}`} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Type</span>
+          <select
+            className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+            name="unitBaseType"
+            defaultValue={baseTypeValue}
+            required
+          >
+            {PROPERTY_CATEGORIES.map((category) => (
+              <optgroup key={`unit-type-group-${category}`} label={category}>
+                {PROPERTY_TYPES_BY_CATEGORY[category].map((type) => (
+                  <option key={`${category}-${type}`} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field
+          label="Min price (EGP)"
+          name="unitStartPrice"
+          type="number"
+          min="1"
+          step="1"
           required
-        >
-          {PROPERTY_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
-      </label>
+          defaultValue={unitType?.min_price ?? undefined}
+          placeholder="4500000"
+        />
+        <Field
+          label="Max price (EGP)"
+          name="unitMaxPrice"
+          type="number"
+          min="1"
+          step="1"
+          defaultValue={unitType?.max_price ?? undefined}
+          placeholder="6500000"
+        />
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field
+          label="Finishing status"
+          name="unitFinishing"
+          list={`finishing-statuses-${projectId}`}
+          defaultValue={unitType?.finishing_status ?? undefined}
+          placeholder="finished"
+        />
+      </div>
+      {paymentPlanSummary ? (
+        <p className="text-xs text-neutral-500">
+          Original plan reference: {paymentPlanSummary}
+        </p>
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field
+          label="Min BUA (m²)"
+          name="unitMinBua"
+          type="number"
+          min="0"
+          step="1"
+          defaultValue={unitType?.unit_area_min ?? undefined}
+          placeholder="120"
+        />
+        <Field
+          label="Max BUA (m²)"
+          name="unitMaxBua"
+          type="number"
+          min="0"
+          step="1"
+          defaultValue={unitType?.unit_area_max ?? undefined}
+          placeholder="240"
+        />
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field
+          label="Min land (m²)"
+          name="unitMinLand"
+          type="number"
+          min="0"
+          step="1"
+          defaultValue={unitType?.land_area_min ?? undefined}
+          placeholder="180"
+        />
+        <Field
+          label="Max land (m²)"
+          name="unitMaxLand"
+          type="number"
+          min="0"
+          step="1"
+          defaultValue={unitType?.land_area_max ?? undefined}
+          placeholder="320"
+        />
+      </div>
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Hero image</span>
         <input
@@ -713,13 +1299,6 @@ function UnitTypeForm({ projectId, unitType }: UnitTypeFormProps) {
           <span className="text-xs text-neutral-500">Current: {unitType.hero_image_url}</span>
         ) : null}
       </label>
-      <Field
-        label="Finishing status"
-        name="unitFinishing"
-        list={`finishing-statuses-${projectId}`}
-        defaultValue={unitType?.finishing_status ?? undefined}
-        placeholder="finished"
-      />
       <Field
         as="textarea"
         label="Notes"
@@ -753,11 +1332,16 @@ function VariantForm({
   unitTypeId: string;
   variant?: {
     id: string;
+    category?: string | null;
+    label?: string | null;
     bedrooms?: number | null;
     bathrooms?: number | null;
     min_price: number;
+    max_price?: number | null;
     unit_area_min?: number | null;
     unit_area_max?: number | null;
+    land_area_min?: number | null;
+    land_area_max?: number | null;
     down_payment_percent?: number | null;
     installment_years?: number | null;
     stock_count?: number | null;
@@ -766,12 +1350,50 @@ function VariantForm({
   };
 }) {
   const selectedAmenities = new Set(variant?.amenities ?? []);
+  const categoryValue = normalizeCategory(variant?.category ?? inferCategoryFromType(variant?.label));
+  const variantTypeValue = normalizeTypeForCategory(categoryValue, variant?.label);
   return (
     <>
       <form action={upsertProjectUnitVariantAction} className="space-y-3 text-sm">
         <input type="hidden" name="projectId" value={projectId} />
         <input type="hidden" name="unitTypeId" value={unitTypeId} />
         {variant ? <input type="hidden" name="variantId" value={variant.id} /> : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Category</span>
+            <select
+              className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+              name="variantCategory"
+              defaultValue={categoryValue}
+              required
+            >
+              {PROPERTY_CATEGORIES.map((category) => (
+                <option key={`variant-category-${category}`} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Type</span>
+            <select
+              className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+              name="variantType"
+              defaultValue={variantTypeValue}
+              required
+            >
+              {PROPERTY_CATEGORIES.map((category) => (
+                <optgroup key={`variant-type-group-${category}`} label={category}>
+                  {PROPERTY_TYPES_BY_CATEGORY[category].map((type) => (
+                    <option key={`variant-${category}-${type}`} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="grid gap-3 md:grid-cols-2">
           <Field
             label="Bedrooms"
@@ -792,13 +1414,23 @@ function VariantForm({
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <Field
-            label="Price (EGP)"
+            label="Min price (EGP)"
             name="variantMinPrice"
             type="number"
             min="100000"
             required
             defaultValue={variant ? Number(variant.min_price ?? 0) : undefined}
           />
+          <Field
+            label="Max price (EGP)"
+            name="variantMaxPrice"
+            type="number"
+            min="100000"
+            defaultValue={variant?.max_price ?? undefined}
+            placeholder="Optional"
+          />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
           <Field
             label="Down payment (%)"
             name="variantDownPayment"
@@ -830,7 +1462,7 @@ function VariantForm({
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <Field
-            label="Area min (m²)"
+            label="BUA min (m²)"
             name="variantAreaMin"
             type="number"
             min="0"
@@ -839,13 +1471,33 @@ function VariantForm({
             placeholder="120"
           />
           <Field
-            label="Area max (m²)"
+            label="BUA max (m²)"
             name="variantAreaMax"
             type="number"
             min="0"
             step="1"
             defaultValue={variant?.unit_area_max ?? undefined}
             placeholder="240"
+          />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field
+            label="Land min (m²)"
+            name="variantLandMin"
+            type="number"
+            min="0"
+            step="1"
+            defaultValue={variant?.land_area_min ?? undefined}
+            placeholder="Optional"
+          />
+          <Field
+            label="Land max (m²)"
+            name="variantLandMax"
+            type="number"
+            min="0"
+            step="1"
+            defaultValue={variant?.land_area_max ?? undefined}
+            placeholder="Optional"
           />
         </div>
         <Field
@@ -896,27 +1548,40 @@ function VariantForm({
 }
 
 function formatVariantChip(variant: {
+  category?: string | null;
+  label?: string | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
   unit_area_min?: number | null;
   unit_area_max?: number | null;
+  land_area_min?: number | null;
+  land_area_max?: number | null;
   min_price: number;
+  max_price?: number | null;
   installment_years?: number | null;
   down_payment_percent?: number | null;
 }) {
+  const kind = variant.label ?? null;
   const beds = variant.bedrooms != null ? `${variant.bedrooms}BR` : "?BR";
   const baths = variant.bathrooms != null ? `${variant.bathrooms}BA` : "?BA";
-  const area = variant.unit_area_min
+  const bua = variant.unit_area_min
     ? variant.unit_area_max && variant.unit_area_max !== variant.unit_area_min
       ? `${variant.unit_area_min}-${variant.unit_area_max}m²`
       : `${variant.unit_area_min}m²`
-    : "Area TBD";
+    : "BUA TBD";
+  const land = variant.land_area_min
+    ? variant.land_area_max && variant.land_area_max !== variant.land_area_min
+      ? `Land ${variant.land_area_min}-${variant.land_area_max}m²`
+      : `Land ${variant.land_area_min}m²`
+    : null;
   const price = Number.isFinite(Number(variant.min_price))
-    ? `EGP ${Number(variant.min_price).toLocaleString()}`
+    ? `EGP ${Number(variant.min_price).toLocaleString()}${
+        variant.max_price != null ? `-${Number(variant.max_price).toLocaleString()}` : ""
+      }`
     : "Price TBD";
   const installments = variant.installment_years ? `${variant.installment_years}y` : null;
   const down = variant.down_payment_percent != null ? `${variant.down_payment_percent}%` : null;
-  return [beds, baths, area, price, installments, down].filter(Boolean).join(" · ");
+  return [variant.category, kind, beds, baths, bua, land, price, installments, down].filter(Boolean).join(" · ");
 }
 
 async function upsertProjectAction(formData: FormData) {
@@ -926,28 +1591,84 @@ async function upsertProjectAction(formData: FormData) {
   const name = formData.get("name")?.toString().trim();
   if (!name) return;
   const description = formData.get("description")?.toString() ?? undefined;
+  const location = formData.get("location")?.toString().trim() || undefined;
+  const acres = parseOptionalNumber(formData.get("acres")?.toString());
+  const footprint = parseOptionalNumber(formData.get("footprint")?.toString());
+  const maintenance = parseOptionalNumber(formData.get("maintenance")?.toString());
+  const chFees = parseOptionalNumber(formData.get("chFees")?.toString());
+  const projectTypes = parseProjectTypes(formData.get("projectTypes")?.toString());
+  const launchStatus = formData.get("launchStatus")?.toString().trim() || "live";
+  const launchDate = formData.get("launchDate")?.toString().trim() || null;
+  const eoiValueApt = parseOptionalNumber(formData.get("eoiValueApt")?.toString());
+  const eoiValueVilla = parseOptionalNumber(formData.get("eoiValueVilla")?.toString());
   const commissionRateRaw = formData.get("commissionRate")?.toString() ?? null;
   const platformShareRaw = formData.get("platformShare")?.toString() ?? null;
   const amenities = formData
     .getAll("projectAmenities")
     .map((value) => value.toString())
     .filter(Boolean);
+  const paymentPlanTemplates = [0, 1, 2]
+    .map((index) => {
+      const title = formData.get(`paymentPlanTitle_${index}`)?.toString().trim() || null;
+      const downPayment = toPlanNumber(formData.get(`paymentPlanDown_${index}`)?.toString());
+      const years = toPlanNumber(formData.get(`paymentPlanYears_${index}`)?.toString());
+      const discount = toPlanNumber(formData.get(`paymentPlanDiscount_${index}`)?.toString());
+      const frequency = formData.get(`paymentPlanFrequency_${index}`)?.toString().trim() || null;
+      if (!title && downPayment == null && years == null && discount == null) return null;
+      return {
+        title,
+        down_payment_percent: downPayment,
+        installment_years: years,
+        discount_percent: discount,
+        payment_frequency: frequency,
+      } satisfies StructuredPaymentPlan;
+    })
+    .filter(Boolean) as StructuredPaymentPlan[];
+  const limitedTimeOffers = [0]
+    .map((index) => {
+      const offerTitle = formData.get(`offerTitle_${index}`)?.toString().trim() || null;
+      const downPayment = toPlanNumber(formData.get(`offerDown_${index}`)?.toString());
+      const years = toPlanNumber(formData.get(`offerYears_${index}`)?.toString());
+      const discount = toPlanNumber(formData.get(`offerDiscount_${index}`)?.toString());
+      const frequency = formData.get(`offerFrequency_${index}`)?.toString().trim() || null;
+      if (!offerTitle && downPayment == null && years == null && discount == null) return null;
+      return {
+        offer_title: offerTitle,
+        title: offerTitle,
+        down_payment_percent: downPayment,
+        installment_years: years,
+        discount_percent: discount,
+        payment_frequency: frequency,
+      } satisfies LimitedTimeOffer;
+    })
+    .filter(Boolean) as LimitedTimeOffer[];
+  const paymentPlans =
+    paymentPlanTemplates.map((plan) => formatPlanSummary(plan)).filter(Boolean).join("\n") ||
+    undefined;
   const projectKey = id || `new-${Date.now()}`;
   const projectBasePath = `developers/${session.developerId}/projects/${projectKey}`;
 
   const imageFiles = formData.getAll("project_images").filter(isFile) as File[];
   const brochureFile = formData.get("project_brochure");
+  const masterplanFile = formData.get("project_masterplan");
   const voiceFiles = formData.getAll("voice_notes").filter(isFile) as File[];
   const videoFiles = formData.getAll("project_videos").filter(isFile) as File[];
+  const inventoryFile = formData.get("project_inventory");
+
+  if (isFile(inventoryFile) && !isExcelTemplateFile(inventoryFile)) {
+    const target = id ? `/developer/projects?project=${id}` : "/developer/projects?create=1";
+    redirect(`${target}&error=${encodeURIComponent("Inventory must be uploaded using the Brixeler .xlsx template.")}`);
+  }
 
   const existingProjects = id ? await fetchDeveloperProjects(session.developerId) : [];
   const existingProject = id ? existingProjects.find((project) => project.id === id) : undefined;
   const existingHeroMedia =
     existingProject?.hero_media && typeof existingProject.hero_media === "object"
-      ? { ...(existingProject.hero_media as Record<string, any>) }
+      ? { ...(existingProject.hero_media as ProjectMedia) }
       : {};
-  const heroMedia: Record<string, any> = { ...existingHeroMedia };
+  const heroMedia: ProjectMedia = { ...existingHeroMedia };
   let heroMediaUpdated = false;
+  let inventoryUrl = existingProject?.inventory_url ?? null;
 
   if (imageFiles.length) {
     const imageUrls = await Promise.all(
@@ -971,6 +1692,16 @@ async function upsertProjectAction(formData: FormData) {
       file: brochureFile,
     });
     heroMedia.brochureUrl = brochureUrl;
+    heroMediaUpdated = true;
+  }
+
+  if (isFile(masterplanFile)) {
+    const masterplanUrl = await uploadFileToBucket({
+      bucket: STORAGE_BUCKETS.projectBrochures,
+      pathPrefix: `${projectBasePath}/masterplan`,
+      file: masterplanFile,
+    });
+    heroMedia.masterplanUrl = masterplanUrl;
     heroMediaUpdated = true;
   }
 
@@ -998,10 +1729,32 @@ async function upsertProjectAction(formData: FormData) {
       )
     : undefined;
 
+  if (isFile(inventoryFile)) {
+    inventoryUrl = await uploadFileToBucket({
+      bucket: STORAGE_BUCKETS.projectBrochures,
+      pathPrefix: `${projectBasePath}/inventory`,
+      file: inventoryFile,
+    });
+  }
+
   const { data, error } = await upsertDeveloperProject(session.developerId, {
     id: id || undefined,
     name,
     description,
+    location,
+    acres,
+    footprint,
+    maintenance,
+    payment_plans: paymentPlans,
+    payment_plan_templates: paymentPlanTemplates,
+    limited_time_offers: limitedTimeOffers,
+    launch_status: launchStatus,
+    launch_date: launchDate,
+    eoi_value_apt: eoiValueApt,
+    eoi_value_villa: eoiValueVilla,
+    ch_fees: chFees,
+    project_types: projectTypes,
+    inventory_url: inventoryUrl,
     hero_media: heroMediaUpdated ? heroMedia : undefined,
     voice_notes: voiceNoteUrls?.length ? voiceNoteUrls : undefined,
     video_links: videoUrls?.length ? videoUrls : undefined,
@@ -1068,13 +1821,23 @@ async function upsertProjectUnitTypeAction(formData: FormData) {
   const session = await requireDeveloperSession();
   const projectId = formData.get("projectId")?.toString();
   const unitTypeId = formData.get("unitTypeId")?.toString() || undefined;
+  const unitCategory = normalizeCategory(formData.get("unitCategory")?.toString());
   const baseTypeRaw = formData.get("unitBaseType")?.toString().trim() || "";
-  const baseType = PROPERTY_TYPES.includes(baseTypeRaw) ? baseTypeRaw : "Apartment";
+  const baseType = normalizeTypeForCategory(unitCategory, baseTypeRaw);
+  const minPrice = parseOptionalNumber(formData.get("unitStartPrice")?.toString());
+  const maxPrice = parseOptionalNumber(formData.get("unitMaxPrice")?.toString()) ?? undefined;
   if (!projectId) {
     return;
   }
+  if (minPrice == null || minPrice <= 0) {
+    redirect(`/developer/projects?project=${projectId}`);
+  }
 
   const finishingStatus = formData.get("unitFinishing")?.toString().trim() || undefined;
+  const unitAreaMin = parseOptionalNumber(formData.get("unitMinBua")?.toString()) ?? undefined;
+  const unitAreaMax = parseOptionalNumber(formData.get("unitMaxBua")?.toString()) ?? undefined;
+  const landAreaMin = parseOptionalNumber(formData.get("unitMinLand")?.toString()) ?? undefined;
+  const landAreaMax = parseOptionalNumber(formData.get("unitMaxLand")?.toString()) ?? undefined;
   const heroImageFile = formData.get("unitHeroImage");
   const description = formData.get("unitDescription")?.toString() || undefined;
   const label: string = baseType;
@@ -1090,7 +1853,14 @@ async function upsertProjectUnitTypeAction(formData: FormData) {
 
   const { data, error } = await upsertProjectUnitType(session.developerId, projectId, {
     id: unitTypeId,
+    category: unitCategory,
     label,
+    minPrice,
+    maxPrice,
+    unitAreaMin,
+    unitAreaMax,
+    landAreaMin,
+    landAreaMax,
     finishingStatus,
     description,
     heroImageUrl,
@@ -1100,7 +1870,7 @@ async function upsertProjectUnitTypeAction(formData: FormData) {
     return;
   }
   if (!unitTypeId && data?.id) {
-    redirect(`/developer/projects?project=${projectId}&unitType=${data.id}&variants=1`);
+    redirect(`/developer/projects?project=${projectId}`);
   }
   revalidatePath("/developer/projects");
 }
@@ -1120,6 +1890,9 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
   const projectId = formData.get("projectId")?.toString();
   const unitTypeId = formData.get("unitTypeId")?.toString();
   const variantId = formData.get("variantId")?.toString() || undefined;
+  const variantCategory = normalizeCategory(formData.get("variantCategory")?.toString());
+  const variantTypeRaw = formData.get("variantType")?.toString().trim() || "";
+  const variantType = normalizeTypeForCategory(variantCategory, variantTypeRaw);
   const minPriceValue = formData.get("variantMinPrice")?.toString();
   const minPrice = minPriceValue ? Number(minPriceValue) : NaN;
   if (!projectId || !unitTypeId || Number.isNaN(minPrice) || minPrice <= 0) {
@@ -1134,6 +1907,7 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
     return parsed;
   };
 
+  const maxPrice = toOptionalNumber(formData.get("variantMaxPrice")?.toString(), true);
   const bedrooms = toOptionalNumber(formData.get("variantBedrooms")?.toString(), true);
   const bathrooms = toOptionalNumber(formData.get("variantBathrooms")?.toString(), true);
   const stock = toOptionalNumber(formData.get("variantStock")?.toString(), true);
@@ -1141,6 +1915,8 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
   const installmentYears = toOptionalNumber(formData.get("variantInstallmentYears")?.toString(), true);
   const areaMin = toOptionalNumber(formData.get("variantAreaMin")?.toString(), true);
   const areaMax = toOptionalNumber(formData.get("variantAreaMax")?.toString(), true);
+  const landAreaMin = toOptionalNumber(formData.get("variantLandMin")?.toString(), true);
+  const landAreaMax = toOptionalNumber(formData.get("variantLandMax")?.toString(), true);
   const description = formData.get("variantDescription")?.toString() || undefined;
   const amenities = formData
     .getAll("variantAmenities")
@@ -1149,11 +1925,16 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
 
   await upsertProjectUnitVariant(session.developerId, unitTypeId, {
     id: variantId,
+    category: variantCategory,
+    label: variantType,
     minPrice,
+    maxPrice,
     bedrooms,
     bathrooms,
     unitAreaMin: areaMin,
     unitAreaMax: areaMax,
+    landAreaMin,
+    landAreaMax,
     downPaymentPercent: downPayment,
     installmentYears,
     stockCount: stock,
@@ -1206,8 +1987,29 @@ async function importTypeWithVariantsAction(formData: FormData) {
 
   if (!payload?.baseType || !payload.variants?.length) return;
 
+  const importedPrices = payload.variants
+    .map((variant) => variant.price)
+    .filter((value): value is number => typeof value === "number" && value > 0);
+  if (!importedPrices.length) {
+    redirect(`/developer/projects?project=${projectId}`);
+  }
+
+  const inferredCategory = inferCategoryFromType(payload.baseType);
   const { data, error } = await upsertProjectUnitType(session.developerId, projectId, {
+    category: inferredCategory,
     label: payload.baseType,
+    minPrice: Math.min(...importedPrices),
+    maxPrice: Math.max(...importedPrices),
+    unitAreaMin: (() => {
+      const values = payload?.variants.map((variant) => variant.areaMin).filter((value): value is number => typeof value === "number");
+      return values.length ? Math.min(...values) : undefined;
+    })(),
+    unitAreaMax: (() => {
+      const values = payload?.variants
+        .flatMap((variant) => [variant.areaMax, variant.areaMin])
+        .filter((value): value is number => typeof value === "number");
+      return values.length ? Math.max(...values) : undefined;
+    })(),
     finishingStatus: payload.finishingStatus,
     description: payload.description,
   });
@@ -1219,7 +2021,10 @@ async function importTypeWithVariantsAction(formData: FormData) {
   for (const variant of payload.variants) {
     if (!variant.price || variant.price <= 0) continue;
     await upsertProjectUnitVariant(session.developerId, data.id, {
+      category: inferredCategory,
+      label: payload.baseType,
       minPrice: variant.price,
+      maxPrice: variant.price,
       bedrooms: variant.bedrooms,
       bathrooms: variant.bathrooms,
       unitAreaMin: variant.areaMin,

@@ -25,7 +25,13 @@ export default async function DeveloperLoginPage({ searchParams }: Props) {
           <p className="text-sm text-neutral-500">Use the credentials shared with you by the Brixeler team.</p>
         </div>
         {errorMessage && (
-          <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{errorMessage}</p>
+          <p
+            role="alert"
+            aria-live="polite"
+            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
+          >
+            {errorMessage}
+          </p>
         )}
         <form method="post" action="/api/developer-login" className="space-y-4">
           <label className="flex flex-col gap-1 text-sm">
@@ -33,9 +39,10 @@ export default async function DeveloperLoginPage({ searchParams }: Props) {
             <input
               type="email"
               name="email"
+              autoComplete="username"
               required
               className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-              placeholder="partners@atlas-demo.com"
+              placeholder="partners@developer.com"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -43,6 +50,7 @@ export default async function DeveloperLoginPage({ searchParams }: Props) {
             <input
               type="password"
               name="password"
+              autoComplete="current-password"
               required
               className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
               placeholder="••••••••"

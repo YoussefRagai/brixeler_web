@@ -11,7 +11,14 @@ type ProjectMediaPayload = Record<string, unknown> | null | undefined;
 export type ProjectUnitType = {
   id: string;
   project_id: string;
+  category?: string | null;
   label: string;
+  min_price: number;
+  max_price?: number | null;
+  unit_area_min?: number | null;
+  unit_area_max?: number | null;
+  land_area_min?: number | null;
+  land_area_max?: number | null;
   finishing_status?: string | null;
   description?: string | null;
   hero_image_url?: string | null;
@@ -21,15 +28,33 @@ export type ProjectUnitType = {
 export type ProjectUnitVariant = {
   id: string;
   project_unit_type_id: string;
+  category?: string | null;
+  label?: string | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
   min_price: number;
+  max_price?: number | null;
   unit_area_min?: number | null;
   unit_area_max?: number | null;
+  land_area_min?: number | null;
+  land_area_max?: number | null;
   down_payment_percent?: number | null;
   installment_years?: number | null;
   stock_count?: number | null;
   description?: string | null;
+  amenities?: string[] | null;
+};
+
+export type StructuredPaymentPlan = {
+  title?: string | null;
+  down_payment_percent?: number | null;
+  installment_years?: number | null;
+  discount_percent?: number | null;
+  payment_frequency?: string | null;
+};
+
+export type LimitedTimeOffer = StructuredPaymentPlan & {
+  offer_title?: string | null;
 };
 
 function assertDeveloperId(developerId?: string) {
@@ -129,7 +154,7 @@ export async function fetchDeveloperListing(listingId: string, developerId: stri
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, description, visibility_status, amenities, photos, specific_location, expires_at, renewal_status, property_type, sale_type, bedrooms, bathrooms, unit_area, down_payment_percentage, installment_years, monthly_installment, delivery_date, finishing_status, floor_plan_url, video_tour_url"
+        "id, property_name, price, description, visibility_status, amenities, photos, specific_location, expires_at, renewal_status, property_type, sale_type, bedrooms, bathrooms, unit_area, down_payment_percentage, installment_years, monthly_installment, delivery_date, finishing_status, floor_plan_url, video_tour_url, project_id"
       )
       .eq("developer_id", id)
       .eq("id", listingId)
@@ -145,6 +170,7 @@ export async function fetchDeveloperListing(listingId: string, developerId: stri
 export type DeveloperListingPayload = {
   name: string;
   area?: string;
+  projectId?: string | null;
   price: number;
   description?: string;
   photoUrls: string[];
@@ -175,6 +201,7 @@ export async function createDeveloperListing(
       : Math.round(payload.price / Math.max(payload.installmentYears, 1) / 12);
   const { error } = await supabaseServer.from("properties").insert({
     developer_id: id,
+    project_id: payload.projectId ?? null,
     property_name: payload.name,
     specific_location: payload.area ?? null,
     price: payload.price,
@@ -217,6 +244,7 @@ export async function updateDeveloperListing(
       price: payload.price,
       description: payload.description ?? null,
       visibility_status: payload.visibility,
+      project_id: payload.projectId ?? null,
       property_type: payload.propertyType,
       sale_type: payload.saleType,
       bedrooms: payload.bedrooms,
@@ -296,6 +324,29 @@ export type PropertyRenewalRequest = {
   } | null;
 };
 
+type RenewalPropertyRow = {
+  id: string;
+  property_name: string;
+  unit_area: number | null;
+  price: number | null;
+  description: string | null;
+  photos: string[] | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  property_type: string | null;
+  amenities: string[] | null;
+};
+
+type RenewalRequestRow = {
+  id: string;
+  status: string | null;
+  requested_by_role: string | null;
+  requested_at: string | null;
+  requested_by_id: string | null;
+  notes: string | null;
+  property: RenewalPropertyRow | RenewalPropertyRow[] | null;
+};
+
 export async function fetchPropertyRenewalRequests(status: string = "pending"): Promise<PropertyRenewalRequest[]> {
   const { data, error } = await supabaseServer
     .from("property_renewal_requests")
@@ -334,7 +385,7 @@ export async function fetchPropertyRenewalRequests(status: string = "pending"): 
     return [];
   }
 
-  return data.map((row: any) => ({
+  return (data as RenewalRequestRow[]).map((row) => ({
     id: row.id,
     status: row.status,
     requested_by_role: row.requested_by_role,
@@ -363,7 +414,7 @@ export async function fetchDeveloperProjects(developerId: string) {
     const id = assertDeveloperId(developerId);
     const { data, error } = await supabaseServer
       .from("developer_projects")
-      .select("id, name, description, amenities, hero_media, voice_notes, video_links, project_unit_types(id, project_id, label, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, bedrooms, bathrooms, min_price, unit_area_min, unit_area_max, down_payment_percent, installment_years, stock_count, description, amenities))")
+      .select("id, name, description, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, project_unit_types(id, project_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, down_payment_percent, installment_years, stock_count, description, amenities))")
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
     if (error || !data) return [];
@@ -380,6 +431,20 @@ export async function upsertDeveloperProject(
     id?: string;
     name: string;
     description?: string;
+    location?: string;
+    acres?: number | null;
+    footprint?: number | null;
+    maintenance?: number | null;
+    payment_plans?: string;
+    payment_plan_templates?: StructuredPaymentPlan[];
+    limited_time_offers?: LimitedTimeOffer[];
+    launch_status?: string;
+    launch_date?: string | null;
+    eoi_value_apt?: number | null;
+    eoi_value_villa?: number | null;
+    ch_fees?: number | null;
+    project_types?: string[];
+    inventory_url?: string | null;
     hero_media?: ProjectMediaPayload;
     voice_notes?: string[];
     video_links?: string[];
@@ -410,7 +475,14 @@ export async function upsertProjectUnitType(
   projectId: string,
   payload: {
     id?: string;
+    category?: string;
     label: string;
+    minPrice: number;
+    maxPrice?: number;
+    unitAreaMin?: number;
+    unitAreaMax?: number;
+    landAreaMin?: number;
+    landAreaMax?: number;
     finishingStatus?: string;
     description?: string;
     heroImageUrl?: string;
@@ -431,10 +503,14 @@ export async function upsertProjectUnitType(
     .upsert({
       id: payload.id,
       project_id: projectId,
+      category: payload.category ?? null,
       label: payload.label,
-      min_price: 0,
-      unit_area_min: null,
-      unit_area_max: null,
+      min_price: payload.minPrice,
+      max_price: payload.maxPrice ?? null,
+      unit_area_min: payload.unitAreaMin ?? null,
+      unit_area_max: payload.unitAreaMax ?? null,
+      land_area_min: payload.landAreaMin ?? null,
+      land_area_max: payload.landAreaMax ?? null,
       down_payment_percent: null,
       installment_years: null,
       stock_count: null,
@@ -453,11 +529,16 @@ export async function upsertProjectUnitVariant(
   unitTypeId: string,
   payload: {
     id?: string;
+    category?: string;
+    label?: string;
     bedrooms?: number;
     bathrooms?: number;
     minPrice: number;
+    maxPrice?: number;
     unitAreaMin?: number;
     unitAreaMax?: number;
+    landAreaMin?: number;
+    landAreaMax?: number;
     downPaymentPercent?: number;
     installmentYears?: number;
     stockCount?: number;
@@ -488,11 +569,16 @@ export async function upsertProjectUnitVariant(
     {
       id: payload.id,
       project_unit_type_id: unitTypeId,
+      category: payload.category ?? null,
+      label: payload.label ?? null,
       bedrooms: payload.bedrooms ?? null,
       bathrooms: payload.bathrooms ?? null,
       min_price: payload.minPrice,
+      max_price: payload.maxPrice ?? null,
       unit_area_min: payload.unitAreaMin ?? null,
       unit_area_max: payload.unitAreaMax ?? null,
+      land_area_min: payload.landAreaMin ?? null,
+      land_area_max: payload.landAreaMax ?? null,
       down_payment_percent: payload.downPaymentPercent ?? null,
       installment_years: payload.installmentYears ?? null,
       stock_count: payload.stockCount ?? null,

@@ -59,9 +59,9 @@ export async function POST(request: Request, context: RouteContext) {
     const payload = (row?.payload ?? {}) as Record<string, unknown>;
     if (payload.feedback_type || payload.feedback_reason || payload.feedback_at) {
       const nextPayload = { ...payload };
-      delete (nextPayload as any).feedback_type;
-      delete (nextPayload as any).feedback_reason;
-      delete (nextPayload as any).feedback_at;
+      Reflect.deleteProperty(nextPayload, "feedback_type");
+      Reflect.deleteProperty(nextPayload, "feedback_reason");
+      Reflect.deleteProperty(nextPayload, "feedback_at");
       await supabaseServer.from("deal_stage_entries").update({ payload: nextPayload }).eq("id", id);
     }
   }

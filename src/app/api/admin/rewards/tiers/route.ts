@@ -13,6 +13,9 @@ export async function POST(request: Request) {
   const name = formData.get("name")?.toString().trim();
   const level = Number(formData.get("level")?.toString() ?? "");
   const description = formData.get("description")?.toString().trim() || null;
+  const benefitType = formData.get("benefitType")?.toString().trim() || "none";
+  const benefitValueRaw = formData.get("benefitValue")?.toString().trim() ?? "";
+  const benefitDescription = formData.get("benefitDescription")?.toString().trim() || null;
   const iconFile = formData.get("icon");
 
   if (!name || Number.isNaN(level)) {
@@ -27,6 +30,7 @@ export async function POST(request: Request) {
     pathPrefix: "tiers",
     file: iconFile,
   });
+  const benefitValue = benefitValueRaw.length ? Number(benefitValueRaw) : null;
 
   const { data, error } = await supabaseServer
     .from("tiers")
@@ -35,6 +39,9 @@ export async function POST(request: Request) {
       level,
       icon_url: iconUrl,
       description,
+      benefit_type: benefitType,
+      benefit_value: Number.isFinite(benefitValue ?? NaN) ? benefitValue : null,
+      benefit_description: benefitDescription,
       is_active: true,
     })
     .select("id")
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
     action: "rewards.tier.create",
     resourceType: "tiers",
     resourceId: data?.id ?? null,
-    metadata: { name, level },
+    metadata: { name, level, benefitType, benefitValue, benefitDescription },
   });
 
   return NextResponse.redirect(new URL("/rewards", request.url));

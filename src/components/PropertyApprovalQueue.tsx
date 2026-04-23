@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
+import { useRouter } from "next/navigation";
 
 export type PropertyApprovalEntry = {
   id: string;
@@ -26,11 +27,13 @@ const TABS = ["Proposed", "Requested Changes", "Rejected"] as const;
 type Tab = (typeof TABS)[number];
 
 export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEntry[] }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("Proposed");
   const [activePropertyId, setActivePropertyId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [actionId, setActionId] = useState<string | null>(null);
   const [actionType, setActionType] = useState<"request" | "reject" | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const activeProperty = useMemo(
     () => entries.find((entry) => entry.id === activePropertyId) ?? null,
@@ -47,13 +50,29 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
     return entries.filter((entry) => entry.status === "rejected");
   }, [activeTab, entries]);
 
+  useEffect(() => {
+    if (!activeProperty) return;
+    closeButtonRef.current?.focus();
+  }, [activeProperty]);
+
+  useEffect(() => {
+    if (!activeProperty) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActivePropertyId(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeProperty]);
+
   const updateStatus = async (propertyId: string, status: string, reasonText?: string) => {
     await fetch("/api/properties/update-status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ propertyId, status, reason: reasonText ?? null }),
     });
-    window.location.reload();
+    router.refresh();
   };
 
   return (
@@ -67,7 +86,7 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
               "rounded-full border px-4 py-2 text-xs",
               activeTab === tab
                 ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-200"
-                : "border-white/10 text-slate-300 hover:bg-white/10",
+                : "border-black/10 text-neutral-600 hover:bg-black/5",
             )}
           >
             {tab}
@@ -77,26 +96,26 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
 
       <div className="mt-6 space-y-4">
         {filtered.map((property) => (
-          <article key={property.id} className="rounded-2xl border border-white/5 bg-black/20 p-4 text-sm">
+          <article key={property.id} className="rounded-2xl border border-black/5 bg-black/5 p-4 text-sm text-neutral-800">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="font-semibold text-white">{property.name}</p>
-                <p className="text-slate-400">
+                <p className="font-semibold text-neutral-900">{property.name}</p>
+                <p className="text-neutral-600">
                   {property.area} · {property.price}
                 </p>
               </div>
-              <span className="rounded-full border border-white/10 px-3 py-1 text-xs">{activeTab}</span>
+              <span className="rounded-full border border-black/10 px-3 py-1 text-xs">{activeTab}</span>
             </div>
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-slate-400">
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-neutral-500">
               <p>Submitted by: {property.submittedBy ?? "—"}</p>
               <p>Received: {property.submittedAt ?? "—"}</p>
             </div>
             {property.rejectionReason && activeTab !== "Proposed" ? (
-              <p className="mt-2 text-xs text-slate-400">{property.rejectionReason}</p>
+              <p className="mt-2 text-xs text-neutral-500">{property.rejectionReason}</p>
             ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               <button
-                className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/80 hover:bg-white/10"
+                className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-700 hover:bg-black/5"
                 onClick={() => setActivePropertyId(property.id)}
               >
                 Review details
@@ -110,7 +129,7 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
                     Approve
                   </button>
                   <button
-                    className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/80 hover:bg-white/10"
+                    className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-700 hover:bg-black/5"
                     onClick={() => {
                       setActionId(property.id);
                       setActionType("request");
@@ -132,12 +151,12 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
             </div>
           </article>
         ))}
-        {!filtered.length && <p className="text-sm text-slate-400">No listings in this tab.</p>}
+        {!filtered.length && <p className="text-sm text-neutral-500">No listings in this tab.</p>}
       </div>
 
       {actionId && actionType ? (
-        <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-slate-200">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
+        <div className="mt-4 rounded-2xl border border-black/10 bg-black/5 p-4 text-sm text-neutral-700">
+          <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">
             {actionType === "reject" ? "Rejection reason" : "Change request"}
           </p>
           <textarea
@@ -145,7 +164,7 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
             onChange={(event) => setReason(event.target.value)}
             rows={3}
             placeholder={actionType === "reject" ? "Explain why this listing is rejected" : "Describe the changes needed"}
-            className="mt-2 w-full rounded-2xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+            className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm text-neutral-900"
           />
           <div className="mt-3 flex flex-wrap gap-2">
             <button
@@ -161,7 +180,7 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
               Submit
             </button>
             <button
-              className="rounded-full border border-white/10 px-4 py-2 text-xs text-white/80"
+              className="rounded-full border border-black/10 px-4 py-2 text-xs text-neutral-700"
               onClick={() => {
                 setActionId(null);
                 setActionType(null);
@@ -176,15 +195,21 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
 
       {activeProperty ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
-          <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-[#0f1115] p-6 text-white shadow-2xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Property details"
+            className="w-full max-w-3xl rounded-3xl border border-black/10 bg-white p-6 text-neutral-900 shadow-2xl"
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Property</p>
-                <p className="text-2xl font-semibold text-white">{activeProperty.name}</p>
-                <p className="text-xs text-slate-400">{activeProperty.area} · {activeProperty.price}</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Property</p>
+                <p className="text-2xl font-semibold text-neutral-900">{activeProperty.name}</p>
+                <p className="text-xs text-neutral-500">{activeProperty.area} · {activeProperty.price}</p>
               </div>
               <button
-                className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/80"
+                ref={closeButtonRef}
+                className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-700"
                 onClick={() => setActivePropertyId(null)}
               >
                 Close
@@ -192,23 +217,23 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Type</p>
-                <p className="text-sm text-white">{activeProperty.propertyType ?? "—"}</p>
+              <div className="rounded-2xl border border-black/10 bg-black/5 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Type</p>
+                <p className="text-sm text-neutral-900">{activeProperty.propertyType ?? "—"}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Bedrooms</p>
-                <p className="text-sm text-white">{activeProperty.bedrooms ?? "—"}</p>
+              <div className="rounded-2xl border border-black/10 bg-black/5 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Bedrooms</p>
+                <p className="text-sm text-neutral-900">{activeProperty.bedrooms ?? "—"}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Bathrooms</p>
-                <p className="text-sm text-white">{activeProperty.bathrooms ?? "—"}</p>
+              <div className="rounded-2xl border border-black/10 bg-black/5 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Bathrooms</p>
+                <p className="text-sm text-neutral-900">{activeProperty.bathrooms ?? "—"}</p>
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Description</p>
-              <p className="mt-2 text-sm text-slate-200">{activeProperty.description ?? "—"}</p>
+            <div className="mt-4 rounded-2xl border border-black/10 bg-black/5 p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Description</p>
+              <p className="mt-2 text-sm text-neutral-700">{activeProperty.description ?? "—"}</p>
             </div>
 
             {activeProperty.photos?.length ? (
@@ -227,7 +252,7 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
             {activeProperty.amenities?.length ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 {activeProperty.amenities.map((amenity) => (
-                  <span key={amenity} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200">
+                  <span key={amenity} className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-700">
                     {amenity}
                   </span>
                 ))}

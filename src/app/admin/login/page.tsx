@@ -16,7 +16,11 @@ export default async function AdminLoginPage({
           <p className="text-sm text-neutral-500">Sign in to manage the command center.</p>
         </div>
         {error ? (
-          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+          >
             {decodeURIComponent(error)}
           </div>
         ) : null}
@@ -26,6 +30,7 @@ export default async function AdminLoginPage({
             <input
               name="email"
               type="email"
+              autoComplete="username"
               required
               className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
             />
@@ -35,6 +40,7 @@ export default async function AdminLoginPage({
             <input
               name="password"
               type="password"
+              autoComplete="current-password"
               required
               className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
             />
