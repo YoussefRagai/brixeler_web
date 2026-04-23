@@ -908,6 +908,8 @@ export default async function DeveloperProjectsPage({
               <VariantForm
                 projectId={selectedProjectId}
                 unitTypeId={modalUnitTypeId}
+                unitTypeCategory={resolvedUnitType?.category}
+                unitTypeLabel={resolvedUnitType?.label ?? "Unit type"}
                 variant={resolvedVariant}
               />
             </div>
@@ -1133,12 +1135,17 @@ type UnitTypeFormProps = {
       label?: string | null;
       bedrooms?: number | null;
       bathrooms?: number | null;
+      has_garden?: boolean | null;
+      has_roof?: boolean | null;
+      finishing_status?: string | null;
+      delivery_date?: string | null;
       min_price: number;
       max_price?: number | null;
       unit_area_min?: number | null;
       unit_area_max?: number | null;
       land_area_min?: number | null;
       land_area_max?: number | null;
+      layout_options?: string[] | null;
       down_payment_percent?: number | null;
       installment_years?: number | null;
       stock_count?: number | null;
@@ -1326,22 +1333,31 @@ function UnitTypeForm({ projectId, paymentPlanSummary, unitType }: UnitTypeFormP
 function VariantForm({
   projectId,
   unitTypeId,
+  unitTypeCategory,
+  unitTypeLabel,
   variant,
 }: {
   projectId: string;
   unitTypeId: string;
+  unitTypeCategory?: string | null;
+  unitTypeLabel: string;
   variant?: {
     id: string;
     category?: string | null;
     label?: string | null;
     bedrooms?: number | null;
     bathrooms?: number | null;
+    has_garden?: boolean | null;
+    has_roof?: boolean | null;
+    finishing_status?: string | null;
+    delivery_date?: string | null;
     min_price: number;
     max_price?: number | null;
     unit_area_min?: number | null;
     unit_area_max?: number | null;
     land_area_min?: number | null;
     land_area_max?: number | null;
+    layout_options?: string[] | null;
     down_payment_percent?: number | null;
     installment_years?: number | null;
     stock_count?: number | null;
@@ -1349,50 +1365,22 @@ function VariantForm({
     amenities?: string[] | null;
   };
 }) {
-  const selectedAmenities = new Set(variant?.amenities ?? []);
-  const categoryValue = normalizeCategory(variant?.category ?? inferCategoryFromType(variant?.label));
-  const variantTypeValue = normalizeTypeForCategory(categoryValue, variant?.label);
+  const categoryValue = normalizeCategory(variant?.category ?? unitTypeCategory ?? inferCategoryFromType(unitTypeLabel));
+  const typeValue = normalizeTypeForCategory(categoryValue, variant?.label ?? unitTypeLabel);
+  const finishingValue = variant?.finishing_status ?? "";
+  const deliveryDateValue = variant?.delivery_date?.slice?.(0, 10) ?? "";
+  const layoutOptionsValue = variant?.layout_options?.join("\n") ?? "";
   return (
     <>
       <form action={upsertProjectUnitVariantAction} className="space-y-3 text-sm">
         <input type="hidden" name="projectId" value={projectId} />
         <input type="hidden" name="unitTypeId" value={unitTypeId} />
+        <input type="hidden" name="variantCategory" value={categoryValue} />
+        <input type="hidden" name="variantType" value={typeValue} />
         {variant ? <input type="hidden" name="variantId" value={variant.id} /> : null}
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Category</span>
-            <select
-              className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-              name="variantCategory"
-              defaultValue={categoryValue}
-              required
-            >
-              {PROPERTY_CATEGORIES.map((category) => (
-                <option key={`variant-category-${category}`} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Type</span>
-            <select
-              className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-              name="variantType"
-              defaultValue={variantTypeValue}
-              required
-            >
-              {PROPERTY_CATEGORIES.map((category) => (
-                <optgroup key={`variant-type-group-${category}`} label={category}>
-                  {PROPERTY_TYPES_BY_CATEGORY[category].map((type) => (
-                    <option key={`variant-${category}-${type}`} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
+        <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Variant type</p>
+          <p className="mt-1 text-sm font-semibold text-neutral-900">{categoryValue} · {typeValue}</p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <Field
@@ -1413,6 +1401,53 @@ function VariantForm({
           />
         </div>
         <div className="grid gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Garden</span>
+            <select
+              className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+              name="variantHasGarden"
+              defaultValue={variant?.has_garden ? "yes" : "no"}
+            >
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Roof</span>
+            <select
+              className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+              name="variantHasRoof"
+              defaultValue={variant?.has_roof ? "yes" : "no"}
+            >
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Finishing</span>
+            <select
+              className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+              name="variantFinishing"
+              defaultValue={finishingValue}
+            >
+              <option value="">Select finishing</option>
+              {FINISHING_STATUSES.map((status) => (
+                <option key={`variant-finishing-${status.value}`} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Field
+            label="Delivery date"
+            name="variantDeliveryDate"
+            type="date"
+            defaultValue={deliveryDateValue}
+          />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
           <Field
             label="Min price (EGP)"
             name="variantMinPrice"
@@ -1427,36 +1462,6 @@ function VariantForm({
             type="number"
             min="100000"
             defaultValue={variant?.max_price ?? undefined}
-            placeholder="Optional"
-          />
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field
-            label="Down payment (%)"
-            name="variantDownPayment"
-            type="number"
-            min="0"
-            max="100"
-            step="1"
-            defaultValue={variant?.down_payment_percent ?? undefined}
-            placeholder="10"
-          />
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field
-            label="Installment years"
-            name="variantInstallmentYears"
-            type="number"
-            min="0"
-            defaultValue={variant?.installment_years ?? undefined}
-            placeholder="8"
-          />
-          <Field
-            label="Inventory count"
-            name="variantStock"
-            type="number"
-            min="0"
-            defaultValue={variant?.stock_count ?? undefined}
             placeholder="Optional"
           />
         </div>
@@ -1502,32 +1507,20 @@ function VariantForm({
         </div>
         <Field
           as="textarea"
+          label="Layouts with different BUA"
+          name="variantLayouts"
+          rows={3}
+          placeholder={"One layout per line\n120 sqm - Layout A\n145 sqm - Layout B"}
+          defaultValue={layoutOptionsValue}
+        />
+        <Field
+          as="textarea"
           label="Notes"
           name="variantDescription"
           rows={2}
-          placeholder="Payment perks, view notes, phase details…"
+          placeholder="Variant notes, phase details, special remarks…"
           defaultValue={variant?.description ?? ""}
         />
-        <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add amenities</p>
-          <p className="mt-1 text-xs text-neutral-500">Pick all amenities that apply to this variant.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {AMENITIES.map((amenity) => (
-              <label key={amenity.slug} className="cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="peer sr-only"
-                  name="variantAmenities"
-                  value={amenity.slug}
-                  defaultChecked={selectedAmenities.has(amenity.slug)}
-                />
-                <span className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-600 transition peer-checked:border-black peer-checked:bg-black peer-checked:text-white hover:border-black/30">
-                  {amenity.label}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
         <div className="flex justify-end">
           <button className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white" type="submit">
             {variant ? "Save variant" : "Add variant"}
@@ -1552,10 +1545,15 @@ function formatVariantChip(variant: {
   label?: string | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
+  has_garden?: boolean | null;
+  has_roof?: boolean | null;
+  finishing_status?: string | null;
+  delivery_date?: string | null;
   unit_area_min?: number | null;
   unit_area_max?: number | null;
   land_area_min?: number | null;
   land_area_max?: number | null;
+  layout_options?: string[] | null;
   min_price: number;
   max_price?: number | null;
   installment_years?: number | null;
@@ -1564,6 +1562,10 @@ function formatVariantChip(variant: {
   const kind = variant.label ?? null;
   const beds = variant.bedrooms != null ? `${variant.bedrooms}BR` : "?BR";
   const baths = variant.bathrooms != null ? `${variant.bathrooms}BA` : "?BA";
+  const garden = variant.has_garden ? "Garden" : null;
+  const roof = variant.has_roof ? "Roof" : null;
+  const finishing = variant.finishing_status ? variant.finishing_status.replace(/_/g, " ") : null;
+  const delivery = variant.delivery_date ? `Delivery ${variant.delivery_date}` : null;
   const bua = variant.unit_area_min
     ? variant.unit_area_max && variant.unit_area_max !== variant.unit_area_min
       ? `${variant.unit_area_min}-${variant.unit_area_max}m²`
@@ -1579,9 +1581,10 @@ function formatVariantChip(variant: {
         variant.max_price != null ? `-${Number(variant.max_price).toLocaleString()}` : ""
       }`
     : "Price TBD";
-  const installments = variant.installment_years ? `${variant.installment_years}y` : null;
-  const down = variant.down_payment_percent != null ? `${variant.down_payment_percent}%` : null;
-  return [variant.category, kind, beds, baths, bua, land, price, installments, down].filter(Boolean).join(" · ");
+  const layouts = variant.layout_options?.length ? `${variant.layout_options.length} layouts` : null;
+  return [variant.category, kind, beds, baths, garden, roof, finishing, delivery, bua, land, price, layouts]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 async function upsertProjectAction(formData: FormData) {
@@ -1910,18 +1913,19 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
   const maxPrice = toOptionalNumber(formData.get("variantMaxPrice")?.toString(), true);
   const bedrooms = toOptionalNumber(formData.get("variantBedrooms")?.toString(), true);
   const bathrooms = toOptionalNumber(formData.get("variantBathrooms")?.toString(), true);
-  const stock = toOptionalNumber(formData.get("variantStock")?.toString(), true);
-  const downPayment = toOptionalNumber(formData.get("variantDownPayment")?.toString(), true);
-  const installmentYears = toOptionalNumber(formData.get("variantInstallmentYears")?.toString(), true);
+  const hasGarden = formData.get("variantHasGarden")?.toString() === "yes";
+  const hasRoof = formData.get("variantHasRoof")?.toString() === "yes";
+  const finishingStatus = formData.get("variantFinishing")?.toString().trim() || undefined;
+  const deliveryDate = formData.get("variantDeliveryDate")?.toString().trim() || undefined;
   const areaMin = toOptionalNumber(formData.get("variantAreaMin")?.toString(), true);
   const areaMax = toOptionalNumber(formData.get("variantAreaMax")?.toString(), true);
   const landAreaMin = toOptionalNumber(formData.get("variantLandMin")?.toString(), true);
   const landAreaMax = toOptionalNumber(formData.get("variantLandMax")?.toString(), true);
-  const description = formData.get("variantDescription")?.toString() || undefined;
-  const amenities = formData
-    .getAll("variantAmenities")
-    .map((value) => value.toString())
+  const layoutOptions = (formData.get("variantLayouts")?.toString() ?? "")
+    .split("\n")
+    .map((value) => value.trim())
     .filter(Boolean);
+  const description = formData.get("variantDescription")?.toString() || undefined;
 
   await upsertProjectUnitVariant(session.developerId, unitTypeId, {
     id: variantId,
@@ -1931,15 +1935,16 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
     maxPrice,
     bedrooms,
     bathrooms,
+    hasGarden,
+    hasRoof,
+    finishingStatus,
+    deliveryDate,
     unitAreaMin: areaMin,
     unitAreaMax: areaMax,
     landAreaMin,
     landAreaMax,
-    downPaymentPercent: downPayment,
-    installmentYears,
-    stockCount: stock,
+    layoutOptions,
     description,
-    amenities: amenities.length ? amenities : undefined,
   });
   redirect(`/developer/projects?project=${projectId}&unitType=${unitTypeId}&variants=1`);
 }
@@ -1968,6 +1973,8 @@ async function importTypeWithVariantsAction(formData: FormData) {
     variants: Array<{
       bedrooms?: number;
       bathrooms?: number;
+      hasGarden?: boolean;
+      hasRoof?: boolean;
       areaMin?: number;
       areaMax?: number;
       price?: number;
@@ -2027,6 +2034,8 @@ async function importTypeWithVariantsAction(formData: FormData) {
       maxPrice: variant.price,
       bedrooms: variant.bedrooms,
       bathrooms: variant.bathrooms,
+      hasGarden: variant.hasGarden,
+      hasRoof: variant.hasRoof,
       unitAreaMin: variant.areaMin,
       unitAreaMax: variant.areaMax,
       downPaymentPercent: variant.downPayment,

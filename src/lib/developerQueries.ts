@@ -32,12 +32,17 @@ export type ProjectUnitVariant = {
   label?: string | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
+  has_garden?: boolean | null;
+  has_roof?: boolean | null;
+  finishing_status?: string | null;
+  delivery_date?: string | null;
   min_price: number;
   max_price?: number | null;
   unit_area_min?: number | null;
   unit_area_max?: number | null;
   land_area_min?: number | null;
   land_area_max?: number | null;
+  layout_options?: string[] | null;
   down_payment_percent?: number | null;
   installment_years?: number | null;
   stock_count?: number | null;
@@ -409,7 +414,7 @@ export async function fetchDeveloperProjects(developerId: string) {
     const id = assertDeveloperId(developerId);
     const { data, error } = await supabaseServer
       .from("developer_projects")
-      .select("id, name, description, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, project_unit_types(id, project_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, down_payment_percent, installment_years, stock_count, description, amenities))")
+      .select("id, name, description, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, project_unit_types(id, project_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, has_garden, has_roof, finishing_status, delivery_date, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, layout_options, down_payment_percent, installment_years, stock_count, description, amenities))")
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
     if (error || !data) return [];
@@ -528,12 +533,17 @@ export async function upsertProjectUnitVariant(
     label?: string;
     bedrooms?: number;
     bathrooms?: number;
+    hasGarden?: boolean;
+    hasRoof?: boolean;
+    finishingStatus?: string;
+    deliveryDate?: string;
     minPrice: number;
     maxPrice?: number;
     unitAreaMin?: number;
     unitAreaMax?: number;
     landAreaMin?: number;
     landAreaMax?: number;
+    layoutOptions?: string[];
     downPaymentPercent?: number;
     installmentYears?: number;
     stockCount?: number;
@@ -568,12 +578,17 @@ export async function upsertProjectUnitVariant(
       label: payload.label ?? null,
       bedrooms: payload.bedrooms ?? null,
       bathrooms: payload.bathrooms ?? null,
+      has_garden: payload.hasGarden ?? null,
+      has_roof: payload.hasRoof ?? null,
+      finishing_status: payload.finishingStatus ?? null,
+      delivery_date: payload.deliveryDate ?? null,
       min_price: payload.minPrice,
       max_price: payload.maxPrice ?? null,
       unit_area_min: payload.unitAreaMin ?? null,
       unit_area_max: payload.unitAreaMax ?? null,
       land_area_min: payload.landAreaMin ?? null,
       land_area_max: payload.landAreaMax ?? null,
+      layout_options: payload.layoutOptions?.length ? payload.layoutOptions : null,
       down_payment_percent: payload.downPaymentPercent ?? null,
       installment_years: payload.installmentYears ?? null,
       stock_count: payload.stockCount ?? null,

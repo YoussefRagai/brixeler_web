@@ -6,6 +6,8 @@ import * as XLSX from "xlsx";
 type ImportedVariant = {
   bedrooms?: number;
   bathrooms?: number;
+  hasGarden?: boolean;
+  hasRoof?: boolean;
   areaMin?: number;
   areaMax?: number;
   price?: number;
@@ -108,6 +110,8 @@ function parseWorkbook(buffer: ArrayBuffer): ImportedType[] {
     const variant: ImportedVariant = {
       bedrooms: normalizeNumber(row[bedroomsIdx]),
       bathrooms: normalizeNumber(row[bathroomsIdx]),
+      hasGarden: amenities.includes("garden"),
+      hasRoof: amenities.includes("roof"),
       areaMin: normalizeNumber(row[areaMinIdx]),
       areaMax: normalizeNumber(row[areaMaxIdx]),
       price: normalizeNumber(row[priceIdx]),
