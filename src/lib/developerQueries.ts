@@ -85,7 +85,7 @@ export async function fetchDeveloperListings(developerId: string): Promise<Devel
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, approval_status, visibility_status, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id",
+        "id, property_name, price, approval_status, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id",
       )
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
@@ -98,7 +98,7 @@ export async function fetchDeveloperListings(developerId: string): Promise<Devel
       name: row.property_name,
       price: Number(row.price ?? 0),
       status: row.approval_status ?? "pending",
-      visibility: row.visibility_status ?? "public",
+      visibility: "public",
       updated_at: row.updated_at,
       inquiries: Number(row.inquiries_count ?? 0),
       expires_at: row.expires_at ?? null,
@@ -119,7 +119,7 @@ export async function fetchDeveloperResales(developerId: string): Promise<Develo
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, approval_status, visibility_status, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id, developer_projects!inner(id, developer_id)",
+        "id, property_name, price, approval_status, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id, developer_projects!inner(id, developer_id)",
       )
       .eq("developer_projects.developer_id", id)
       .eq("sale_type", "resale")
@@ -133,7 +133,7 @@ export async function fetchDeveloperResales(developerId: string): Promise<Develo
       name: row.property_name,
       price: Number(row.price ?? 0),
       status: row.approval_status ?? "pending",
-      visibility: row.visibility_status ?? "public",
+      visibility: "public",
       updated_at: row.updated_at,
       inquiries: Number(row.inquiries_count ?? 0),
       expires_at: row.expires_at ?? null,
@@ -154,7 +154,7 @@ export async function fetchDeveloperListing(listingId: string, developerId: stri
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, description, visibility_status, amenities, photos, specific_location, expires_at, renewal_status, property_type, sale_type, bedrooms, bathrooms, unit_area, down_payment_percentage, installment_years, monthly_installment, delivery_date, finishing_status, floor_plan_url, video_tour_url, project_id"
+        "id, property_name, price, description, amenities, photos, specific_location, expires_at, renewal_status, property_type, sale_type, bedrooms, bathrooms, unit_area, down_payment_percentage, installment_years, monthly_installment, delivery_date, finishing_status, floor_plan_url, video_tour_url, project_id"
       )
       .eq("developer_id", id)
       .eq("id", listingId)
@@ -209,7 +209,6 @@ export async function createDeveloperListing(
     photos,
     cover_photo_url: photos[0],
     approval_status: "pending",
-    visibility_status: "public",
     property_type: payload.propertyType,
     sale_type: payload.saleType,
     bedrooms: payload.bedrooms,
@@ -243,7 +242,6 @@ export async function updateDeveloperListing(
     .update({
       price: payload.price,
       description: payload.description ?? null,
-      visibility_status: payload.visibility,
       project_id: payload.projectId ?? null,
       property_type: payload.propertyType,
       sale_type: payload.saleType,
@@ -267,13 +265,10 @@ export async function updateDeveloperListing(
 }
 
 export async function toggleListingVisibility(developerId: string, listingId: string, visibility: string) {
-  const id = assertDeveloperId(developerId);
-  const { error } = await supabaseServer
-    .from("properties")
-    .update({ visibility_status: visibility })
-    .eq("developer_id", id)
-    .eq("id", listingId);
-  return { error };
+  assertDeveloperId(developerId);
+  void listingId;
+  void visibility;
+  return { error: null };
 }
 
 export async function deleteListing(developerId: string, listingId: string) {

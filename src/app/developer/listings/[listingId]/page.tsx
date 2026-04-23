@@ -26,7 +26,7 @@ export default async function EditListingPage({ params }: Props) {
   }
 
   const price = typeof listing.price === "string" ? Number(listing.price) : listing.price ?? 0;
-  const visibility = (listing.visibility_status as string) ?? "public";
+  const visibility = "public";
   const expiresLabel = listing.expires_at
     ? new Date(listing.expires_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
@@ -159,10 +159,11 @@ export default async function EditListingPage({ params }: Props) {
             name="visibility"
             defaultValue={visibility}
             className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
+            disabled
           >
             <option value="public">Public to agents</option>
-            <option value="hidden">Hidden</option>
           </select>
+          <span className="text-xs text-neutral-500">Visibility controls are unavailable for this database schema and default to public.</span>
         </label>
         <button className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white" type="submit">
           Save changes
