@@ -24,16 +24,15 @@ export function proxy(request: NextRequest) {
   }
 
   if (DEVELOPER_HOSTS.has(hostname)) {
-    if (pathname === "/") {
-      return NextResponse.redirect(new URL(`/developer${search}`, request.url));
-    }
-
-    if (pathname === "/login") {
-      return NextResponse.redirect(new URL(`/developer/login${search}`, request.url));
-    }
-
-    if (pathname === "/logout") {
-      return NextResponse.redirect(new URL(`/developer/logout${search}`, request.url));
+    if (
+      pathname === "/" ||
+      (!pathname.startsWith("/developer") &&
+        !pathname.startsWith("/api") &&
+        !pathname.startsWith("/_next") &&
+        pathname !== "/favicon.ico")
+    ) {
+      const targetPath = pathname === "/" ? "/developer" : `/developer${pathname}`;
+      return NextResponse.rewrite(new URL(`${targetPath}${search}`, request.url));
     }
   }
 
