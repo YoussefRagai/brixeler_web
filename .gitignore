@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+.playwright-cli/
+supabase/.temp/
 
 # debug
 npm-debug.log*
