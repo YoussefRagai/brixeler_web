@@ -26,6 +26,13 @@ export async function POST(request: NextRequest) {
 
   const account = await findDeveloperAccountByUser(data.user.id);
   if (!account) {
+    const inactiveAccount = await findDeveloperAccountByUser(data.user.id, { includeInactive: true });
+    if (inactiveAccount?.status === "pending") {
+      return NextResponse.redirect(new URL("/developer/login?error=Finish+your+invite+email+setup+before+signing+in", baseUrl));
+    }
+    if (inactiveAccount?.status === "revoked") {
+      return NextResponse.redirect(new URL("/developer/login?error=Your+developer+dashboard+access+has+been+revoked", baseUrl));
+    }
     return NextResponse.redirect(new URL("/developer/login?error=No+developer+account+found", baseUrl));
   }
 
@@ -40,7 +47,7 @@ export async function POST(request: NextRequest) {
   await supabaseServer
     .from("developer_accounts")
     .update({ last_login: new Date().toISOString() })
-    .eq("auth_user_id", data.user.id);
+    .eq("id", account.accountId);
 
   return response;
 }

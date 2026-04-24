@@ -4,7 +4,7 @@ import { currentDeveloperSession } from "@/lib/developerAuth";
 export const dynamic = "force-dynamic";
 
 interface Props {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; message?: string }>;
 }
 
 export default async function DeveloperLoginPage({ searchParams }: Props) {
@@ -15,6 +15,7 @@ export default async function DeveloperLoginPage({ searchParams }: Props) {
 
   const params = await searchParams;
   const errorMessage = params.error;
+  const successMessage = params.message;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f8f8f8] px-6">
@@ -31,6 +32,11 @@ export default async function DeveloperLoginPage({ searchParams }: Props) {
             className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600"
           >
             {errorMessage}
+          </p>
+        )}
+        {successMessage && (
+          <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {successMessage}
           </p>
         )}
         <form method="post" action="/api/developer-login" className="space-y-4">

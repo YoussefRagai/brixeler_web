@@ -697,20 +697,25 @@ export async function fetchDeveloperStats(developerId: string) {
   }
 }
 
-export async function findDeveloperAccountByUser(authUserId: string) {
+export async function findDeveloperAccountByUser(authUserId: string, options?: { includeInactive?: boolean }) {
   if (!authUserId) return null;
-  const { data, error } = await supabaseServer
+  const query = supabaseServer
     .from("developer_accounts")
-    .select("developer_id, developers(name)")
-    .eq("auth_user_id", authUserId)
-    .single();
+    .select("id, developer_id, status, developers(name)")
+    .eq("auth_user_id", authUserId);
+  if (!options?.includeInactive) {
+    query.eq("status", "active");
+  }
+  const { data, error } = await query.order("invitation_sent_at", { ascending: false }).limit(1).maybeSingle();
   if (error || !data) {
     console.warn("Developer account lookup failed", error);
     return null;
   }
   const developerRelation = Array.isArray(data.developers) ? data.developers[0] : data.developers;
   return {
+    accountId: data.id as string,
     developerId: data.developer_id as string,
     developerName: developerRelation?.name ?? null,
+    status: (data.status as string | null) ?? null,
   };
 }

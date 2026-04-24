@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabaseServer";
 import { getAdminSessionFromCookie } from "@/lib/adminSession";
 import { hasAdminRole, type AdminRole } from "@/lib/adminRoles";
-import { logAdminActivity } from "@/lib/adminQueries";
 import { fetchAdminAccountByUser } from "@/lib/adminQueries";
 
 export async function POST(request: Request) {
@@ -13,51 +11,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body: { email?: string; newPassword?: string } = {};
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  if (!body.email || !body.newPassword) {
-    return NextResponse.json({ error: "Missing email or password" }, { status: 400 });
-  }
-
   const account = await fetchAdminAccountByUser(session.authUserId);
-  const allowedDeveloperIds = account?.developer_ids ?? null;
-
-  const { data: userList, error: userError } = await supabaseServer.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (userError || !userList?.users?.length) {
-    return NextResponse.json({ error: "Unable to locate user" }, { status: 404 });
+  if (!account) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const targetUser = userList.users.find(
-    (user) => user.email && user.email.toLowerCase() === body.email!.toLowerCase(),
+  return NextResponse.json(
+    { error: "Developer members must set their own password through the invite email flow." },
+    { status: 410 },
   );
-  if (!targetUser?.id) {
-    return NextResponse.json({ error: "Unable to locate user" }, { status: 404 });
-  }
-
-  if (allowedDeveloperIds?.length) {
-    const { data: devAccount } = await supabaseServer
-      .from("developer_accounts")
-      .select("developer_id")
-      .eq("auth_user_id", targetUser.id)
-      .maybeSingle();
-    if (!devAccount?.developer_id || !allowedDeveloperIds.includes(devAccount.developer_id)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-  }
-
-  const { error } = await supabaseServer.auth.admin.updateUserById(targetUser.id, { password: body.newPassword });
-  if (error) return NextResponse.json({ error: error.message ?? "Update failed" }, { status: 500 });
-
-  await logAdminActivity({
-    adminId: session.adminId,
-    action: "developer_account.update_password",
-    resourceType: "developer_accounts",
-    resourceId: targetUser.id,
-  });
-
-  return NextResponse.json({ success: true });
 }

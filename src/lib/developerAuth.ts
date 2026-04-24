@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDeveloperSession, type DeveloperSession } from "./developerSession";
+import { findDeveloperAccountByUser } from "./developerQueries";
 
 export async function currentDeveloperSession(): Promise<DeveloperSession | null> {
   const store = await cookies();
@@ -11,6 +12,10 @@ export async function requireDeveloperSession(): Promise<DeveloperSession> {
   const session = await currentDeveloperSession();
   if (!session) {
     redirect("/developer/login");
+  }
+  const account = await findDeveloperAccountByUser(session.userId);
+  if (!account || account.developerId !== session.developerId) {
+    redirect("/developer/login?error=Access+revoked+or+expired");
   }
   return session;
 }
