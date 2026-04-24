@@ -44,7 +44,7 @@ export function buildDeveloperInviteRedirectUrl(params: {
   developerName: string;
   email: string;
 }) {
-  const url = new URL("/accept", DEVELOPER_PORTAL_BASE_URL);
+  const url = new URL("/developer/accept", DEVELOPER_PORTAL_BASE_URL);
   url.searchParams.set("developerId", params.developerId);
   url.searchParams.set("developerName", params.developerName);
   url.searchParams.set("email", params.email);
