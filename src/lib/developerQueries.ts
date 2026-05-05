@@ -414,7 +414,7 @@ export async function fetchDeveloperProjects(developerId: string) {
     const id = assertDeveloperId(developerId);
     const { data, error } = await supabaseServer
       .from("developer_projects")
-      .select("id, name, description, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, project_unit_types(id, project_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, has_garden, has_roof, finishing_status, delivery_date, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, layout_options, down_payment_percent, installment_years, stock_count, description, amenities))")
+      .select("id, name, description, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, project_unit_types(id, project_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, has_garden, has_roof, garden_area_sqm, roof_area_sqm, finishing_status, delivery_date, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, layout_options, down_payment_percent, installment_years, stock_count, description, amenities))")
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
     if (error || !data) return [];
@@ -534,7 +534,9 @@ export async function upsertProjectUnitVariant(
     bedrooms?: number;
     bathrooms?: number;
     hasGarden?: boolean;
+    gardenAreaSqm?: number;
     hasRoof?: boolean;
+    roofAreaSqm?: number;
     finishingStatus?: string;
     deliveryDate?: string;
     minPrice: number;
@@ -579,7 +581,9 @@ export async function upsertProjectUnitVariant(
       bedrooms: payload.bedrooms ?? null,
       bathrooms: payload.bathrooms ?? null,
       has_garden: payload.hasGarden ?? null,
+      garden_area_sqm: payload.hasGarden ? payload.gardenAreaSqm ?? null : null,
       has_roof: payload.hasRoof ?? null,
+      roof_area_sqm: payload.hasRoof ? payload.roofAreaSqm ?? null : null,
       finishing_status: payload.finishingStatus ?? null,
       delivery_date: payload.deliveryDate ?? null,
       min_price: payload.minPrice,
@@ -599,6 +603,47 @@ export async function upsertProjectUnitVariant(
   );
 
   return { error };
+}
+
+export type DeveloperContactRequest = {
+  id: string;
+  developer_id: string;
+  project_id: string;
+  property_id: string | null;
+  requester_user_id: string;
+  request_type: "call" | "meeting";
+  status: "open" | "contacted" | "closed";
+  request_body: string;
+  requester_display_name: string;
+  requester_email: string | null;
+  requester_phone: string | null;
+  requester_total_deals: number;
+  developer_name_snapshot: string;
+  project_name_snapshot: string;
+  property_name_snapshot: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function fetchDeveloperContactRequests(developerId: string): Promise<DeveloperContactRequest[]> {
+  try {
+    const id = assertDeveloperId(developerId);
+    const { data, error } = await supabaseServer
+      .from("developer_contact_requests")
+      .select(
+        "id, developer_id, project_id, property_id, requester_user_id, request_type, status, request_body, requester_display_name, requester_email, requester_phone, requester_total_deals, developer_name_snapshot, project_name_snapshot, property_name_snapshot, created_at, updated_at",
+      )
+      .eq("developer_id", id)
+      .order("created_at", { ascending: false });
+    if (error || !data) {
+      console.warn("Failed to load developer contact requests", error);
+      return [];
+    }
+    return data as DeveloperContactRequest[];
+  } catch (error) {
+    console.warn("fetchDeveloperContactRequests failed", error);
+    return [];
+  }
 }
 
 export async function deleteProjectUnitVariant(developerId: string, variantId: string) {

@@ -2,14 +2,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
+import { DeveloperProjectRequestTabs } from "@/components/DeveloperProjectRequestTabs";
 import { ProjectImportPanel } from "@/components/ProjectImportPanel";
+import { VariantOutdoorFields } from "@/components/VariantOutdoorFields";
 import { requireDeveloperSession } from "@/lib/developerAuth";
 import {
   deleteDeveloperProject,
   deleteProjectUnitType,
   deleteProjectUnitVariant,
+  fetchDeveloperContactRequests,
   fetchDeveloperProfile,
   fetchDeveloperProjects,
+  type DeveloperContactRequest,
   type LimitedTimeOffer,
   type StructuredPaymentPlan,
   upsertDeveloperProject,
@@ -176,14 +180,19 @@ export default async function DeveloperProjectsPage({
   }>;
 }) {
   const session = await requireDeveloperSession();
-  const [projects, profile, commissionRules] = await Promise.all([
+  const [projects, profile, developerContactRequests, commissionRules] = await Promise.all([
     fetchDeveloperProjects(session.developerId),
     fetchDeveloperProfile(session.developerId),
+    fetchDeveloperContactRequests(session.developerId),
     supabaseServer
       .from("developer_commission_rules")
       .select("id, developer_id, property_id, commission_rate, platform_share")
       .eq("developer_id", session.developerId),
   ]);
+  const requestsByProject = developerContactRequests.reduce<Record<string, DeveloperContactRequest[]>>((acc, request) => {
+    (acc[request.project_id] ??= []).push(request);
+    return acc;
+  }, {});
   const resolvedSearchParams = (await searchParams) ?? {};
   const activeProjectId =
     typeof resolvedSearchParams?.project === "string" ? resolvedSearchParams.project : null;
@@ -926,7 +935,9 @@ export default async function DeveloperProjectsPage({
           </div>
         </header>
         <div className={projectGridClass}>
-          {visibleProjects.map((project) => (
+          {visibleProjects.map((project) => {
+            const projectRequests = requestsByProject[project.id] ?? [];
+            return (
             <article key={project.id} className="rounded-2xl border border-black/5 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -985,119 +996,169 @@ export default async function DeveloperProjectsPage({
                   </div>
                 </div>
               ) : null}
-              <div className="mt-4 rounded-2xl border border-dashed border-black/10 bg-neutral-50/60 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Property types</p>
-                  <a
-                    href="#add-property-types"
-                    className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
-                  >
-                    Add property types
-                  </a>
-                </div>
-                {project.project_unit_types?.length ? (
-                  <div className="mt-3 space-y-3">
-                    {project.project_unit_types.map((unit) => (
-                      <div key={unit.id} className="rounded-2xl border border-black/5 bg-white p-3 text-sm text-neutral-700">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-[#050505]">{unit.label}</p>
-                            {unit.finishing_status ? (
-                              <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-                                {unit.finishing_status.replace(/_/g, " ")}
-                              </p>
-                            ) : null}
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500">
-                              <span>
-                                Price: EGP {Number(unit.min_price ?? 0).toLocaleString()}
-                                {unit.max_price != null ? ` - ${Number(unit.max_price).toLocaleString()}` : ""}
-                              </span>
-                              {unit.category ? <span>{unit.category}</span> : null}
-                              {unit.unit_area_min != null ? (
-                                <span>
-                                  BUA: {unit.unit_area_min}
-                                  {unit.unit_area_max && unit.unit_area_max !== unit.unit_area_min ? `-${unit.unit_area_max}` : ""}
-                                  m²
-                                </span>
-                              ) : null}
-                              {unit.land_area_min != null ? (
-                                <span>
-                                  Land: {unit.land_area_min}
-                                  {unit.land_area_max && unit.land_area_max !== unit.land_area_min ? `-${unit.land_area_max}` : ""}
-                                  m²
-                                </span>
-                              ) : null}
+              <DeveloperProjectRequestTabs
+                requestCount={projectRequests.length}
+                overviewContent={
+                  <div className="rounded-2xl border border-dashed border-black/10 bg-neutral-50/60 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Property types</p>
+                      <a
+                        href="#add-property-types"
+                        className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
+                      >
+                        Add property types
+                      </a>
+                    </div>
+                    {project.project_unit_types?.length ? (
+                      <div className="mt-3 space-y-3">
+                        {project.project_unit_types.map((unit) => (
+                          <div key={unit.id} className="rounded-2xl border border-black/5 bg-white p-3 text-sm text-neutral-700">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-[#050505]">{unit.label}</p>
+                                {unit.finishing_status ? (
+                                  <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
+                                    {unit.finishing_status.replace(/_/g, " ")}
+                                  </p>
+                                ) : null}
+                                <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500">
+                                  <span>
+                                    Price: EGP {Number(unit.min_price ?? 0).toLocaleString()}
+                                    {unit.max_price != null ? ` - ${Number(unit.max_price).toLocaleString()}` : ""}
+                                  </span>
+                                  {unit.category ? <span>{unit.category}</span> : null}
+                                  {unit.unit_area_min != null ? (
+                                    <span>
+                                      BUA: {unit.unit_area_min}
+                                      {unit.unit_area_max && unit.unit_area_max !== unit.unit_area_min ? `-${unit.unit_area_max}` : ""}
+                                      m²
+                                    </span>
+                                  ) : null}
+                                  {unit.land_area_min != null ? (
+                                    <span>
+                                      Land: {unit.land_area_min}
+                                      {unit.land_area_max && unit.land_area_max !== unit.land_area_min ? `-${unit.land_area_max}` : ""}
+                                      m²
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <form action={deleteUnitTypeAction}>
+                                <input type="hidden" name="unitTypeId" value={unit.id} />
+                                <button className="text-xs text-red-500 hover:underline" type="submit">
+                                  Delete
+                                </button>
+                              </form>
                             </div>
-                          </div>
-                          <form action={deleteUnitTypeAction}>
-                            <input type="hidden" name="unitTypeId" value={unit.id} />
-                            <button className="text-xs text-red-500 hover:underline" type="submit">
-                              Delete
-                            </button>
-                          </form>
-                        </div>
-                        {unit.project_unit_variants?.length ? (
-                          <div className="mt-3">
-                            <div className="flex flex-wrap gap-2">
-                              {unit.project_unit_variants.map((variant) => (
+                            {unit.project_unit_variants?.length ? (
+                              <div className="mt-3">
+                                <div className="flex flex-wrap gap-2">
+                                  {unit.project_unit_variants.map((variant) => (
+                                    <a
+                                      key={variant.id}
+                                      href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1&variant=${variant.id}`}
+                                      className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-700 hover:border-black/30"
+                                    >
+                                      {formatVariantChip(variant)}
+                                    </a>
+                                  ))}
+                                  <a
+                                    href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1`}
+                                    className="rounded-full border border-dashed border-black/20 px-3 py-1 text-xs text-neutral-500 hover:border-black/40 hover:text-neutral-700"
+                                  >
+                                    + Add variant
+                                  </a>
+                                </div>
+                                <p className="mt-2 text-xs text-neutral-500">
+                                  Variants let you add different areas, prices, and payment plans for the same type.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="mt-2 rounded-xl border border-dashed border-black/10 bg-neutral-50 p-3">
+                                <p className="text-xs text-neutral-500">
+                                  No variants yet. That is fine. Add one only if you need advanced bedroom, payment-plan, or stock variations.
+                                </p>
                                 <a
-                                  key={variant.id}
-                                  href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1&variant=${variant.id}`}
-                                  className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-neutral-700 hover:border-black/30"
+                                  href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1`}
+                                  className="mt-3 inline-flex rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
                                 >
-                                  {formatVariantChip(variant)}
+                                  Add first variant
                                 </a>
-                              ))}
-                              <a
-                                href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1`}
-                                className="rounded-full border border-dashed border-black/20 px-3 py-1 text-xs text-neutral-500 hover:border-black/40 hover:text-neutral-700"
-                              >
-                                + Add variant
-                              </a>
-                            </div>
-                            <p className="mt-2 text-xs text-neutral-500">
-                              Variants let you add different areas, prices, and payment plans for the same type.
-                            </p>
+                              </div>
+                            )}
+                            <details className="mt-3 rounded-xl border border-black/10 bg-neutral-50 p-3">
+                              <summary className="text-xs font-semibold text-neutral-600">Edit {unit.label}</summary>
+                              <div className="mt-3 space-y-3">
+                                <UnitTypeForm projectId={project.id} unitType={unit} paymentPlanSummary={project.payment_plans ?? null} />
+                              </div>
+                            </details>
+                            {showVariantWizard && resolvedUnitTypeId === unit.id ? (
+                              <div className="mt-3 rounded-2xl border border-dashed border-black/10 bg-neutral-50 p-3 text-xs text-neutral-500">
+                                Variant wizard open in the modal.
+                              </div>
+                            ) : null}
                           </div>
-                        ) : (
-                          <div className="mt-2 rounded-xl border border-dashed border-black/10 bg-neutral-50 p-3">
-                            <p className="text-xs text-neutral-500">
-                              No variants yet. That is fine. Add one only if you need advanced bedroom, payment-plan, or stock variations.
-                            </p>
-                            <a
-                              href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1`}
-                              className="mt-3 inline-flex rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
-                            >
-                              Add first variant
-                            </a>
-                          </div>
-                        )}
-                        <details className="mt-3 rounded-xl border border-black/10 bg-neutral-50 p-3">
-                          <summary className="text-xs font-semibold text-neutral-600">Edit {unit.label}</summary>
-                          <div className="mt-3 space-y-3">
-                            <UnitTypeForm projectId={project.id} unitType={unit} paymentPlanSummary={project.payment_plans ?? null} />
-                          </div>
-                        </details>
-                        {showVariantWizard && resolvedUnitTypeId === unit.id ? (
-                          <div className="mt-3 rounded-2xl border border-dashed border-black/10 bg-neutral-50 p-3 text-xs text-neutral-500">
-                            Variant wizard open in the modal.
-                          </div>
-                        ) : null}
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <p className="mt-2 text-sm text-neutral-500">No property types yet. Add the commercial ranges below.</p>
+                    )}
+                    <div id="add-property-types" className="mt-4 rounded-2xl border border-black/5 bg-white p-4">
+                      <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add property type</p>
+                      <div className="mt-3 space-y-3">
+                        <UnitTypeForm projectId={project.id} paymentPlanSummary={project.payment_plans ?? null} />
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <p className="mt-2 text-sm text-neutral-500">No property types yet. Add the commercial ranges below.</p>
-                )}
-                <div id="add-property-types" className="mt-4 rounded-2xl border border-black/5 bg-white p-4">
-                  <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add property type</p>
-                  <div className="mt-3 space-y-3">
-                    <UnitTypeForm projectId={project.id} paymentPlanSummary={project.payment_plans ?? null} />
+                }
+                requestContent={
+                  <div className="rounded-2xl border border-dashed border-black/10 bg-neutral-50/60 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Lead requests</p>
+                      <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-semibold text-neutral-600">
+                        {projectRequests.length} open records
+                      </span>
+                    </div>
+                    {projectRequests.length ? (
+                      <div className="mt-3 space-y-3">
+                        {projectRequests.map((request) => (
+                          <div key={request.id} className="rounded-2xl border border-black/5 bg-white p-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-[#050505]">{request.requester_display_name}</p>
+                                <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
+                                  {request.request_type === "meeting" ? "Meeting request" : "Call request"}
+                                </p>
+                              </div>
+                              <div className="text-right text-xs text-neutral-500">
+                                <p>{new Date(request.created_at).toLocaleString()}</p>
+                                <p className="capitalize">{request.status}</p>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-xs text-neutral-500 sm:grid-cols-2 lg:grid-cols-3">
+                              <p>Developer: {request.developer_name_snapshot}</p>
+                              <p>Project: {request.project_name_snapshot}</p>
+                              {request.property_name_snapshot ? <p>Property: {request.property_name_snapshot}</p> : null}
+                              <p>Deals closed: {request.requester_total_deals}</p>
+                              {request.requester_phone ? <p>Phone: {request.requester_phone}</p> : null}
+                              {request.requester_email ? <p>Email: {request.requester_email}</p> : null}
+                            </div>
+                            <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3 text-sm text-neutral-700">
+                              {request.request_body}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-neutral-500">
+                        No user contact requests yet. When agents ask for a call or meeting from the app, they will land here.
+                      </p>
+                    )}
                   </div>
-                </div>
-              </div>
+                }
+              />
             </article>
-          ))}
+          )})}
           {!projects.length && (
             <p className="rounded-2xl border border-dashed border-black/5 bg-white p-6 text-sm text-neutral-500">
               No projects yet. Use the form below to create your first launch.
@@ -1136,7 +1197,9 @@ type UnitTypeFormProps = {
       bedrooms?: number | null;
       bathrooms?: number | null;
       has_garden?: boolean | null;
+      garden_area_sqm?: number | null;
       has_roof?: boolean | null;
+      roof_area_sqm?: number | null;
       finishing_status?: string | null;
       delivery_date?: string | null;
       min_price: number;
@@ -1348,7 +1411,9 @@ function VariantForm({
     bedrooms?: number | null;
     bathrooms?: number | null;
     has_garden?: boolean | null;
+    garden_area_sqm?: number | null;
     has_roof?: boolean | null;
+    roof_area_sqm?: number | null;
     finishing_status?: string | null;
     delivery_date?: string | null;
     min_price: number;
@@ -1400,30 +1465,12 @@ function VariantForm({
             placeholder="2"
           />
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Garden</span>
-            <select
-              className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-              name="variantHasGarden"
-              defaultValue={variant?.has_garden ? "yes" : "no"}
-            >
-              <option value="no">No</option>
-              <option value="yes">Yes</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Roof</span>
-            <select
-              className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-              name="variantHasRoof"
-              defaultValue={variant?.has_roof ? "yes" : "no"}
-            >
-              <option value="no">No</option>
-              <option value="yes">Yes</option>
-            </select>
-          </label>
-        </div>
+        <VariantOutdoorFields
+          defaultHasGarden={Boolean(variant?.has_garden)}
+          defaultGardenAreaSqm={variant?.garden_area_sqm ?? null}
+          defaultHasRoof={Boolean(variant?.has_roof)}
+          defaultRoofAreaSqm={variant?.roof_area_sqm ?? null}
+        />
         <div className="grid gap-3 md:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Finishing</span>
@@ -1546,7 +1593,9 @@ function formatVariantChip(variant: {
   bedrooms?: number | null;
   bathrooms?: number | null;
   has_garden?: boolean | null;
+  garden_area_sqm?: number | null;
   has_roof?: boolean | null;
+  roof_area_sqm?: number | null;
   finishing_status?: string | null;
   delivery_date?: string | null;
   unit_area_min?: number | null;
@@ -1562,8 +1611,12 @@ function formatVariantChip(variant: {
   const kind = variant.label ?? null;
   const beds = variant.bedrooms != null ? `${variant.bedrooms}BR` : "?BR";
   const baths = variant.bathrooms != null ? `${variant.bathrooms}BA` : "?BA";
-  const garden = variant.has_garden ? "Garden" : null;
-  const roof = variant.has_roof ? "Roof" : null;
+  const garden = variant.has_garden
+    ? `Garden${variant.garden_area_sqm != null ? ` ${Number(variant.garden_area_sqm).toLocaleString()}m²` : ""}`
+    : null;
+  const roof = variant.has_roof
+    ? `Roof${variant.roof_area_sqm != null ? ` ${Number(variant.roof_area_sqm).toLocaleString()}m²` : ""}`
+    : null;
   const finishing = variant.finishing_status ? variant.finishing_status.replace(/_/g, " ") : null;
   const delivery = variant.delivery_date ? `Delivery ${variant.delivery_date}` : null;
   const bua = variant.unit_area_min
@@ -1914,7 +1967,9 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
   const bedrooms = toOptionalNumber(formData.get("variantBedrooms")?.toString(), true);
   const bathrooms = toOptionalNumber(formData.get("variantBathrooms")?.toString(), true);
   const hasGarden = formData.get("variantHasGarden")?.toString() === "yes";
+  const gardenAreaSqm = toOptionalNumber(formData.get("variantGardenAreaSqm")?.toString(), true);
   const hasRoof = formData.get("variantHasRoof")?.toString() === "yes";
+  const roofAreaSqm = toOptionalNumber(formData.get("variantRoofAreaSqm")?.toString(), true);
   const finishingStatus = formData.get("variantFinishing")?.toString().trim() || undefined;
   const deliveryDate = formData.get("variantDeliveryDate")?.toString().trim() || undefined;
   const areaMin = toOptionalNumber(formData.get("variantAreaMin")?.toString(), true);
@@ -1936,7 +1991,9 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
     bedrooms,
     bathrooms,
     hasGarden,
+    gardenAreaSqm,
     hasRoof,
+    roofAreaSqm,
     finishingStatus,
     deliveryDate,
     unitAreaMin: areaMin,
