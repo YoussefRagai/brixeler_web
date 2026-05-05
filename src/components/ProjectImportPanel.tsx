@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
+import { readSheet } from "read-excel-file/browser";
 
 type ImportedVariant = {
   bedrooms?: number;
@@ -66,11 +66,7 @@ const toStringValue = (value: unknown) => {
   return String(value).trim();
 };
 
-function parseWorkbook(buffer: ArrayBuffer): ImportedType[] {
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const sheet = workbook.Sheets["Import"] ?? workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return [];
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }) as Array<Array<unknown>>;
+function parseWorkbook(rows: Array<Array<unknown>>): ImportedType[] {
   if (rows.length < 2) return [];
 
   const headers = rows[0].map((header) => toStringValue(header));
@@ -147,8 +143,8 @@ export function ProjectImportPanel({ projectId, onImportAction }: Props) {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const buffer = await file.arrayBuffer();
-      const parsed = parseWorkbook(buffer);
+      const rows = (await readSheet(file, "Import").catch(async () => readSheet(file))) as Array<Array<unknown>>;
+      const parsed = parseWorkbook(rows);
       if (!parsed.length) {
         setError("No rows found in the template.");
         setImports([]);
