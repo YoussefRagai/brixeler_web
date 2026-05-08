@@ -8,6 +8,7 @@ export async function GET() {
   const result = projects.map((project) => ({
     id: project.id,
     name: project.name,
+    launchStatus: project.launch_status ?? null,
   }));
   return NextResponse.json(result);
 }

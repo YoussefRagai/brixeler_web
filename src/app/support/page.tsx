@@ -105,7 +105,7 @@ async function getSupportTickets(): Promise<Ticket[]> {
 }
 
 export default async function SupportPage() {
-  const ui = await buildAdminUi(["user_support_admin"]);
+  const ui = await buildAdminUi(["user_support_admin", "developers_admin"]);
   const tickets = await getSupportTickets();
   const ticketsByStatus = statusColumns.reduce<Record<SupportTicketStatus, Ticket[]>>(
     (acc, column) => ({
@@ -152,9 +152,14 @@ export default async function SupportPage() {
                   <p className="mt-1 text-sm text-neutral-500">
                     {ticket.agent} · {ticket.waiting}
                   </p>
-                  <p className="mt-2 inline-flex rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-xs text-rose-700 capitalize">
-                    {ticket.priority} priority
-                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <p className="inline-flex rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-xs text-rose-700 capitalize">
+                      {ticket.priority} priority
+                    </p>
+                    <p className="inline-flex rounded-full border border-black/10 bg-white px-2.5 py-0.5 text-xs text-neutral-600 capitalize">
+                      {ticket.category.replaceAll("_", " ")}
+                    </p>
+                  </div>
                   <p className="mt-2 line-clamp-2 text-sm text-neutral-500">{ticket.preview}</p>
                 </div>
               ))}

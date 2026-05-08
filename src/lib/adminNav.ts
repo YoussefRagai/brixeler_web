@@ -18,7 +18,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/admins", label: "Admins", icon: "admins", roles: ["super_admin"] },
   { href: "/settings/admin-activities", label: "Admin activities", icon: "adminActivities", roles: ["super_admin"] },
   { href: "/content", label: "Content", icon: "content", roles: ["super_admin", "marketing_admin"] },
-  { href: "/support", label: "Support", icon: "support", roles: ["super_admin", "user_support_admin"] },
+  { href: "/support", label: "Support", icon: "support", roles: ["super_admin", "user_support_admin", "developers_admin"] },
 ];
 
 export function defaultAdminRoles(): AdminRole[] {
