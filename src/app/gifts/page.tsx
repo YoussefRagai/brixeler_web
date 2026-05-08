@@ -22,19 +22,6 @@ type GiftRow = {
   exclusivity_mode: string | null;
 };
 
-type GiftRuleRow = {
-  id: string;
-  gift_id: string | null;
-  metric: string | null;
-  time_window: string | null;
-  operator: string | null;
-  value_min: number | null;
-  value_max: number | null;
-  value_single: number | null;
-  is_active: boolean | null;
-  created_at: string | null;
-};
-
 type GiftClaimRow = {
   id: string;
   gift_id: string | null;

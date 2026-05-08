@@ -27,20 +27,6 @@ type BadgeRow = {
   is_active: boolean | null;
 };
 
-type RuleRow = {
-  id: string;
-  target_type: string | null;
-  target_id: string | null;
-  metric: string | null;
-  time_window: string | null;
-  operator: string | null;
-  value_min: number | null;
-  value_max: number | null;
-  value_single: number | null;
-  is_active: boolean | null;
-  created_at: string | null;
-};
-
 type BadgeAssignmentRow = {
   agent_id: string;
   badge_id: string;

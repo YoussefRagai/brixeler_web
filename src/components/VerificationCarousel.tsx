@@ -178,6 +178,7 @@ export function VerificationCarousel({ queue }: Props) {
                       <p className="mt-2 break-words">{activeDoc}</p>
                     </div>
                   ) : isImageUrl(activeDoc) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={activeDoc}
                       alt={normalizeDocLabel(activeDoc)}

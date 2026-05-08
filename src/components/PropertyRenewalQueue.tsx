@@ -123,8 +123,14 @@ export function PropertyRenewalQueue({ entries }: Props) {
       </div>
 
       {activeProperty ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
-          <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-[#0f1115] p-6 text-white shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
+          onClick={() => setActivePropertyId(null)}
+        >
+          <div
+            className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/10 bg-[#0f1115] p-6 text-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Property</p>
@@ -162,6 +168,7 @@ export function PropertyRenewalQueue({ entries }: Props) {
             {activeProperty.photos?.length ? (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {activeProperty.photos.slice(0, 4).map((photo) => (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     key={photo}
                     src={photo}

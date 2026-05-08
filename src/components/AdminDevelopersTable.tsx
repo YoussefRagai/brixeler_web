@@ -150,7 +150,7 @@ export function AdminDevelopersTable({ developers, projects, properties, members
         setBusyDeveloperId(null);
         return;
       }
-      window.location.href = payload.redirectUrl;
+      window.location.assign(payload.redirectUrl);
     } catch (error) {
       setActionError((error as Error).message);
       setBusyDeveloperId(null);
@@ -241,6 +241,7 @@ export function AdminDevelopersTable({ developers, projects, properties, members
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-black/[0.03]">
                       {dev.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={dev.logo_url} alt={dev.name} className="h-full w-full object-cover" />
                       ) : (
                         <span className="text-sm font-semibold text-[#050505]">{dev.name.charAt(0)}</span>
@@ -315,6 +316,7 @@ export function AdminDevelopersTable({ developers, projects, properties, members
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-black/[0.03]">
                   {activeDeveloper.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={activeDeveloper.logo_url} alt={activeDeveloper.name} className="h-full w-full object-cover" />
                   ) : (
                     <span className="text-lg font-semibold">{activeDeveloper.name.charAt(0)}</span>

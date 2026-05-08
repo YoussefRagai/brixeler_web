@@ -79,7 +79,8 @@ export function readDeveloperImpersonationToken(token?: string | null) {
   if (payload.expiresAt < Date.now()) {
     return null;
   }
-  const { expiresAt: _expiresAt, ...marker } = payload;
+  const marker = { ...payload };
+  delete (marker as { expiresAt?: number }).expiresAt;
   return marker;
 }
 

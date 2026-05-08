@@ -211,12 +211,19 @@ export function AgentTable({ agents }: Props) {
       </div>
 
       {activeAgent ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
-          <div className="w-full max-w-4xl rounded-3xl border border-white/10 bg-[#0f1115] p-6 text-white shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
+          onClick={closeModal}
+        >
+          <div
+            className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-[#0f1115] p-6 text-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-4">
               <div className="flex flex-1 flex-col items-center text-center">
                 <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/10">
                   {activeAgent.profile_picture_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={activeAgent.profile_picture_url}
                       alt={activeAgent.name}

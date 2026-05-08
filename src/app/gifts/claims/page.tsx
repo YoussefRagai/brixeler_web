@@ -11,16 +11,6 @@ const statusTabs = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-type ClaimRow = {
-  id: string;
-  status: string | null;
-  notes: string | null;
-  claimed_at: string | null;
-  agent_id: string;
-  gifts: { title: string; title_ar?: string | null }[] | null;
-  users_profile: { display_name: string | null; phone?: string | null }[] | null;
-};
-
 const formatIdentifier = (value?: string | null) => {
   if (!value) return "—";
   if (value.length <= 12) return value;
