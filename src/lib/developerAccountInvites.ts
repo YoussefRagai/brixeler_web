@@ -1,7 +1,7 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 
 const DEVELOPER_PORTAL_BASE_URL =
-  process.env.DEVELOPER_PORTAL_URL?.replace(/\/$/, "") ?? "https://developer.brixeler.com";
+  process.env.DEVELOPER_PORTAL_URL?.replace(/\/$/, "") ?? "https://admin.brixeler.com/developer";
 
 export type InviteDeveloperPortalMemberParams = {
   email: string;

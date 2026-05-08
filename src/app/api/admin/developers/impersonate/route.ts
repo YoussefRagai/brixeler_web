@@ -3,7 +3,7 @@ import { getAdminContext } from "@/lib/adminAuth";
 import { hasAdminRole } from "@/lib/adminRoles";
 import { fetchAdminAccountByUser, logAdminActivity } from "@/lib/adminQueries";
 import { createDeveloperImpersonationToken } from "@/lib/developerImpersonation";
-import { getRequestBaseUrl, swapSubdomain } from "@/lib/requestUrl";
+import { getDeveloperPortalUrl, getRequestBaseUrl, swapSubdomain } from "@/lib/requestUrl";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 type DeveloperAccountRow = {
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
   const baseUrl = getRequestBaseUrl(request);
   const developerPortalUrl =
-    process.env.DEVELOPER_PORTAL_URL?.replace(/\/$/, "") ?? swapSubdomain(baseUrl, "developer");
+    process.env.DEVELOPER_PORTAL_URL?.replace(/\/$/, "") ?? getDeveloperPortalUrl(baseUrl);
   const adminPortalUrl =
     process.env.ADMIN_PORTAL_URL?.replace(/\/$/, "") ?? swapSubdomain(baseUrl, "admin");
   const returnTo = `${adminPortalUrl.replace(/\/$/, "")}/developers`;

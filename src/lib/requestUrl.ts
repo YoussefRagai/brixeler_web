@@ -23,3 +23,19 @@ export function swapSubdomain(baseUrl: string, targetSubdomain: "admin" | "devel
     return baseUrl;
   }
 }
+
+export function getDeveloperPortalUrl(baseUrl: string) {
+  try {
+    const url = new URL(baseUrl);
+    if (url.hostname === "admin.brixeler.com") {
+      url.pathname = "/developer";
+      url.search = "";
+      url.hash = "";
+      return url.toString().replace(/\/$/, "");
+    }
+    const swapped = swapSubdomain(baseUrl, "developer");
+    return swapped.replace(/\/$/, "");
+  } catch {
+    return `${baseUrl.replace(/\/$/, "")}/developer`;
+  }
+}
