@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes } from "react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
-import { requireDeveloperSession } from "@/lib/developerAuth";
+import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import { createDeveloperListing, fetchDeveloperProjects, upsertDeveloperProject } from "@/lib/developerQueries";
 
 const PROPERTY_TYPES = ["apartment", "villa", "townhouse", "penthouse", "duplex"];
@@ -21,15 +21,20 @@ export default async function NewListingPage({
   }>;
 }) {
   const session = await requireDeveloperSession();
-  const projects = await fetchDeveloperProjects(session.developerId);
-  return <NewListingPageContent projects={projects} searchParams={searchParams} />;
+  const [projects, impersonation] = await Promise.all([
+    fetchDeveloperProjects(session.developerId),
+    currentDeveloperImpersonation(),
+  ]);
+  return <NewListingPageContent projects={projects} searchParams={searchParams} impersonation={impersonation} />;
 }
 
 async function NewListingPageContent({
   projects,
+  impersonation,
   searchParams,
 }: {
   projects: Awaited<ReturnType<typeof fetchDeveloperProjects>>;
+  impersonation: Awaited<ReturnType<typeof currentDeveloperImpersonation>>;
   searchParams?: Promise<{
     project?: string | string[];
     saleType?: string | string[];
@@ -53,6 +58,7 @@ async function NewListingPageContent({
           ? "Attach resale inventory to an existing project or create a new linked project inline."
           : "Publish a property for Brixeler agents"
       }
+      impersonation={impersonation}
     >
       <form action={createListingAction} className="space-y-4 rounded-3xl border border-black/5 bg-white p-6">
         <Field label="Listing title" name="name" required placeholder="Palm Gardens – Tower B" />

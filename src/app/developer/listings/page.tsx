@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
-import { requireDeveloperSession } from "@/lib/developerAuth";
+import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import {
   fetchDeveloperProjects,
   fetchDeveloperResales,
@@ -12,9 +12,10 @@ import {
 
 export default async function DeveloperListingsPage() {
   const session = await requireDeveloperSession();
-  const [listings, projects] = await Promise.all([
+  const [listings, projects, impersonation] = await Promise.all([
     fetchDeveloperResales(session.developerId),
     fetchDeveloperProjects(session.developerId),
+    currentDeveloperImpersonation(),
   ]);
   const listingsByProject = new Map<string, number>();
   listings.forEach((listing) => {
@@ -27,6 +28,7 @@ export default async function DeveloperListingsPage() {
     <DeveloperLayout
       title="Resales"
       description="Add resale units to an existing project or spin up a new linked project for resale inventory."
+      impersonation={impersonation}
     >
       <section className="rounded-3xl border border-black/5 bg-white p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">

@@ -59,6 +59,7 @@ type Props = {
   properties: DeveloperProperty[];
   members: DeveloperMember[];
   activity: DeveloperActivity[];
+  canImpersonate?: boolean;
 };
 
 const tabs = ["Overview", "Members", "Projects", "Listings"] as const;
@@ -74,13 +75,14 @@ const statusStyles: Record<string, string> = {
   revoked: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
-export function AdminDevelopersTable({ developers, projects, properties, members, activity }: Props) {
+export function AdminDevelopersTable({ developers, projects, properties, members, activity, canImpersonate = false }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [activeDeveloperId, setActiveDeveloperId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyAccountId, setBusyAccountId] = useState<string | null>(null);
+  const [busyDeveloperId, setBusyDeveloperId] = useState<string | null>(null);
 
   const filteredDevelopers = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -131,6 +133,28 @@ export function AdminDevelopersTable({ developers, projects, properties, members
     }
     router.refresh();
     setBusyAccountId(null);
+  };
+
+  const startImpersonation = async (developerId: string) => {
+    setActionError(null);
+    setBusyDeveloperId(developerId);
+    try {
+      const response = await fetch("/api/admin/developers/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ developerId }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; redirectUrl?: string };
+      if (!response.ok || !payload.redirectUrl) {
+        setActionError(payload.error ?? "Unable to open developer dashboard.");
+        setBusyDeveloperId(null);
+        return;
+      }
+      window.location.href = payload.redirectUrl;
+    } catch (error) {
+      setActionError((error as Error).message);
+      setBusyDeveloperId(null);
+    }
   };
 
   return (
@@ -244,15 +268,26 @@ export function AdminDevelopersTable({ developers, projects, properties, members
                   </p>
                 </td>
                 <td className="px-4 py-4 text-right">
-                  <button
-                    onClick={() => {
-                      setActiveDeveloperId(dev.id);
-                      setActiveTab("Overview");
-                    }}
-                    className="rounded-full border border-black/10 px-3 py-1 text-sm text-neutral-700 hover:bg-black/5"
-                  >
-                    View
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    {canImpersonate && dev.activeMembersCount > 0 ? (
+                      <button
+                        onClick={() => startImpersonation(dev.id)}
+                        disabled={busyDeveloperId === dev.id}
+                        className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                      >
+                        {busyDeveloperId === dev.id ? "Opening…" : "Open as developer"}
+                      </button>
+                    ) : null}
+                    <button
+                      onClick={() => {
+                        setActiveDeveloperId(dev.id);
+                        setActiveTab("Overview");
+                      }}
+                      className="rounded-full border border-black/10 px-3 py-1 text-sm text-neutral-700 hover:bg-black/5"
+                    >
+                      View
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -268,8 +303,14 @@ export function AdminDevelopersTable({ developers, projects, properties, members
       </div>
 
       {activeDeveloper ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-          <div className="w-full max-w-5xl rounded-3xl border border-black/10 bg-white p-6 text-[#050505] shadow-2xl shadow-black/10">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
+          onClick={() => setActiveDeveloperId(null)}
+        >
+          <div
+            className="max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-black/10 bg-white p-6 text-[#050505] shadow-2xl shadow-black/10"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-black/[0.03]">
@@ -331,6 +372,21 @@ export function AdminDevelopersTable({ developers, projects, properties, members
                     <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Last access</p>
                     <p className="text-sm text-[#050505]">{formatTimestamp(activeDeveloper.lastLogin)}</p>
                   </div>
+                  {canImpersonate ? (
+                    <div className="sm:col-span-4">
+                      <button
+                        onClick={() => startImpersonation(activeDeveloper.id)}
+                        disabled={busyDeveloperId === activeDeveloper.id || activeDeveloper.activeMembersCount === 0}
+                        className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {busyDeveloperId === activeDeveloper.id
+                          ? "Opening developer dashboard…"
+                          : activeDeveloper.activeMembersCount > 0
+                            ? "Open as developer"
+                            : "No active member available"}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               )}
 

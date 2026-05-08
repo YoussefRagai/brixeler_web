@@ -1,17 +1,18 @@
 import { revalidatePath } from "next/cache";
 import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
-import { requireDeveloperSession } from "@/lib/developerAuth";
+import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import { fetchDeveloperProfile, updateDeveloperProfile } from "@/lib/developerQueries";
 import { STORAGE_BUCKETS, isFile, uploadFileToBucket } from "@/lib/storageServer";
 
 export default async function DeveloperProfilePage() {
+  const impersonation = await currentDeveloperImpersonation();
   const isSupabaseConfigured = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
   );
   if (!isSupabaseConfigured) {
     return (
-      <DeveloperLayout title="Profile" description="Control how Brixeler presents your brand.">
+      <DeveloperLayout title="Profile" description="Control how Brixeler presents your brand." impersonation={impersonation}>
         <div className="rounded-3xl border border-black/5 bg-white p-6 text-sm text-neutral-600">
           Supabase environment variables are missing. Set `NEXT_PUBLIC_SUPABASE_URL` and
           `SUPABASE_SERVICE_ROLE_KEY` in your deployment environment to enable profile management.
@@ -23,7 +24,7 @@ export default async function DeveloperProfilePage() {
   const profile = await fetchDeveloperProfile(session.developerId);
 
   return (
-    <DeveloperLayout title="Profile" description="Control how Brixeler presents your brand.">
+    <DeveloperLayout title="Profile" description="Control how Brixeler presents your brand." impersonation={impersonation}>
       <form
         action={updateProfileAction}
         className="space-y-4 rounded-3xl border border-black/5 bg-white p-6"

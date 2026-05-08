@@ -5,7 +5,7 @@ import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { DeveloperProjectRequestTabs } from "@/components/DeveloperProjectRequestTabs";
 import { ProjectImportPanel } from "@/components/ProjectImportPanel";
 import { VariantOutdoorFields } from "@/components/VariantOutdoorFields";
-import { requireDeveloperSession } from "@/lib/developerAuth";
+import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import {
   deleteDeveloperProject,
   deleteProjectUnitType,
@@ -138,6 +138,22 @@ const parseProjectTypes = (value?: string | null) =>
 
 const PAYMENT_FREQUENCIES = ["Quarterly", "Monthly", "Semi-annual", "Annual"];
 const INVENTORY_TEMPLATE_PATH = "/templates/developer-project-import.xlsx";
+const PROJECT_STATUS_OPTIONS = [
+  { value: "new_release", label: "New Release" },
+  { value: "upcoming", label: "Upcoming" },
+  { value: "live", label: "Live" },
+] as const;
+
+type ProjectStatusKey = (typeof PROJECT_STATUS_OPTIONS)[number]["value"];
+
+const normalizeLaunchStatus = (value?: string | null): ProjectStatusKey => {
+  if (value === "new_release" || value === "new_launch") return "new_release";
+  if (value === "upcoming") return "upcoming";
+  return "live";
+};
+
+const getLaunchStatusLabel = (value?: string | null) =>
+  PROJECT_STATUS_OPTIONS.find((option) => option.value === normalizeLaunchStatus(value))?.label ?? "Live";
 
 const toPlanNumber = (value?: string | null) => {
   if (!value || !value.trim()) return null;
@@ -176,11 +192,12 @@ export default async function DeveloperProjectsPage({
     create?: string | string[];
     step?: string | string[];
     template?: string | string[];
+    status?: string | string[];
     error?: string | string[];
   }>;
 }) {
   const session = await requireDeveloperSession();
-  const [projects, profile, developerContactRequests, commissionRules] = await Promise.all([
+  const [projects, profile, developerContactRequests, commissionRules, impersonation] = await Promise.all([
     fetchDeveloperProjects(session.developerId),
     fetchDeveloperProfile(session.developerId),
     fetchDeveloperContactRequests(session.developerId),
@@ -188,6 +205,7 @@ export default async function DeveloperProjectsPage({
       .from("developer_commission_rules")
       .select("id, developer_id, property_id, commission_rate, platform_share")
       .eq("developer_id", session.developerId),
+    currentDeveloperImpersonation(),
   ]);
   const requestsByProject = developerContactRequests.reduce<Record<string, DeveloperContactRequest[]>>((acc, request) => {
     (acc[request.project_id] ??= []).push(request);
@@ -208,6 +226,10 @@ export default async function DeveloperProjectsPage({
     typeof resolvedSearchParams?.variant === "string" ? resolvedSearchParams.variant : null;
   const templateProjectId =
     typeof resolvedSearchParams?.template === "string" ? resolvedSearchParams.template : null;
+  const selectedStatus =
+    typeof resolvedSearchParams?.status === "string"
+      ? normalizeLaunchStatus(resolvedSearchParams.status)
+      : null;
   const pageError =
     typeof resolvedSearchParams?.error === "string" ? decodeURIComponent(resolvedSearchParams.error) : null;
   const templateProject =
@@ -216,9 +238,14 @@ export default async function DeveloperProjectsPage({
       : undefined;
   const templatePlanDefaults = asStructuredPlans(templateProject?.payment_plan_templates).slice(0, 3);
   const templateOfferDefaults = asLimitedTimeOffers(templateProject?.limited_time_offers).slice(0, 1);
+  const statusFilteredProjects = selectedStatus
+    ? projects.filter((project) => normalizeLaunchStatus(project.launch_status) === selectedStatus)
+    : projects;
   const selectedProjectId =
     activeProjectId && projects.some((project) => project.id === activeProjectId)
       ? activeProjectId
+      : selectedStatus
+      ? null
       : projects[0]?.id ?? null;
   const selectedProject = selectedProjectId
     ? projects.find((project) => project.id === selectedProjectId)
@@ -227,8 +254,8 @@ export default async function DeveloperProjectsPage({
     ? ((commissionRules.data ?? []) as CommissionRuleRow[]).find((rule) => rule.property_id === selectedProjectId)
     : undefined;
   const visibleProjects = selectedProjectId
-    ? projects.filter((project) => project.id === selectedProjectId)
-    : projects;
+    ? statusFilteredProjects.filter((project) => project.id === selectedProjectId)
+    : statusFilteredProjects;
   const resolvedUnitTypeId =
     showVariantWizard && selectedProject?.project_unit_types?.length
       ? (focusUnitTypeId &&
@@ -251,6 +278,7 @@ export default async function DeveloperProjectsPage({
     <DeveloperLayout
       title="Projects"
       description="Keep launch briefs, media, and talking points up to date for agents."
+      impersonation={impersonation}
     >
       {pageError ? (
         <div className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -391,11 +419,13 @@ export default async function DeveloperProjectsPage({
                   <select
                     className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
                     name="launchStatus"
-                    defaultValue={templateProject?.launch_status ?? "live"}
+                    defaultValue={normalizeLaunchStatus(templateProject?.launch_status)}
                   >
-                    <option value="live">Live</option>
-                    <option value="new_launch">New launch</option>
-                    <option value="upcoming">Upcoming</option>
+                    {PROJECT_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <Field label="Launch date" name="launchDate" type="date" defaultValue={templateProject?.launch_date?.slice?.(0, 10) ?? ""} />
@@ -739,11 +769,13 @@ export default async function DeveloperProjectsPage({
                       <select
                         className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
                         name="launchStatus"
-                        defaultValue={selectedProject?.launch_status ?? "live"}
+                        defaultValue={normalizeLaunchStatus(selectedProject?.launch_status)}
                       >
-                        <option value="live">Live</option>
-                        <option value="new_launch">New launch</option>
-                        <option value="upcoming">Upcoming</option>
+                        {PROJECT_STATUS_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <Field label="Launch date" name="launchDate" type="date" defaultValue={selectedProject?.launch_date?.slice?.(0, 10) ?? ""} />
@@ -890,7 +922,12 @@ export default async function DeveloperProjectsPage({
 
       {showVariantWizard && modalUnitTypeId && selectedProjectId && !showCreateWizard && setupStep !== "types" ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-3xl border border-black/10 bg-white p-5 shadow-xl">
+          <a
+            href={`/developer/projects?project=${selectedProjectId}`}
+            aria-label="Close variant wizard"
+            className="absolute inset-0"
+          />
+          <div className="relative z-10 max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-black/10 bg-white p-5 shadow-xl">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Variant wizard</p>
@@ -930,8 +967,14 @@ export default async function DeveloperProjectsPage({
         <section className="space-y-3">
         <header className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Live projects</p>
-            <p className="text-base text-neutral-700">Visible inside the agent workspace</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">
+              {selectedStatus ? `${getLaunchStatusLabel(selectedStatus)} projects` : "Projects"}
+            </p>
+            <p className="text-base text-neutral-700">
+              {selectedStatus
+                ? `Projects currently marked as ${getLaunchStatusLabel(selectedStatus)}.`
+                : "Visible inside the agent workspace"}
+            </p>
           </div>
         </header>
         <div className={projectGridClass}>
@@ -976,10 +1019,24 @@ export default async function DeveloperProjectsPage({
                 {project.maintenance != null ? <p>Maintenance: {project.maintenance}</p> : null}
                 {project.ch_fees != null ? <p>CH fees: {project.ch_fees}</p> : null}
                 {project.project_types?.length ? <p>Types: {project.project_types.join(", ")}</p> : null}
-                {project.launch_status ? <p>Launch status: {project.launch_status.replace(/_/g, " ")}</p> : null}
+                <p>Launch status: {getLaunchStatusLabel(project.launch_status)}</p>
                 {project.launch_date ? <p>Launch date: {project.launch_date}</p> : null}
                 {project.eoi_value_apt != null ? <p>EOI (Apt): EGP {Number(project.eoi_value_apt).toLocaleString()}</p> : null}
                 {project.eoi_value_villa != null ? <p>EOI (Villa): EGP {Number(project.eoi_value_villa).toLocaleString()}</p> : null}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {PROJECT_STATUS_OPTIONS.filter((option) => option.value !== normalizeLaunchStatus(project.launch_status)).map((option) => (
+                  <form key={`${project.id}-${option.value}`} action={moveProjectStatusAction}>
+                    <input type="hidden" name="projectId" value={project.id} />
+                    <input type="hidden" name="status" value={option.value} />
+                    <button
+                      className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-600 hover:border-black/30 hover:text-black"
+                      type="submit"
+                    >
+                      Move to {option.label}
+                    </button>
+                  </form>
+                ))}
               </div>
               {asStructuredPlans(project.payment_plan_templates).length ? (
                 <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3">
@@ -1653,7 +1710,7 @@ async function upsertProjectAction(formData: FormData) {
   const maintenance = parseOptionalNumber(formData.get("maintenance")?.toString());
   const chFees = parseOptionalNumber(formData.get("chFees")?.toString());
   const projectTypes = parseProjectTypes(formData.get("projectTypes")?.toString());
-  const launchStatus = formData.get("launchStatus")?.toString().trim() || "live";
+  const launchStatus = normalizeLaunchStatus(formData.get("launchStatus")?.toString().trim() || "live");
   const launchDate = formData.get("launchDate")?.toString().trim() || null;
   const eoiValueApt = parseOptionalNumber(formData.get("eoiValueApt")?.toString());
   const eoiValueVilla = parseOptionalNumber(formData.get("eoiValueVilla")?.toString());
@@ -1835,6 +1892,21 @@ async function deleteProjectAction(formData: FormData) {
   if (!projectId) return;
   await deleteDeveloperProject(session.developerId, projectId);
   revalidatePath("/developer/projects");
+}
+
+async function moveProjectStatusAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperSession();
+  const projectId = formData.get("projectId")?.toString();
+  const status = normalizeLaunchStatus(formData.get("status")?.toString());
+  if (!projectId) return;
+  await supabaseServer
+    .from("developer_projects")
+    .update({ launch_status: status })
+    .eq("developer_id", session.developerId)
+    .eq("id", projectId);
+  revalidatePath("/developer/projects");
+  redirect(`/developer/projects?status=${status}&project=${projectId}`);
 }
 
 async function upsertProjectCommissionRule(input: {

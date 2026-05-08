@@ -1,5 +1,5 @@
 import { DeveloperLayout } from "@/components/DeveloperLayout";
-import { requireDeveloperSession } from "@/lib/developerAuth";
+import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import {
   fetchDeveloperProfile,
   fetchDeveloperProjects,
@@ -9,17 +9,19 @@ import {
 
 export default async function DeveloperDashboardPage() {
   const session = await requireDeveloperSession();
-  const [stats, resales, projects, profile] = await Promise.all([
+  const [stats, resales, projects, profile, impersonation] = await Promise.all([
     fetchDeveloperStats(session.developerId),
     fetchDeveloperResales(session.developerId),
     fetchDeveloperProjects(session.developerId),
     fetchDeveloperProfile(session.developerId),
+    currentDeveloperImpersonation(),
   ]);
 
   return (
     <DeveloperLayout
       title="Developer overview"
       description="Welcome back. Track agent activity, deal velocity, and live demand for your launches."
+      impersonation={impersonation}
     >
       <section className="rounded-3xl border border-black/5 bg-white p-6">
         <div className="flex flex-wrap items-center justify-between gap-6">

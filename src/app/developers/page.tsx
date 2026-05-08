@@ -336,6 +336,7 @@ export default async function DevelopersPage() {
             properties={properties}
             members={accounts}
             activity={activity}
+            canImpersonate={adminContext.roles.includes("super_admin")}
           />
 
           <section id="developer-invite" className="rounded-3xl border border-black/5 bg-white p-6 shadow-xl shadow-black/5">

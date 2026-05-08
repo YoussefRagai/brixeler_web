@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { clsx } from "clsx";
+import type { DeveloperImpersonationMarker } from "@/lib/developerImpersonation";
 
 const navItems = [
   { href: "/developer", label: "Overview" },
@@ -12,16 +13,41 @@ const navItems = [
   { href: "/developer/profile", label: "Profile" },
 ];
 
+type DeveloperSidebarProject = {
+  id: string;
+  name: string;
+  launchStatus?: string | null;
+};
+
+type ProjectStatusKey = "new_release" | "upcoming" | "live";
+
+const projectStatusSections: Array<{ key: ProjectStatusKey; label: string }> = [
+  { key: "new_release", label: "New Release" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "live", label: "Live" },
+];
+
+const normalizeLaunchStatus = (value?: string | null): ProjectStatusKey => {
+  if (value === "new_release" || value === "new_launch") return "new_release";
+  if (value === "upcoming") return "upcoming";
+  return "live";
+};
+
 interface Props {
   title: string;
   description?: string;
   actions?: ReactNode;
   children: ReactNode;
+  impersonation?: DeveloperImpersonationMarker | null;
 }
 
-export function DeveloperLayout({ title, description, actions, children }: Props) {
+export function DeveloperLayout({ title, description, actions, children, impersonation }: Props) {
   const pathname = usePathname();
-  const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([]);
+  const searchParams = useSearchParams();
+  const [projects, setProjects] = useState<DeveloperSidebarProject[]>([]);
+  const activeProjectId = searchParams.get("project");
+  const activeStatusParam = searchParams.get("status");
+  const activeStatus = activeStatusParam ? normalizeLaunchStatus(activeStatusParam) : null;
 
   useEffect(() => {
     let active = true;
@@ -39,6 +65,11 @@ export function DeveloperLayout({ title, description, actions, children }: Props
       active = false;
     };
   }, []);
+
+  const groupedProjects = projectStatusSections.map((section) => ({
+    ...section,
+    projects: projects.filter((project) => normalizeLaunchStatus(project.launchStatus) === section.key),
+  }));
 
   return (
     <div className="flex min-h-screen bg-[#f8f8f8] text-[#050505]">
@@ -69,23 +100,42 @@ export function DeveloperLayout({ title, description, actions, children }: Props
           })}
           <div className="pt-3">
             <p className="text-xs uppercase tracking-[0.3em] text-neutral-400">Projects</p>
-            <div className="mt-2 space-y-1">
-              {projects.map((project) => {
-                const isActive = pathname === "/developer/projects";
+            <div className="mt-2 space-y-3">
+              {groupedProjects.map((section) => {
+                const sectionActive = pathname === "/developer/projects" && activeStatus === section.key && !activeProjectId;
                 return (
-                  <Link
-                    key={project.id}
-                    href={`/developer/projects?project=${project.id}`}
-                    aria-current={isActive ? "page" : undefined}
-                    className={clsx(
-                      "block rounded-2xl px-4 py-2 text-xs transition",
-                      isActive
-                        ? "bg-black text-white"
-                        : "text-neutral-500 hover:bg-black/5 hover:text-black",
-                    )}
-                  >
-                    {project.name}
-                  </Link>
+                  <div key={section.key} className="space-y-1">
+                    <Link
+                      href={`/developer/projects?status=${section.key}`}
+                      aria-current={sectionActive ? "page" : undefined}
+                      className={clsx(
+                        "block rounded-2xl px-4 py-2 text-xs font-semibold transition",
+                        sectionActive
+                          ? "text-black hover:bg-black/5"
+                          : "text-neutral-500 hover:bg-black/5 hover:text-black",
+                      )}
+                    >
+                      {section.label}
+                    </Link>
+                    {section.projects.map((project) => {
+                      const isActive = pathname === "/developer/projects" && activeProjectId === project.id;
+                      return (
+                        <Link
+                          key={project.id}
+                          href={`/developer/projects?status=${section.key}&project=${project.id}`}
+                          aria-current={isActive ? "page" : undefined}
+                          className={clsx(
+                            "ml-3 block rounded-2xl px-4 py-2 text-xs transition",
+                            isActive
+                              ? "bg-black text-white"
+                              : "text-neutral-500 hover:bg-black/5 hover:text-black",
+                          )}
+                        >
+                          {project.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 );
               })}
               <Link
@@ -136,25 +186,35 @@ export function DeveloperLayout({ title, description, actions, children }: Props
                 </Link>
               );
             })}
-            {projects.map((project) => {
-              const isActive = pathname === "/developer/projects";
-              return (
-                <Link
-                  key={`mobile-project-${project.id}`}
-                  href={`/developer/projects?project=${project.id}`}
-                  aria-current={isActive ? "page" : undefined}
-                  className={clsx(
-                    "shrink-0 rounded-full border px-4 py-2 text-xs transition",
-                    isActive
-                      ? "border-black bg-black text-white"
-                      : "border-black/10 bg-white text-neutral-600 hover:border-black/25 hover:text-black",
-                  )}
-                >
-                  {project.name}
-                </Link>
-              );
-            })}
+            {projectStatusSections.map((section) => (
+              <Link
+                key={`mobile-status-${section.key}`}
+                href={`/developer/projects?status=${section.key}`}
+                className="shrink-0 rounded-full border border-black/10 bg-white px-4 py-2 text-xs text-neutral-600 hover:border-black/25 hover:text-black"
+              >
+                {section.label}
+              </Link>
+            ))}
           </nav>
+          {impersonation ? (
+            <div className="mx-auto mt-4 flex max-w-5xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-amber-700">Super admin impersonation</p>
+                <p className="mt-1">
+                  You are viewing <span className="font-semibold">{impersonation.developerName ?? "this developer"}</span> as{" "}
+                  {impersonation.adminName ?? impersonation.adminEmail ?? "Super Admin"}.
+                </p>
+              </div>
+              <form method="post" action="/api/developer/impersonation/exit">
+                <button
+                  type="submit"
+                  className="rounded-full border border-amber-300 bg-white px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  Exit impersonation
+                </button>
+              </form>
+            </div>
+          ) : null}
         </header>
         <main className="flex-1 px-6 py-8">
           <div className="mx-auto flex max-w-5xl flex-col gap-8">{children}</div>

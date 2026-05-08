@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
-import { requireDeveloperSession } from "@/lib/developerAuth";
+import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import { deleteListing, fetchDeveloperListing, fetchDeveloperProjects, updateDeveloperListing, requestListingRenewal } from "@/lib/developerQueries";
 import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes } from "react";
 
@@ -17,9 +17,10 @@ interface Props {
 
 export default async function EditListingPage({ params }: Props) {
   const session = await requireDeveloperSession();
-  const [listing, projects] = await Promise.all([
+  const [listing, projects, impersonation] = await Promise.all([
     fetchDeveloperListing(params.listingId, session.developerId),
     fetchDeveloperProjects(session.developerId),
+    currentDeveloperImpersonation(),
   ]);
   if (!listing) {
     notFound();
@@ -48,6 +49,7 @@ export default async function EditListingPage({ params }: Props) {
     <DeveloperLayout
       title="Edit listing"
       description="Adjust the information that agents see."
+      impersonation={impersonation}
       actions={
         <form action={deleteListingFromEditAction}>
           <input type="hidden" name="listingId" value={params.listingId} />
