@@ -5,10 +5,13 @@ import {
   getDeveloperImpersonation,
 } from "@/lib/developerImpersonation";
 import { clearDeveloperSession } from "@/lib/developerSession";
+import { getAdminPortalUrl, getRequestBaseUrl } from "@/lib/requestUrl";
 
 export async function POST(request: NextRequest) {
   const marker = getDeveloperImpersonation(request.cookies);
-  const redirectTarget = marker?.returnTo?.trim() || new URL("/admin/login", request.url).toString();
+  const baseUrl = getRequestBaseUrl(request);
+  const adminPortalUrl = getAdminPortalUrl(baseUrl);
+  const redirectTarget = marker?.returnTo?.trim() || new URL("/admin/login", adminPortalUrl).toString();
   const response = NextResponse.redirect(redirectTarget);
   clearDeveloperSession(response.cookies);
   clearDeveloperImpersonation(response.cookies);
