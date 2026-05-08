@@ -6,10 +6,34 @@ export function getRequestBaseUrl(request: NextRequest) {
   return `${proto}://${host}`;
 }
 
+function isUnsafePortalHost(hostname: string) {
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    /^[0-9.]+$/.test(hostname)
+  );
+}
+
+export function sanitizePortalUrl(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    if (isUnsafePortalHost(url.hostname.toLowerCase())) {
+      return null;
+    }
+    return trimmed.replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
 export function swapSubdomain(baseUrl: string, targetSubdomain: "admin" | "developer") {
   try {
     const url = new URL(baseUrl);
-    if (url.hostname === "localhost" || /^[0-9.]+$/.test(url.hostname)) {
+    if (isUnsafePortalHost(url.hostname.toLowerCase())) {
       return baseUrl;
     }
     const parts = url.hostname.split(".");
@@ -38,4 +62,19 @@ export function getDeveloperPortalUrl(baseUrl: string) {
   } catch {
     return `${baseUrl.replace(/\/$/, "")}/developer`;
   }
+}
+
+export function getAdminPortalUrl(baseUrl: string) {
+  const explicit = sanitizePortalUrl(process.env.ADMIN_PORTAL_URL);
+  if (explicit) return explicit;
+  try {
+    const url = new URL(baseUrl);
+    if (url.hostname === "admin.brixeler.com") {
+      url.pathname = "";
+      url.search = "";
+      url.hash = "";
+      return url.toString().replace(/\/$/, "");
+    }
+  } catch {}
+  return "https://admin.brixeler.com";
 }
