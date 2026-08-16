@@ -3,6 +3,7 @@ import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { VerificationCarousel } from "@/components/VerificationCarousel";
+import { createSignedStorageUrl, STORAGE_BUCKETS } from "@/lib/storageServer";
 
 async function loadVerificationQueue() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -25,15 +26,23 @@ async function loadVerificationQueue() {
     return [];
   }
 
-  return data.map((profile) => ({
-    id: profile.id,
-    name: profile.display_name ?? "Pending Agent",
-    submitted: profile.created_at ? new Date(profile.created_at).toLocaleString() : "—",
-    docs: (profile.verification_documents_url ?? []) as string[],
-    status: profile.verification_status,
-    priority: profile.verification_status === "pending" ? "High" : "Medium",
-    notes: profile.phone ?? "—",
-  }));
+  return Promise.all(
+    data.map(async (profile) => ({
+      id: profile.id,
+      name: profile.display_name ?? "Pending Agent",
+      submitted: profile.created_at ? new Date(profile.created_at).toLocaleString() : "—",
+      docs: (
+        await Promise.all(
+          ((profile.verification_documents_url ?? []) as string[]).map((value) =>
+            createSignedStorageUrl(STORAGE_BUCKETS.verificationDocs, value),
+          ),
+        )
+      ).filter((value): value is string => Boolean(value)),
+      status: profile.verification_status,
+      priority: profile.verification_status === "pending" ? "High" : "Medium",
+      notes: profile.phone ?? "—",
+    })),
+  );
 }
 
 export default async function VerificationPage() {

@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { AdminDevelopersTable } from "@/components/AdminDevelopersTable";
 import { AdminLayout } from "@/components/AdminLayout";
-import { requireAdminContext } from "@/lib/adminAuth";
+import { requireAdminRole } from "@/lib/adminAuth";
 import { buildAdminUi } from "@/lib/adminUi";
 import { fetchAdminActivity, logAdminActivity } from "@/lib/adminQueries";
 import { findAuthUserByEmail, sendDeveloperPortalInvite } from "@/lib/developerAccountInvites";
@@ -132,8 +132,11 @@ async function getDeveloperData(developerIds?: string[] | null): Promise<{
 
 async function inviteDeveloperMember(formData: FormData) {
   "use server";
-  const admin = await requireAdminContext();
-  const allowedDeveloperIds = admin.roles.includes("super_admin") ? [] : admin.developerIds ?? [];
+  const admin = await requireAdminRole(["developers_admin"]);
+  if (!admin?.adminId) return;
+  const isSuperAdmin = admin.roles.includes("super_admin");
+  const allowedDeveloperIds = isSuperAdmin ? [] : admin.developerIds ?? [];
+  if (!isSuperAdmin && !allowedDeveloperIds.length) return;
   const existingDeveloperId = formData.get("existingDeveloperId")?.toString() || "";
   const developerNameInput = formData.get("developerName")?.toString().trim() || "";
   const contactEmail = formData.get("contactEmail")?.toString().trim() || null;

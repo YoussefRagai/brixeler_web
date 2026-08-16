@@ -92,12 +92,18 @@ export function VerificationCarousel({ queue }: Props) {
     if (!current || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await fetch("/api/admin/verification/approve", {
+      const response = await fetch("/api/admin/verification/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agentId: current.id }),
       });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Unable to approve this verification request.");
+      }
       advanceCard("right");
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Unable to approve this verification request.");
     } finally {
       setIsSubmitting(false);
     }
@@ -111,12 +117,18 @@ export function VerificationCarousel({ queue }: Props) {
     }
     setIsSubmitting(true);
     try {
-      await fetch("/api/admin/verification/reject", {
+      const response = await fetch("/api/admin/verification/reject", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agentId: current.id, reason: reason.trim() }),
       });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Unable to request changes for this verification.");
+      }
       advanceCard("left");
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Unable to request changes for this verification.");
     } finally {
       setIsSubmitting(false);
     }

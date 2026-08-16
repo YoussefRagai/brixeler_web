@@ -452,9 +452,29 @@ export async function upsertDeveloperProject(
   },
 ) {
   const id = assertDeveloperId(developerId);
+  const { id: projectId, ...projectPayload } = payload;
+  if (projectId) {
+    const { data: existing, error: lookupError } = await supabaseServer
+      .from("developer_projects")
+      .select("id, developer_id")
+      .eq("id", projectId)
+      .maybeSingle();
+    if (lookupError) return { error: lookupError, data: null };
+    if (!existing || existing.developer_id !== id) {
+      return { error: new Error("Unauthorized project access"), data: null };
+    }
+    const { data, error } = await supabaseServer
+      .from("developer_projects")
+      .update(projectPayload)
+      .eq("id", projectId)
+      .eq("developer_id", id)
+      .select("id")
+      .single();
+    return { error, data };
+  }
   const { data, error } = await supabaseServer
     .from("developer_projects")
-    .upsert({ ...payload, developer_id: id }, { onConflict: "id" })
+    .insert({ ...projectPayload, developer_id: id })
     .select("id")
     .single();
   return { error, data };
@@ -498,10 +518,7 @@ export async function upsertProjectUnitType(
     throw new Error("Unauthorized project access");
   }
 
-  const { data, error } = await supabaseServer
-    .from("project_unit_types")
-    .upsert({
-      id: payload.id,
+  const unitPayload = {
       project_id: projectId,
       category: payload.category ?? null,
       label: payload.label,
@@ -517,7 +534,29 @@ export async function upsertProjectUnitType(
       finishing_status: payload.finishingStatus ?? null,
       hero_image_url: payload.heroImageUrl ?? null,
       description: payload.description ?? null,
-    }, { onConflict: "id" })
+  };
+  if (payload.id) {
+    const { data: existing, error: lookupError } = await supabaseServer
+      .from("project_unit_types")
+      .select("id, project_id")
+      .eq("id", payload.id)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!existing || existing.project_id !== projectId) {
+      throw new Error("Unauthorized unit type access");
+    }
+    const { data, error } = await supabaseServer
+      .from("project_unit_types")
+      .update(unitPayload)
+      .eq("id", payload.id)
+      .eq("project_id", projectId)
+      .select("id")
+      .single();
+    return { error, data };
+  }
+  const { data, error } = await supabaseServer
+    .from("project_unit_types")
+    .insert(unitPayload)
     .select("id")
     .single();
 
@@ -572,9 +611,7 @@ export async function upsertProjectUnitVariant(
     throw new Error("Unauthorized unit type access");
   }
 
-  const { error } = await supabaseServer.from("project_unit_variants").upsert(
-    {
-      id: payload.id,
+  const variantPayload = {
       project_unit_type_id: unitTypeId,
       category: payload.category ?? null,
       label: payload.label ?? null,
@@ -598,9 +635,27 @@ export async function upsertProjectUnitVariant(
       stock_count: payload.stockCount ?? null,
       description: payload.description ?? null,
       amenities: payload.amenities ?? null,
-    },
-    { onConflict: "id" },
-  );
+  };
+  if (payload.id) {
+    const { data: existing, error: lookupError } = await supabaseServer
+      .from("project_unit_variants")
+      .select("id, project_unit_type_id")
+      .eq("id", payload.id)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!existing || existing.project_unit_type_id !== unitTypeId) {
+      throw new Error("Unauthorized unit variant access");
+    }
+    const { error } = await supabaseServer
+      .from("project_unit_variants")
+      .update(variantPayload)
+      .eq("id", payload.id)
+      .eq("project_unit_type_id", unitTypeId);
+    return { error };
+  }
+  const { error } = await supabaseServer
+    .from("project_unit_variants")
+    .insert(variantPayload);
 
   return { error };
 }

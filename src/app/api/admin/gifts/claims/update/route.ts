@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireAdminContext } from "@/lib/adminAuth";
+import { requireAdminRole } from "@/lib/adminAuth";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { logAdminActivity } from "@/lib/adminQueries";
 
 export async function POST(request: Request) {
-  const admin = await requireAdminContext();
+  const admin = await requireAdminRole(["marketing_admin"]);
   if (!admin?.adminId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -16,6 +16,10 @@ export async function POST(request: Request) {
 
   if (!claimId || !status) {
     return NextResponse.json({ error: "Missing claim id or status" }, { status: 400 });
+  }
+
+  if (!["pending", "approved", "rejected", "fulfilled", "cancelled"].includes(status)) {
+    return NextResponse.json({ error: "Invalid claim status" }, { status: 400 });
   }
 
   const { error } = await supabaseServer

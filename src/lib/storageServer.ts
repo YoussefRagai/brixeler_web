@@ -69,6 +69,7 @@ export const storageServer = supabaseConfigured
   : disabledClient;
 
 export const STORAGE_BUCKETS = {
+  verificationDocs: "verification-docs",
   developerLogos: "developer-logos",
   projectImages: "developer-project-images",
   projectBrochures: "developer-project-brochures",
@@ -80,11 +81,62 @@ export const STORAGE_BUCKETS = {
   giftIcons: "gift-icons",
 } as const;
 
+export function storageObjectPath(bucket: string, value: string | null | undefined) {
+  if (!value) return null;
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const index = value.indexOf(marker);
+  if (index >= 0) {
+    return decodeURIComponent(value.slice(index + marker.length)).replace(/^\/+/, "") || null;
+  }
+  if (/^https?:\/\//i.test(value)) return null;
+  return value.replace(/^\/+/, "") || null;
+}
+
+export async function createSignedStorageUrl(
+  bucket: string,
+  value: string | null | undefined,
+  expiresIn = 300,
+) {
+  const path = storageObjectPath(bucket, value);
+  if (!path) return null;
+  const { data, error } = await storageServer.storage.from(bucket).createSignedUrl(path, expiresIn);
+  if (error || !data?.signedUrl) {
+    if (error) console.warn(`Failed to sign ${bucket} object`, error);
+    return null;
+  }
+  return data.signedUrl;
+}
+
 const sanitizeFilename = (name: string) =>
   name
     .trim()
     .replace(/\s+/g, "-")
     .replace(/[^a-zA-Z0-9._-]/g, "");
+
+const uploadRules: Record<string, { maxBytes: number; mimeTypes: string[]; extensions?: string[] }> = {
+  [STORAGE_BUCKETS.developerLogos]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
+  [STORAGE_BUCKETS.projectImages]: { maxBytes: 10 * 1024 * 1024, mimeTypes: ["image/*"] },
+  [STORAGE_BUCKETS.projectUnitImages]: { maxBytes: 10 * 1024 * 1024, mimeTypes: ["image/*"] },
+  [STORAGE_BUCKETS.projectBrochures]: {
+    maxBytes: 25 * 1024 * 1024,
+    mimeTypes: ["application/pdf", "image/*", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    extensions: ["xlsx"],
+  },
+  [STORAGE_BUCKETS.projectVoiceNotes]: { maxBytes: 25 * 1024 * 1024, mimeTypes: ["audio/*"] },
+  [STORAGE_BUCKETS.projectVideos]: { maxBytes: 100 * 1024 * 1024, mimeTypes: ["video/*"] },
+  [STORAGE_BUCKETS.badgeIcons]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
+  [STORAGE_BUCKETS.tierIcons]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
+  [STORAGE_BUCKETS.giftIcons]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
+};
+
+function isAllowedMimeType(file: File, rule: (typeof uploadRules)[string]) {
+  const mimeType = file.type.toLowerCase();
+  if (rule.mimeTypes.some((allowed) => allowed.endsWith("/*") ? mimeType.startsWith(allowed.slice(0, -1)) : mimeType === allowed)) {
+    return true;
+  }
+  const extension = file.name.toLowerCase().split(".").pop();
+  return Boolean(extension && rule.extensions?.includes(extension));
+}
 
 export async function uploadFileToBucket(params: {
   bucket: string;
@@ -92,6 +144,14 @@ export async function uploadFileToBucket(params: {
   file: File;
 }) {
   const { bucket, pathPrefix, file } = params;
+  const rule = uploadRules[bucket];
+  if (!rule) throw new Error("Uploads are not enabled for this storage bucket.");
+  if (file.size <= 0 || file.size > rule.maxBytes) {
+    throw new Error(`File is too large. Maximum allowed size is ${Math.floor(rule.maxBytes / (1024 * 1024))} MB.`);
+  }
+  if (!isAllowedMimeType(file, rule)) {
+    throw new Error("File type is not allowed for this upload.");
+  }
   const filename = sanitizeFilename(file.name || "upload");
   const path = `${pathPrefix}/${Date.now()}-${filename}`;
   const arrayBuffer = await file.arrayBuffer();

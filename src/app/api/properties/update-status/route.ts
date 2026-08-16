@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { getAdminSessionFromCookie } from "@/lib/adminSession";
-import { hasAdminRole, type AdminRole } from "@/lib/adminRoles";
+import { getAdminContextFromRequest } from "@/lib/adminAuth";
+import { hasAdminRole } from "@/lib/adminRoles";
 import { logAdminActivity } from "@/lib/adminQueries";
 
 export async function POST(request: Request) {
-  const session = getAdminSessionFromCookie(request.headers.get("cookie"));
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const roles = (session.roles ?? []) as AdminRole[];
-  if (!hasAdminRole(roles, ["listing_admin"])) {
+  const admin = await getAdminContextFromRequest(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasAdminRole(admin.roles, ["listing_admin"])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -21,14 +20,18 @@ export async function POST(request: Request) {
 
   const propertyId = body.propertyId;
   const status = body.status;
+  const allowedStatuses = ["pending", "approved", "rejected"] as const;
   if (!propertyId || !status) {
     return NextResponse.json({ error: "Missing propertyId or status" }, { status: 400 });
+  }
+  if (!(allowedStatuses as readonly string[]).includes(status)) {
+    return NextResponse.json({ error: "Invalid property status" }, { status: 400 });
   }
 
   const payload: Record<string, unknown> = {
     approval_status: status,
     reviewed_at: new Date().toISOString(),
-    reviewed_by: session.adminId,
+    reviewed_by: admin.adminId,
   };
 
   if (status === "rejected" || status === "pending") {
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message ?? "Update failed" }, { status: 500 });
 
   await logAdminActivity({
-    adminId: session.adminId,
+    adminId: admin.adminId,
     action: `property.${status}`,
     resourceType: "properties",
     resourceId: propertyId,

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getAdminContext } from "@/lib/adminAuth";
 import { hasAdminRole } from "@/lib/adminRoles";
 import { fetchAdminAccountByUser, logAdminActivity } from "@/lib/adminQueries";
-import { createDeveloperImpersonationToken } from "@/lib/developerImpersonation";
+import { createDeveloperImpersonationToken, hashDeveloperImpersonationToken } from "@/lib/developerImpersonation";
 import { getAdminPortalUrl, getDeveloperPortalUrl, getRequestBaseUrl, sanitizePortalUrl } from "@/lib/requestUrl";
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -82,6 +82,25 @@ export async function POST(request: NextRequest) {
     returnTo,
   };
   const token = createDeveloperImpersonationToken(marker);
+  const expiresAt = new Date(marker.issuedAt + 5 * 60 * 1000).toISOString();
+  const { error: grantError } = await supabaseServer.from("developer_impersonation_grants").insert({
+    token_hash: hashDeveloperImpersonationToken(token),
+    admin_id: marker.adminId,
+    admin_auth_user_id: marker.adminAuthUserId,
+    admin_email: marker.adminEmail,
+    admin_name: marker.adminName,
+    developer_id: marker.developerId,
+    developer_name: marker.developerName,
+    impersonated_user_id: marker.impersonatedUserId,
+    impersonated_account_id: marker.impersonatedAccountId,
+    issued_at: new Date(marker.issuedAt).toISOString(),
+    expires_at: expiresAt,
+    return_to: marker.returnTo,
+  });
+  if (grantError) {
+    console.error("Failed to persist impersonation grant", grantError);
+    return NextResponse.json({ error: "Unable to create impersonation link." }, { status: 500 });
+  }
   const redirectUrl = new URL("/api/developer/impersonate", developerPortalUrl);
   redirectUrl.searchParams.set("token", token);
 

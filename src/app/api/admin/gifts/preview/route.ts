@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireAdminContext } from "@/lib/adminAuth";
+import { requireAdminRole } from "@/lib/adminAuth";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(request: Request) {
-  const admin = await requireAdminContext();
+  const admin = await requireAdminRole(["marketing_admin"]);
   if (!admin?.adminId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { getAdminSessionFromCookie } from "@/lib/adminSession";
-import { hasAdminRole, type AdminRole } from "@/lib/adminRoles";
+import { getAdminContextFromRequest } from "@/lib/adminAuth";
+import { hasAdminRole } from "@/lib/adminRoles";
 import { logAdminActivity } from "@/lib/adminQueries";
 
 type RouteContext = {
@@ -9,10 +9,9 @@ type RouteContext = {
 };
 
 export async function POST(request: Request, context: RouteContext) {
-  const session = getAdminSessionFromCookie(request.headers.get("cookie"));
-  if (!session) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  const roles = (session.roles ?? []) as AdminRole[];
-  if (!hasAdminRole(roles, ["deals_admin"])) {
+  const admin = await getAdminContextFromRequest(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  if (!hasAdminRole(admin.roles, ["deals_admin"])) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
@@ -59,7 +58,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   await logAdminActivity({
-    adminId: session.adminId,
+    adminId: admin.adminId,
     action: type === "reject" ? "sales_claim.reject" : "sales_claim.request_change",
     resourceType: "deal_stage_entries",
     resourceId: id,

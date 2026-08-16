@@ -38,12 +38,17 @@ function decodeSession(value: string | undefined | null): AdminSession | null {
   const [payload, signature] = value.split(".");
   if (!payload || !signature) return null;
   const expected = signPayload(payload);
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (signatureBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
     return null;
   }
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (!parsed?.adminId || !parsed?.authUserId) {
+    if (!parsed?.adminId || !parsed?.authUserId || !Number.isFinite(parsed.issuedAt)) {
+      return null;
+    }
+    if (parsed.issuedAt > Date.now() || Date.now() - parsed.issuedAt > SESSION_MAX_AGE * 1000) {
       return null;
     }
     return parsed as AdminSession;

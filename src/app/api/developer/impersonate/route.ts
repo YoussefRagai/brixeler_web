@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { setDeveloperSession } from "@/lib/developerSession";
 import {
+  hashDeveloperImpersonationToken,
   readDeveloperImpersonationToken,
   setDeveloperImpersonation,
 } from "@/lib/developerImpersonation";
@@ -17,12 +18,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/developer/login?error=Invalid+or+expired+impersonation+link", developerPortalUrl));
   }
 
+  const { data: grant, error: grantError } = await supabaseServer
+    .from("developer_impersonation_grants")
+    .update({ consumed_at: new Date().toISOString() })
+    .eq("token_hash", hashDeveloperImpersonationToken(token ?? ""))
+    .is("consumed_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .select("developer_id, developer_name, impersonated_user_id, impersonated_account_id, admin_id, admin_auth_user_id, admin_email, admin_name, return_to")
+    .maybeSingle();
+
+  if (grantError || !grant) {
+    return NextResponse.redirect(new URL("/developer/login?error=Invalid+or+expired+impersonation+link", developerPortalUrl));
+  }
+
   const { data: account, error } = await supabaseServer
     .from("developer_accounts")
     .select("id, developer_id, auth_user_id, status")
-    .eq("id", marker.impersonatedAccountId)
-    .eq("developer_id", marker.developerId)
-    .eq("auth_user_id", marker.impersonatedUserId)
+    .eq("id", grant.impersonated_account_id)
+    .eq("developer_id", grant.developer_id)
+    .eq("auth_user_id", grant.impersonated_user_id)
     .eq("status", "active")
     .maybeSingle();
 
@@ -32,17 +46,31 @@ export async function GET(request: NextRequest) {
 
   const response = NextResponse.redirect(new URL("/developer", developerPortalUrl));
   setDeveloperSession(response.cookies, {
-    developerId: marker.developerId,
-    developerName: marker.developerName ?? null,
-    userId: marker.impersonatedUserId,
+    developerId: grant.developer_id,
+    developerName: grant.developer_name ?? null,
+    userId: grant.impersonated_user_id,
     issuedAt: Date.now(),
   });
-  setDeveloperImpersonation(response.cookies, marker);
+  setDeveloperImpersonation(response.cookies, {
+    adminId: grant.admin_id,
+    adminAuthUserId: grant.admin_auth_user_id,
+    adminEmail: grant.admin_email,
+    adminName: grant.admin_name,
+    developerId: grant.developer_id,
+    developerName: grant.developer_name,
+    impersonatedUserId: grant.impersonated_user_id,
+    impersonatedAccountId: grant.impersonated_account_id,
+    issuedAt: Date.now(),
+    returnTo: grant.return_to,
+  });
 
   await supabaseServer
     .from("developer_accounts")
     .update({ last_login: new Date().toISOString() })
     .eq("id", account.id);
+
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set("Referrer-Policy", "no-referrer");
 
   return response;
 }

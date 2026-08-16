@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminContext } from "@/lib/adminAuth";
+import { requireAdminRole } from "@/lib/adminAuth";
 import { uploadFileToBucket, isFile, STORAGE_BUCKETS } from "@/lib/storageServer";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { logAdminActivity } from "@/lib/adminQueries";
@@ -11,7 +11,7 @@ function toStringArray(value: FormDataEntryValue | null): string[] {
 }
 
 export async function POST(request: Request) {
-  const admin = await requireAdminContext();
+  const admin = await requireAdminRole(["marketing_admin"]);
   if (!admin?.adminId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
