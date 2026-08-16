@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { getAdminSessionFromCookie } from "@/lib/adminSession";
-import { hasAdminRole, type AdminRole } from "@/lib/adminRoles";
+import { getAdminContextFromRequest } from "@/lib/adminAuth";
+import { hasAdminRole } from "@/lib/adminRoles";
 import { logAdminActivity } from "@/lib/adminQueries";
 
 export async function POST(request: Request) {
-  const session = getAdminSessionFromCookie(request.headers.get("cookie"));
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const roles = (session.roles ?? []) as AdminRole[];
-  if (!hasAdminRole(roles, ["user_auth_admin"])) {
+  const admin = await getAdminContextFromRequest(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasAdminRole(admin.roles, ["user_auth_admin"])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -33,7 +32,7 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: "Update failed" }, { status: 500 });
 
   await logAdminActivity({
-    adminId: session.adminId,
+    adminId: admin.adminId,
     action: "user.verify_request_change",
     resourceType: "users_profile",
     resourceId: agentId,

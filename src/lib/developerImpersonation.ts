@@ -43,6 +43,10 @@ function signPayload(payload: string) {
   return crypto.createHmac("sha256", impersonationSecret).update(payload).digest("base64url");
 }
 
+export function hashDeveloperImpersonationToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 function encode<T extends object>(payload: T) {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = signPayload(body);
@@ -54,7 +58,9 @@ function decode<T>(value?: string | null): T | null {
   const [body, signature] = value.split(".");
   if (!body || !signature) return null;
   const expected = signPayload(body);
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (signatureBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)) {
     return null;
   }
   try {

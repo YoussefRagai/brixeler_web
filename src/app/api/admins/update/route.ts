@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { getAdminSessionFromCookie } from "@/lib/adminSession";
+import { getAdminContextFromRequest } from "@/lib/adminAuth";
 import { hasAdminRole, type AdminRole } from "@/lib/adminRoles";
 import { logAdminActivity } from "@/lib/adminQueries";
 
@@ -21,10 +21,9 @@ function deriveLegacyRole(roles: AdminRole[]) {
 }
 
 export async function POST(request: Request) {
-  const session = getAdminSessionFromCookie(request.headers.get("cookie"));
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const roles = (session.roles ?? []) as AdminRole[];
-  if (!hasAdminRole(roles, ["super_admin"])) {
+  const admin = await getAdminContextFromRequest(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasAdminRole(admin.roles, ["super_admin"])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -58,7 +57,7 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: "Update failed" }, { status: 500 });
 
   await logAdminActivity({
-    adminId: session.adminId,
+    adminId: admin.adminId,
     action: "admin.update_roles",
     resourceType: "admins",
     resourceId: adminId,

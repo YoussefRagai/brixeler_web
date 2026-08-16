@@ -4,7 +4,7 @@ import { buildAdminUi } from "@/lib/adminUi";
 import { ADMIN_ROLE_LABELS, ADMIN_ROLE_DESCRIPTIONS, type AdminRole } from "@/lib/adminRoles";
 import { fetchAdminAccounts, logAdminActivity } from "@/lib/adminQueries";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { requireAdminContext } from "@/lib/adminAuth";
+import { requireAdminRole } from "@/lib/adminAuth";
 import { AdminRoleEditor } from "@/components/AdminRoleEditor";
 
 const roleMatrix: { role: AdminRole; permissions: string[] }[] = [
@@ -45,7 +45,8 @@ const roleMatrix: { role: AdminRole; permissions: string[] }[] = [
 
 async function inviteAdminAction(formData: FormData) {
   "use server";
-  const admin = await requireAdminContext();
+  const admin = await requireAdminRole(["super_admin"]);
+  if (!admin?.adminId) return;
   const email = formData.get("email")?.toString().toLowerCase().trim();
   const password = formData.get("password")?.toString();
   const displayName = formData.get("displayName")?.toString().trim() || null;

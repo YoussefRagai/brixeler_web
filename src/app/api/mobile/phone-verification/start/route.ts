@@ -42,18 +42,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `An account using this phone number ${phone} is already in place.` }, { status: 409 });
   }
 
-  const { error: profileError } = await supabaseServer
-    .from("users_profile")
-    .update({
-      phone,
-      phone_verified: false,
-      phone_verified_at: null,
-      verification_rejection_reason: null,
-    })
-    .eq("id", session.user.id);
-
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+  const { data: allowed, error: rateLimitError } = await supabaseServer.rpc("consume_phone_verification_attempt", {
+    p_user_id: session.user.id,
+    p_phone: phone,
+  });
+  if (rateLimitError) {
+    console.error("Phone verification rate limit failed", rateLimitError);
+    return NextResponse.json({ error: "Unable to start phone verification right now." }, { status: 503 });
+  }
+  if (allowed !== true) {
+    return NextResponse.json({ error: "Too many verification attempts. Please try again later." }, { status: 429 });
   }
 
   try {
@@ -63,6 +61,19 @@ export async function POST(request: Request) {
       { error: error instanceof Error ? error.message : "Unable to send WhatsApp verification code." },
       { status: 502 },
     );
+  }
+
+  const { error: profileError } = await supabaseServer
+    .from("users_profile")
+    .update({
+      phone,
+      phone_verified: false,
+      phone_verified_at: null,
+    })
+    .eq("id", session.user.id);
+
+  if (profileError) {
+    return NextResponse.json({ error: profileError.message }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

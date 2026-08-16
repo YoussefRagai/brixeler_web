@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { getAdminSessionFromCookie } from "@/lib/adminSession";
-import { hasAdminRole, type AdminRole } from "@/lib/adminRoles";
+import { getAdminContextFromRequest } from "@/lib/adminAuth";
+import { hasAdminRole } from "@/lib/adminRoles";
 import { logAdminActivity } from "@/lib/adminQueries";
 import { reviewRenewalRequest } from "@/lib/developerQueries";
 
 export async function POST(request: Request) {
-  const session = getAdminSessionFromCookie(request.headers.get("cookie"));
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const roles = (session.roles ?? []) as AdminRole[];
-  if (!hasAdminRole(roles, ["listing_admin"])) {
+  const admin = await getAdminContextFromRequest(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasAdminRole(admin.roles, ["listing_admin"])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -23,9 +22,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing requestId" }, { status: 400 });
   }
 
-  await reviewRenewalRequest(body.requestId, true, null, "Approved via admin console");
+  await reviewRenewalRequest(body.requestId, true, admin.adminId, "Approved via admin console");
   await logAdminActivity({
-    adminId: session.adminId,
+    adminId: admin.adminId,
     action: "renewal.approve",
     resourceType: "property_renewal_requests",
     resourceId: body.requestId,

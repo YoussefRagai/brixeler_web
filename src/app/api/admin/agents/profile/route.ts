@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { getAdminSessionFromCookie } from "@/lib/adminSession";
-import { hasAdminRole, type AdminRole } from "@/lib/adminRoles";
+import { getAdminContextFromRequest } from "@/lib/adminAuth";
+import { hasAdminRole } from "@/lib/adminRoles";
 
 type ReferralRule = {
   tier_name: string;
@@ -33,10 +33,9 @@ function resolveTier(
 }
 
 export async function POST(request: Request) {
-  const session = getAdminSessionFromCookie(request.headers.get("cookie"));
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const roles = (session.roles ?? []) as AdminRole[];
-  if (!hasAdminRole(roles, ["user_auth_admin"])) {
+  const admin = await getAdminContextFromRequest(request);
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasAdminRole(admin.roles, ["user_auth_admin"])) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

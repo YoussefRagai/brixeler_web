@@ -48,6 +48,36 @@ create table if not exists public.gift_claims (
   notes text
 );
 
+alter table public.gifts enable row level security;
+alter table public.gifts force row level security;
+alter table public.gift_eligibilities enable row level security;
+alter table public.gift_eligibilities force row level security;
+alter table public.gift_claims enable row level security;
+alter table public.gift_claims force row level security;
+revoke all on table public.gifts, public.gift_eligibilities, public.gift_claims from anon, authenticated;
+grant select on table public.gifts, public.gift_eligibilities, public.gift_claims to authenticated;
+drop policy if exists gifts_read on public.gifts;
+drop policy if exists gifts_admin_insert on public.gifts;
+drop policy if exists gifts_admin_update on public.gifts;
+drop policy if exists gifts_admin_delete on public.gifts;
+drop policy if exists gifts_authenticated_select on public.gifts;
+create policy gifts_authenticated_select on public.gifts
+  for select to authenticated using (is_active = true);
+drop policy if exists gift_eligibilities_agent_read_own on public.gift_eligibilities;
+drop policy if exists gift_eligibilities_admin_insert on public.gift_eligibilities;
+drop policy if exists gift_eligibilities_admin_update on public.gift_eligibilities;
+drop policy if exists gift_eligibilities_admin_delete on public.gift_eligibilities;
+drop policy if exists gift_eligibilities_agent_select on public.gift_eligibilities;
+create policy gift_eligibilities_agent_select on public.gift_eligibilities
+  for select to authenticated using (agent_id = auth.uid());
+drop policy if exists gift_claims_agent_read_own on public.gift_claims;
+drop policy if exists gift_claims_agent_insert_own on public.gift_claims;
+drop policy if exists gift_claims_admin_update on public.gift_claims;
+drop policy if exists gift_claims_admin_delete on public.gift_claims;
+drop policy if exists gift_claims_agent_select on public.gift_claims;
+create policy gift_claims_agent_select on public.gift_claims
+  for select to authenticated using (agent_id = auth.uid());
+
 create or replace function public.agent_current_tier_level(p_agent_id uuid)
 returns integer
 language sql
@@ -90,7 +120,8 @@ $$;
 
 create or replace function public.evaluate_gift_rules_for_agent(p_agent_id uuid)
 returns void
-language plpgsql
+language plpgsql security definer
+set search_path = public, extensions
 as $$
 declare
   gift_row record;
@@ -176,7 +207,8 @@ $$;
 
 create or replace function public.evaluate_gift_rules_for_all()
 returns void
-language plpgsql
+language plpgsql security definer
+set search_path = public, extensions
 as $$
 declare
   row record;
@@ -189,14 +221,19 @@ $$;
 
 create or replace function public.create_gift_claim(p_gift_id uuid, p_agent_id uuid)
 returns uuid
-language plpgsql
+language plpgsql security definer
+set search_path = public, extensions
 as $$
 declare
   gift_row gifts%rowtype;
   active_claims integer := 0;
   eligibility gift_eligibilities%rowtype;
   claim_id uuid;
+  caller uuid := auth.uid();
+  service_call boolean := coalesce(current_setting('request.jwt.claim.role', true), '') = 'service_role';
 begin
+  if caller is null and not service_call then raise exception 'Authentication required'; end if;
+  if not service_call and p_agent_id <> caller then raise exception 'Cannot claim a gift for another agent'; end if;
   select * into gift_row from gifts where id = p_gift_id and is_active = true;
   if not found then
     raise exception 'Gift not found or inactive';
@@ -230,6 +267,13 @@ begin
   return claim_id;
 end;
 $$;
+
+revoke all on function public.create_gift_claim(uuid, uuid) from public, anon;
+grant execute on function public.create_gift_claim(uuid, uuid) to authenticated, service_role;
+revoke all on function public.evaluate_gift_rules_for_agent(uuid) from public, anon, authenticated;
+grant execute on function public.evaluate_gift_rules_for_agent(uuid) to service_role;
+revoke all on function public.evaluate_gift_rules_for_all() from public, anon, authenticated;
+grant execute on function public.evaluate_gift_rules_for_all() to service_role;
 
 create or replace function public.trigger_eval_gift_rules()
 returns trigger
