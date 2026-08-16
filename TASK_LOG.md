@@ -54,3 +54,11 @@ Append meaningful work after each task.
 - Commands/tools run: `npm run security:all`, `git diff --check`, secret-pattern scan, live Supabase migration/catalog/policy/grant checks, and Railway `ADMIN_SESSION_SECRET` rotation with deploy skipped.
 - Result: Lint, TypeScript/build, and `npm audit --audit-level=high` pass with zero vulnerabilities; the live migration ledger now contains `production_authorization_hardening_20260816124000`; gift tables expose only active gifts and own eligibility/claims to authenticated clients; renewal review is service-role-only and requires an active listing/super admin; legacy routes reload active admin identity and roles from the database; upload buckets enforce server-side size/type limits; the exposed Railway admin session secret was rotated.
 - Risks/follow-ups: Rotating the session secret invalidated existing admin cookies. Railway must complete a new deployment from the published commit before the rotated secret is used by running processes. `developer.brixeler.com` remains DNS-unresolvable and requires DNS/provider correction separately.
+
+## 2026-08-16 - GitHub release validation
+
+- Task: Publish the production candidate and validate the repository’s remote security gates.
+- Files touched: `.github/workflows/security.yml` and generated project memory index hygiene.
+- Commands run: GitHub branch push/PR creation, Gitleaks, GitHub dependency audit/lint/build checks, Railway service/domain/HTTP smoke checks, and a production-variable name check without reading values.
+- Result: Draft PR `https://github.com/YoussefRagai/brixeler_web/pull/1` is open from `agent/production-readiness`; remote Gitleaks and web-security checks pass; Railway service is `SUCCESS`, both admin login endpoints return HTTP 200, and required production secret variable names are present.
+- Risks/follow-ups: Merge PR #1 into `main` to trigger the Railway deployment. The rotated admin secret is intentionally not printed or read back. `developer.brixeler.com` still needs DNS correction.
