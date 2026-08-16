@@ -61,4 +61,5 @@ Append meaningful work after each task.
 - Files touched: `.github/workflows/security.yml` and generated project memory index hygiene.
 - Commands run: GitHub branch push/PR creation, Gitleaks, GitHub dependency audit/lint/build checks, Railway service/domain/HTTP smoke checks, and a production-variable name check without reading values.
 - Result: Draft PR `https://github.com/YoussefRagai/brixeler_web/pull/1` is open from `agent/production-readiness`; remote Gitleaks and web-security checks pass; Railway service is `SUCCESS`, both admin login endpoints return HTTP 200, and required production secret variable names are present.
-- Risks/follow-ups: Merge PR #1 into `main` to trigger the Railway deployment. The rotated admin secret is intentionally not printed or read back. `developer.brixeler.com` still needs DNS correction.
+- Result: PR #1 merged into `main` at `96f0aeeaceb286700da3b26ea1afb87a182b9603`; the post-merge GitHub Security workflow passed both Gitleaks and web-security checks; Railway deployment `d3a310e6-6755-43dc-ba55-1528d37e7800` reports `SUCCESS` for that exact commit; admin and Railway-host login smoke checks return HTTP 200.
+- Risks/follow-ups: The rotated admin secret is intentionally not printed or read back. `developer.brixeler.com` still needs DNS correction.
