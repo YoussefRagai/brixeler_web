@@ -1,7 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import { deleteListing, fetchDeveloperListing, fetchDeveloperProjects, updateDeveloperListing, requestListingRenewal } from "@/lib/developerQueries";
+import { resolveDeveloperListingMedia } from "@/lib/developerListingMedia";
 import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes } from "react";
 
 const PROPERTY_TYPES = ["apartment", "villa", "townhouse", "penthouse", "duplex"];
@@ -13,10 +15,12 @@ const FINISHING_STATUSES = ["finished", "semi_finished", "core_and_shell", "furn
 
 interface Props {
   params: { listingId: string };
+  searchParams?: Promise<{ success?: string; error?: string }>;
 }
 
-export default async function EditListingPage({ params }: Props) {
+export default async function EditListingPage({ params, searchParams }: Props) {
   const session = await requireDeveloperSession();
+  const feedback = (await searchParams) ?? {};
   const [listing, projects, impersonation] = await Promise.all([
     fetchDeveloperListing(params.listingId, session.developerId),
     fetchDeveloperProjects(session.developerId),
@@ -27,7 +31,7 @@ export default async function EditListingPage({ params }: Props) {
   }
 
   const price = typeof listing.price === "string" ? Number(listing.price) : listing.price ?? 0;
-  const visibility = "public";
+  const visibility = listing.is_active === false ? "hidden" : "public";
   const expiresLabel = listing.expires_at
     ? new Date(listing.expires_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
@@ -53,12 +57,31 @@ export default async function EditListingPage({ params }: Props) {
       actions={
         <form action={deleteListingFromEditAction}>
           <input type="hidden" name="listingId" value={params.listingId} />
-          <button className="rounded-full border border-red-200 bg-red-50 px-5 py-2 text-sm font-semibold text-red-600" type="submit">
+          <ConfirmSubmitButton
+            className="rounded-full border border-red-200 bg-red-50 px-5 py-2 text-sm font-semibold text-red-600 disabled:opacity-50"
+            confirmMessage="Delete this listing permanently? This cannot be undone."
+            pendingLabel="Deleting…"
+          >
             Delete listing
-          </button>
+          </ConfirmSubmitButton>
         </form>
       }
     >
+      {listing.is_demo ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>Demo record.</strong> This listing is part of a removable demonstration batch.
+        </div>
+      ) : null}
+      {feedback.success ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {feedback.success}
+        </div>
+      ) : null}
+      {feedback.error ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {feedback.error}
+        </div>
+      ) : null}
       {expiresLabel && (
         <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
           <p className="font-semibold">Expires {expiresLabel}</p>
@@ -77,6 +100,7 @@ export default async function EditListingPage({ params }: Props) {
           )}
         </div>
       )}
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <form action={updateListingAction} className="space-y-4 rounded-3xl border border-black/5 bg-white p-6">
         <input type="hidden" name="listingId" value={params.listingId} />
         <Field label="Listing title" name="name" defaultValue={listing.property_name} readOnly />
@@ -147,30 +171,63 @@ export default async function EditListingPage({ params }: Props) {
         />
         <Field
           as="textarea"
-          label="Photo URLs"
+          label="Current photo URLs (add uploads below)"
           name="photoUrls"
           defaultValue={photosValue}
           placeholder="Paste 3+ comma-separated image URLs"
-          required
         />
+        <Field label="Upload additional property photos" name="photoFiles" type="file" accept="image/*" multiple />
         <Field label="Brochure / floor plan URL" name="brochureUrl" defaultValue={listing.floor_plan_url ?? ""} placeholder="https://example.com/brochure.pdf" />
+        <Field label="Or replace brochure / floor plan" name="brochureFile" type="file" accept="application/pdf,image/*,.xlsx" />
         <Field label="Video tour URL" name="videoUrl" defaultValue={listing.video_tour_url ?? ""} placeholder="https://youtu.be/..." />
+        <Field label="Or replace video tour" name="videoFile" type="file" accept="video/*" />
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Visibility</span>
           <select
             name="visibility"
             defaultValue={visibility}
             className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-            disabled
           >
             <option value="public">Public to agents</option>
+            <option value="hidden">Hidden from agents</option>
           </select>
-          <span className="text-xs text-neutral-500">Visibility controls are unavailable for this database schema and default to public.</span>
+          <span className="text-xs text-neutral-500">Hidden listings are excluded by database policy from the mobile catalog.</span>
         </label>
         <button className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white" type="submit">
           Save changes
         </button>
       </form>
+      <aside className="h-fit rounded-[2rem] bg-[#090909] p-5 text-white shadow-2xl xl:sticky xl:top-6">
+        <p className="text-[10px] uppercase tracking-[0.32em] text-white/45">Mobile publish preview</p>
+        <div className="mt-4 overflow-hidden rounded-[1.5rem] bg-white text-black">
+          {Array.isArray(listing.photos) && listing.photos[0] ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={listing.photos[0]} alt="" className="h-44 w-full object-cover" />
+          ) : (
+            <div className="flex h-44 items-center justify-center bg-neutral-100 text-xs text-neutral-400">Missing cover image</div>
+          )}
+          <div className="space-y-2 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-semibold">{listing.property_name}</p>
+              {listing.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-bold text-amber-800">DEMO</span> : null}
+            </div>
+            <p className="text-xs text-neutral-500">{listing.specific_location || "Location missing"}</p>
+            <p className="text-lg font-semibold">EGP {price.toLocaleString()}</p>
+            <div className="flex flex-wrap gap-1.5 text-[10px]">
+              <span className="rounded-full bg-neutral-100 px-2 py-1">{bedrooms} beds</span>
+              <span className="rounded-full bg-neutral-100 px-2 py-1">{bathrooms} baths</span>
+              <span className="rounded-full bg-neutral-100 px-2 py-1">{unitArea} m²</span>
+            </div>
+          </div>
+        </div>
+        <ul className="mt-4 space-y-2 text-xs text-white/65">
+          <li>{listing.approval_status === "approved" ? "✓ Approved" : "○ Awaiting approval"}</li>
+          <li>{visibility === "public" ? "✓ Visible to agents" : "○ Hidden from agents"}</li>
+          <li>{Array.isArray(listing.photos) && listing.photos.length >= 3 ? "✓ Three or more photos" : "○ Add at least three photos"}</li>
+          <li>{listing.description ? "✓ Description supplied" : "○ Description missing"}</li>
+        </ul>
+      </aside>
+      </section>
     </DeveloperLayout>
   );
 }
@@ -240,38 +297,32 @@ async function updateListingAction(formData: FormData) {
   const deliveryDate = formData.get("deliveryDate")?.toString() || null;
   const finishingStatus = formData.get("finishingStatus")?.toString() ?? "finished";
   const amenitiesRaw = formData.get("amenities")?.toString() ?? "";
-  const brochureUrl = formData.get("brochureUrl")?.toString() || null;
-  const videoUrl = formData.get("videoUrl")?.toString() || null;
-  const photoUrls = (formData.get("photoUrls")?.toString() ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
+  if (!listingId || !price || price < 100000 || unitArea <= 0 || installmentYears <= 0 || downPayment < 0 || downPayment > 100) {
+    redirect(`/developer/listings/${listingId ?? ""}?error=${encodeURIComponent("Check the required listing and payment fields.")}`);
+  }
+  let media: Awaited<ReturnType<typeof resolveDeveloperListingMedia>>;
+  try {
+    media = await resolveDeveloperListingMedia(formData, session.developerId, listingId ?? "unknown");
+  } catch (error) {
+    redirect(`/developer/listings/${listingId ?? ""}?error=${encodeURIComponent((error as Error).message)}`);
+  }
 
-  if (
-    !listingId ||
-    !price ||
-    price < 100000 ||
-    unitArea <= 0 ||
-    installmentYears <= 0 ||
-    downPayment < 0 ||
-    downPayment > 100 ||
-    photoUrls.length < 3
-  ) {
-    return;
+  if (media.photoUrls.length < 3) {
+    redirect(`/developer/listings/${listingId ?? ""}?error=${encodeURIComponent("Check the required fields and add at least three photos.")}`);
   }
   const amenities = amenitiesRaw
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
   const monthlyInstallment = monthlyInstallmentRaw > 0 ? monthlyInstallmentRaw : undefined;
-  await updateDeveloperListing(session.developerId, listingId, {
+  const { error } = await updateDeveloperListing(session.developerId, listingId, {
     price,
     description,
     visibility,
     name,
     area,
     projectId,
-    photoUrls,
+    photoUrls: media.photoUrls,
     propertyType,
     saleType,
     bedrooms,
@@ -283,10 +334,11 @@ async function updateListingAction(formData: FormData) {
     deliveryDate,
     finishingStatus,
     amenities,
-    brochureUrl,
-    videoUrl,
+    brochureUrl: media.brochureUrl,
+    videoUrl: media.videoUrl,
   });
-  redirect("/developer/listings");
+  if (error) redirect(`/developer/listings/${listingId}?error=${encodeURIComponent(error.message)}`);
+  redirect(`/developer/listings/${listingId}?success=Listing%20saved%20and%20mobile%20visibility%20updated.`);
 }
 
 async function deleteListingFromEditAction(formData: FormData) {

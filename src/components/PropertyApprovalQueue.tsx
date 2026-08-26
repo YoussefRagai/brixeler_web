@@ -20,6 +20,7 @@ export type PropertyApprovalEntry = {
   unitArea?: number | null;
   propertyType?: string | null;
   amenities?: string[] | null;
+  isDemo?: boolean;
 };
 
 const TABS = ["Proposed", "Requested Changes", "Rejected"] as const;
@@ -33,6 +34,8 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
   const [reason, setReason] = useState("");
   const [actionId, setActionId] = useState<string | null>(null);
   const [actionType, setActionType] = useState<"request" | "reject" | null>(null);
+  const [busyPropertyId, setBusyPropertyId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const activeProperty = useMemo(
@@ -67,12 +70,23 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
   }, [activeProperty]);
 
   const updateStatus = async (propertyId: string, status: string, reasonText?: string) => {
-    await fetch("/api/properties/update-status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ propertyId, status, reason: reasonText ?? null }),
-    });
-    router.refresh();
+    setBusyPropertyId(propertyId);
+    setFeedback(null);
+    try {
+      const response = await fetch("/api/properties/update-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId, status, reason: reasonText ?? null }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error ?? "Unable to update this listing.");
+      setFeedback(status === "approved" ? "Listing approved and published to the mobile catalog." : "Listing review updated.");
+      router.refresh();
+    } catch (error) {
+      setFeedback((error as Error).message);
+    } finally {
+      setBusyPropertyId(null);
+    }
   };
 
   return (
@@ -95,11 +109,12 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
       </div>
 
       <div className="mt-6 space-y-4">
+        {feedback ? <p role="status" className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">{feedback}</p> : null}
         {filtered.map((property) => (
           <article key={property.id} className="rounded-2xl border border-black/5 bg-black/5 p-4 text-sm text-neutral-800">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="font-semibold text-neutral-900">{property.name}</p>
+                <p className="flex items-center gap-2 font-semibold text-neutral-900">{property.name}{property.isDemo ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">DEMO</span> : null}</p>
                 <p className="text-neutral-600">
                   {property.area} · {property.price}
                 </p>
@@ -124,9 +139,12 @@ export function PropertyApprovalQueue({ entries }: { entries: PropertyApprovalEn
                 <>
                   <button
                     className="rounded-full bg-emerald-400 px-3 py-1 text-xs font-semibold text-emerald-950"
-                    onClick={() => updateStatus(property.id, "approved")}
+                    disabled={busyPropertyId === property.id}
+                    onClick={() => {
+                      if (window.confirm(`Approve ${property.name} and publish it to agents?`)) updateStatus(property.id, "approved");
+                    }}
                   >
-                    Approve
+                    {busyPropertyId === property.id ? "Updating…" : "Approve"}
                   </button>
                   <button
                     className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-700 hover:bg-black/5"

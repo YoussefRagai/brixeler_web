@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
+import { useRouter } from "next/navigation";
 
 export type AgentRow = {
   id: string;
@@ -14,6 +15,7 @@ export type AgentRow = {
   badges: string[];
   profile_picture_url?: string | null;
   language_preference?: string | null;
+  verification_status?: string | null;
 };
 
 type Props = {
@@ -81,6 +83,7 @@ type AgentProfileResponse = {
     } | null;
   }[];
   tier: { name: string; bonus: number };
+  notes: { id: string; note: string; created_at: string; created_by: string; is_demo: boolean }[];
 };
 
 export function AgentTable({ agents }: Props) {
@@ -88,6 +91,9 @@ export function AgentTable({ agents }: Props) {
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [profileData, setProfileData] = useState<AgentProfileResponse | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const router = useRouter();
   const previousAgentIdRef = useRef<string | null>(null);
 
   const activeAgent = useMemo(
@@ -128,6 +134,27 @@ export function AgentTable({ agents }: Props) {
     setActiveAgentId(null);
     setActiveTab(tabs[0]);
     setProfileData(null);
+    setActionMessage(null);
+    setNote("");
+  };
+
+  const runAccountAction = async (agent: AgentRow, action: "suspend" | "delete") => {
+    const label = action === "delete" ? "permanently delete" : "suspend";
+    if (!window.confirm(`Are you sure you want to ${label} ${agent.name}?`)) return;
+    setActionMessage("Working…");
+    const response = await fetch(`/api/admin/agents/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId: agent.id }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setActionMessage(payload.error ?? `Unable to ${action} account.`);
+      return;
+    }
+    setActionMessage(action === "delete" ? "Account deleted." : "Account suspended.");
+    router.refresh();
+    if (action === "delete") closeModal();
   };
 
   return (
@@ -179,25 +206,13 @@ export function AgentTable({ agents }: Props) {
                       Open profile
                     </button>
                     <button
-                      onClick={async () => {
-                        await fetch("/api/admin/agents/suspend", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ agentId: agent.id }),
-                        });
-                      }}
+                      onClick={() => runAccountAction(agent, "suspend")}
                       className="rounded-full border border-amber-300/50 px-3 py-1 text-xs text-amber-200 hover:bg-amber-500/10"
                     >
                       Suspend user
                     </button>
                     <button
-                      onClick={async () => {
-                        await fetch("/api/admin/agents/delete", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ agentId: agent.id }),
-                        });
-                      }}
+                      onClick={() => runAccountAction(agent, "delete")}
                       className="rounded-full border border-rose-300/50 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/10"
                     >
                       Delete account
@@ -256,6 +271,7 @@ export function AgentTable({ agents }: Props) {
                 <p className="text-sm text-white">{profileData?.profile?.language_preference ?? activeAgent.language_preference ?? "—"}</p>
               </div>
             </div>
+            {actionMessage ? <p className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">{actionMessage}</p> : null}
 
             <div className="mt-6 flex flex-wrap gap-2">
               {tabs.map((tab) => (
@@ -277,6 +293,7 @@ export function AgentTable({ agents }: Props) {
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-slate-300">
               {profileLoading ? <p className="text-slate-400">Loading profile data…</p> : null}
               {!profileLoading && activeTab === "Overview" && (
+                <div className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Deals</p>
@@ -290,6 +307,34 @@ export function AgentTable({ agents }: Props) {
                     <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Referrals</p>
                     <p className="text-lg text-white">{profileData?.profile?.total_referrals ?? 0}</p>
                   </div>
+                </div>
+                <div className="border-t border-white/10 pt-4">
+                  <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Admin notes</p>
+                  <form
+                    className="mt-3 flex gap-2"
+                    onSubmit={async (event) => {
+                      event.preventDefault();
+                      if (!note.trim() || !activeAgentId) return;
+                      const response = await fetch("/api/admin/agents/notes", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ agentId: activeAgentId, note }),
+                      });
+                      const payload = await response.json().catch(() => ({}));
+                      if (!response.ok) { setActionMessage(payload.error ?? "Unable to save note."); return; }
+                      setProfileData((current) => current ? { ...current, notes: [payload.note, ...(current.notes ?? [])] } : current);
+                      setNote("");
+                      setActionMessage("Note saved.");
+                    }}
+                  >
+                    <textarea value={note} onChange={(event) => setNote(event.target.value)} className="min-h-20 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm" placeholder="Add internal context for the support and operations teams." />
+                    <button className="h-fit rounded-full bg-white px-4 py-2 text-xs font-semibold text-black" type="submit">Add note</button>
+                  </form>
+                  <div className="mt-3 space-y-2">
+                    {(profileData?.notes ?? []).map((item) => <div key={item.id} className="rounded-xl border border-white/5 bg-white/[0.03] p-3"><p className="text-sm text-slate-200">{item.note}</p><p className="mt-1 text-[10px] text-slate-500">{new Date(item.created_at).toLocaleString()}{item.is_demo ? " · DEMO" : ""}</p></div>)}
+                    {!profileData?.notes?.length ? <p className="text-xs text-slate-500">No admin notes.</p> : null}
+                  </div>
+                </div>
                 </div>
               )}
               {!profileLoading && activeTab === "Deal analytics" && (

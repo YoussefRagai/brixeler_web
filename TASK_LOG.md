@@ -63,3 +63,35 @@ Append meaningful work after each task.
 - Result: Draft PR `https://github.com/YoussefRagai/brixeler_web/pull/1` is open from `agent/production-readiness`; remote Gitleaks and web-security checks pass; Railway service is `SUCCESS`, both admin login endpoints return HTTP 200, and required production secret variable names are present.
 - Result: PR #1 merged into `main` at `96f0aeeaceb286700da3b26ea1afb87a182b9603`; the post-merge GitHub Security workflow passed both Gitleaks and web-security checks; Railway deployment `d3a310e6-6755-43dc-ba55-1528d37e7800` reports `SUCCESS` for that exact commit; admin and Railway-host login smoke checks return HTTP 200.
 - Risks/follow-ups: The rotated admin secret is intentionally not printed or read back. `developer.brixeler.com` still needs DNS correction.
+
+## 2026-08-26 - support schema and migration-ledger reconciliation
+
+- Task: Restore the shared mobile/dashboard support schema with least-privilege RLS and reconcile local Supabase migrations with the live ledger.
+- Files touched: `supabase/migrations/*`, `supabase/README.md`, `PROJECT_MAP.md`, `DECISIONS.md`, `TASK_LOG.md`, and `.context/repo_summary.md`.
+- Commands/tools run: live Supabase ledger/catalog inspection, `apply_migration`, rollback-only authenticated RLS smoke tests, live/local version-name-SQL hash comparison, `npm run security:all`, `git diff --check`, and a linked `supabase db dump --dry-run` permission check.
+- Result: `support_tickets` and `support_ticket_messages` are live with forced RLS; agents can select/insert only their own records, anonymous access is absent, dashboard service-role access is intact, message inserts synchronize ticket activity, smoke-test rows rolled back, and all 21 local migration files match the live ledger by version, name, and normalized SQL hash.
+- Risks/follow-ups: The production schema predates the first tracked migration. Empty-project recreation still needs a privileged pre-ledger schema baseline dump; the current Supabase account receives HTTP 403 for database login-role access. Local dashboard session secrets remain intentionally absent, so the build emits non-fatal authentication warnings.
+
+## 2026-08-26 - deterministic baseline and dashboard integration audit
+
+- Task: Solve empty-project database reproduction and assess admin/developer dashboard functionality against the live database and mobile app.
+- Files touched: `supabase/baseline/*`, `scripts/bootstrap-supabase-baseline.sh`, `supabase/README.md`, project memory, and dashboard audit screenshots under `output/playwright/dashboard-audit-2026-08-26`.
+- Commands/tools run: live PostgreSQL catalog DDL extraction, clean PostgreSQL baseline execution, live/local object-count comparison, web/mobile Supabase relation and RPC contract comparison, authenticated-route source audit, `bash -n`, `git diff --check`, and `npm run security:all`.
+- Result: A guarded schema-only cutover workflow now reproduces all 43 tables, 5 views, 45 functions, 16 enums, 151 indexes, 27 triggers, 122 public/storage policies, and 18 buckets. Web security checks, lint, typecheck, and production build pass. The audit identified a missing developer metrics RPC, a no-op visibility action, and multiple inert admin workflows.
+- Risks/follow-ups: Internal dashboard visual inspection remains limited to login screens until explicit permission is given to submit saved credentials. The baseline was validated with Supabase auth/storage stubs on PostgreSQL 14; production's `MAINTAIN` grants require the newer PostgreSQL version used by Supabase.
+
+## 2026-08-26 - dashboard operations, synchronization, and removable demo data
+
+- Task: Replace the audited admin/developer dashboard placeholders with working operations, connect the mobile notification/property experience, and seed safely removable demonstration workflows.
+- Files touched: admin notifications/exports/content/support/deals/properties/agents/analytics/settings pages and APIs; developer dashboard/listing/project flows; `src/lib/adminExports.ts`; `src/lib/developerQueries.ts`; shared UI controls; three additive Supabase migrations; and mobile notification/property mapping in `brixeler-mobile`.
+- Commands/tools run: web lint/typecheck/production build/audit, mobile `security:all`, clean local PostgreSQL migration execution, live Supabase migrations/ledger checks, demo count checks, pg_cron inspection, rollback-only demo cleanup execution, and security/performance advisors.
+- Result: Notifications dispatch in-app on schedule, CSV/XLSX exports download, content/macros/support replies/assignment/statuses/admin notes/tasks/bulk property imports work, developer visibility and metrics are real, demo data is visibly marked across surfaces, and Settings can delete an entire demo batch. Live migrations are aligned through `20260826145845_index_dashboard_operations_foreign_keys`; the notification cron is active; the rollback-only cleanup selected 15 demo records across 9 resource types and left production unchanged. All static/security checks pass with zero npm vulnerabilities.
+- Risks/follow-ups: `in_app_push` records are dispatched to the in-app inbox but external OS push delivery still needs a configured push-token/provider pipeline. Local production builds intentionally warn when dashboard cookie secrets are absent; production must retain those secrets. Supabase still reports pre-existing intentional authenticated SECURITY DEFINER RPC warnings and account-level leaked-password protection remains disabled.
+
+## 2026-08-26 - Expo phone push pipeline
+
+- Task: Replace the push-provider placeholder with working device registration and scheduled phone-alert delivery while keeping the mobile app unbuilt.
+- Files touched: `src/app/notifications/page.tsx`, `supabase/migrations/20260826153529_expo_push_notification_pipeline.sql`, and project memory; companion mobile registration code is in `brixeler-mobile`.
+- Commands/tools run: official Expo/Supabase documentation review, live migration application, authenticated rollback-only token/campaign/batch test, cron inspection, Supabase security/performance advisors, web lint/build/audit, and mobile `security:all`.
+- Result: Agents can register Expo push tokens through identity-bound RPCs; campaigns batch up to 100 tokens per Expo request; pg_cron processes send responses and retries temporary network/429/5xx failures up to three times; uninstalled devices are disabled when Expo reports `DeviceNotRegistered`. The live migration/cron are active and no rollback-test data persisted.
+- Risks/follow-ups: A real-device delivery test requires the next native mobile build because the currently installed binary does not contain `expo-notifications`. Authenticated SECURITY DEFINER advisor warnings for token RPCs are intentional: each function derives ownership exclusively from `auth.uid()` and the underlying tables remain inaccessible to clients.

@@ -5,6 +5,7 @@ import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { DeveloperProjectRequestTabs } from "@/components/DeveloperProjectRequestTabs";
 import { ProjectImportPanel } from "@/components/ProjectImportPanel";
 import { VariantOutdoorFields } from "@/components/VariantOutdoorFields";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import {
   deleteDeveloperProject,
@@ -984,14 +985,14 @@ export default async function DeveloperProjectsPage({
             <article key={project.id} className="rounded-2xl border border-black/5 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[#050505]">{project.name}</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold text-[#050505]">{project.name}{project.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">DEMO</span> : null}</p>
                   <p className="text-sm text-neutral-500">{project.description ?? "No description yet."}</p>
                 </div>
                 <form action={deleteProjectAction}>
                   <input type="hidden" name="projectId" value={project.id} />
-                  <button className="text-xs text-red-500 hover:underline" type="submit">
+                  <ConfirmSubmitButton className="text-xs text-red-500 hover:underline" confirmMessage="Remove this project and its dependent demo/test configuration?">
                     Remove
-                  </button>
+                  </ConfirmSubmitButton>
                 </form>
               </div>
               {(() => {

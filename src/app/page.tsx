@@ -172,9 +172,9 @@ export default async function Home() {
       title="Mission control"
       description="Live telemetry covering onboarding, deals, payouts, and sentiment."
       actions={
-        <button className="rounded-full border border-black/15 bg-white px-5 py-2 text-sm text-neutral-700 transition hover:bg-black/5">
+        <a href="/api/admin/exports/download?type=dashboard&format=xlsx" className="rounded-full border border-black/15 bg-white px-5 py-2 text-sm text-neutral-700 transition hover:bg-black/5">
           Export dashboard
-        </button>
+        </a>
       }
       navItems={ui.navItems}
       meta={ui.meta}

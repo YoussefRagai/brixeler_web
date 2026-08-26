@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   const agentId = body.agentId;
   if (!agentId) return NextResponse.json({ error: "Missing agentId" }, { status: 400 });
 
-  const [{ data: profile }, { data: deals }, { data: tickets }, { data: connections }, { data: badgeRows }, { data: rules }] =
+  const [{ data: profile }, { data: deals }, { data: tickets }, { data: connections }, { data: badgeRows }, { data: rules }, { data: notes }] =
     await Promise.all([
       supabaseServer
         .from("users_profile")
@@ -85,6 +85,12 @@ export async function POST(request: Request) {
         .from("referral_bonus_rules")
         .select("tier_name, min_referrals, max_referrals, bonus_percentage, behavior_requirement")
         .eq("is_active", true),
+      supabaseServer
+        .from("admin_agent_notes")
+        .select("id, note, created_at, created_by, is_demo")
+        .eq("agent_id", agentId)
+        .order("created_at", { ascending: false })
+        .limit(20),
     ]);
 
   const metrics = {
@@ -101,5 +107,6 @@ export async function POST(request: Request) {
     connections: connections ?? [],
     badges: badgeRows ?? [],
     tier,
+    notes: notes ?? [],
   });
 }

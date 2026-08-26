@@ -9,6 +9,7 @@ export async function GET() {
     id: project.id,
     name: project.name,
     launchStatus: project.launch_status ?? null,
+    isDemo: Boolean(project.is_demo),
   }));
   return NextResponse.json(result);
 }

@@ -36,6 +36,7 @@ type AgentProfileRow = {
   referrals_with_first_deal: number | null;
   profile_picture_url: string | null;
   language_preference: string | null;
+  verification_status: string | null;
 };
 
 function resolveTier(
@@ -59,19 +60,21 @@ function resolveTier(
   return "Tier 0";
 }
 
-async function loadAgents(): Promise<AgentRow[]> {
+async function loadAgents(verifiedOnly = false): Promise<AgentRow[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return [];
   }
 
-  const [{ data: profiles }, { data: rules }, { data: badgeRows }] = await Promise.all([
-    supabaseServer
+  let profilesQuery = supabaseServer
       .from("users_profile")
       .select(
-        "id, display_name, phone, total_deals, total_earnings, account_status, total_referrals, verified_referrals, referrals_with_first_deal, profile_picture_url, language_preference",
+        "id, display_name, phone, total_deals, total_earnings, account_status, total_referrals, verified_referrals, referrals_with_first_deal, profile_picture_url, language_preference, verification_status",
       )
       .order("account_created_at", { ascending: false })
-      .limit(200),
+      .limit(200);
+  if (verifiedOnly) profilesQuery = profilesQuery.eq("verification_status", "verified");
+  const [{ data: profiles }, { data: rules }, { data: badgeRows }] = await Promise.all([
+    profilesQuery,
     supabaseServer
       .from("referral_bonus_rules")
       .select("tier_name, min_referrals, max_referrals, bonus_percentage, behavior_requirement")
@@ -109,22 +112,20 @@ async function loadAgents(): Promise<AgentRow[]> {
       badges: badgeMap.get(profile.id) ?? [],
       profile_picture_url: profile.profile_picture_url ?? null,
       language_preference: profile.language_preference ?? null,
+      verification_status: profile.verification_status ?? null,
     };
   });
 }
 
-export default async function AgentsPage() {
+export default async function AgentsPage({ searchParams }: { searchParams?: Promise<{ filter?: string }> }) {
   const ui = await buildAdminUi(["user_auth_admin"]);
-  const agents = await loadAgents();
+  const params = (await searchParams) ?? {};
+  const verifiedOnly = params.filter === "verified";
+  const agents = await loadAgents(verifiedOnly);
   return (
     <AdminLayout
       title="Agents"
       description="Manage verification, commission tiers, referrals, and account health."
-      actions={
-        <button className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900">
-          Add admin note
-        </button>
-      }
       navItems={ui.navItems}
       meta={ui.meta}
     >
@@ -140,12 +141,12 @@ export default async function AgentsPage() {
             <p className="text-lg text-slate-300">Agent directory</p>
           </div>
           <div className="flex gap-3 text-sm">
-            <button className="rounded-full border border-white/10 px-4 py-2 text-white/80 hover:bg-white/10">
+            <a href="/api/admin/exports/download?type=agents&format=csv" className="rounded-full border border-white/10 px-4 py-2 text-white/80 hover:bg-white/10">
               Export CSV
-            </button>
-            <button className="rounded-full border border-emerald-400 px-4 py-2 text-emerald-200">
-              Filter: Verified
-            </button>
+            </a>
+            <a href={verifiedOnly ? "/agents" : "/agents?filter=verified"} className="rounded-full border border-emerald-400 px-4 py-2 text-emerald-200">
+              {verifiedOnly ? "Show: All agents" : "Filter: Verified"}
+            </a>
           </div>
         </header>
         <AgentTable agents={agents} />

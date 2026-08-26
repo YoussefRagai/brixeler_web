@@ -3,6 +3,7 @@ import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes 
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import { createDeveloperListing, fetchDeveloperProjects, upsertDeveloperProject } from "@/lib/developerQueries";
+import { resolveDeveloperListingMedia } from "@/lib/developerListingMedia";
 
 const PROPERTY_TYPES = ["apartment", "villa", "townhouse", "penthouse", "duplex"];
 const SALE_TYPES = [
@@ -18,6 +19,7 @@ export default async function NewListingPage({
     project?: string | string[];
     saleType?: string | string[];
     createProject?: string | string[];
+    error?: string | string[];
   }>;
 }) {
   const session = await requireDeveloperSession();
@@ -39,6 +41,7 @@ async function NewListingPageContent({
     project?: string | string[];
     saleType?: string | string[];
     createProject?: string | string[];
+    error?: string | string[];
   }>;
 }) {
   const resolvedSearchParams = (await searchParams) ?? {};
@@ -50,6 +53,7 @@ async function NewListingPageContent({
       : "developer_sale";
   const emphasizeCreateProject =
     typeof resolvedSearchParams.createProject === "string" ? resolvedSearchParams.createProject === "1" : false;
+  const errorMessage = typeof resolvedSearchParams.error === "string" ? resolvedSearchParams.error : null;
   return (
     <DeveloperLayout
       title={preselectedSaleType === "resale" ? "Create resale listing" : "Create listing"}
@@ -60,6 +64,11 @@ async function NewListingPageContent({
       }
       impersonation={impersonation}
     >
+      {errorMessage ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {errorMessage}
+        </div>
+      ) : null}
       <form action={createListingAction} className="space-y-4 rounded-3xl border border-black/5 bg-white p-6">
         <Field label="Listing title" name="name" required placeholder="Palm Gardens – Tower B" />
         <Field label="Area / location" name="area" placeholder="New Cairo – Golden Square" />
@@ -141,13 +150,15 @@ async function NewListingPageContent({
         />
         <Field
           as="textarea"
-          label="Photo URLs"
+          label="Photo URLs (optional when uploading)"
           name="photoUrls"
           placeholder="Paste 3+ comma-separated image URLs"
-          required
         />
+        <Field label="Upload property photos" name="photoFiles" type="file" accept="image/*" multiple />
         <Field label="Brochure / floor plan URL" name="brochureUrl" placeholder="https://example.com/brochure.pdf" />
+        <Field label="Or upload brochure / floor plan" name="brochureFile" type="file" accept="application/pdf,image/*,.xlsx" />
         <Field label="Video tour URL" name="videoUrl" placeholder="https://youtu.be/..." />
+        <Field label="Or upload video tour" name="videoFile" type="file" accept="video/*" />
         <button className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white" type="submit">
           Submit for review
         </button>
@@ -225,33 +236,28 @@ async function createListingAction(formData: FormData) {
   const deliveryDate = formData.get("deliveryDate")?.toString() || null;
   const finishingStatus = formData.get("finishingStatus")?.toString() ?? "finished";
   const amenitiesRaw = formData.get("amenities")?.toString() ?? "";
-  const brochureUrl = formData.get("brochureUrl")?.toString() || null;
-  const videoUrl = formData.get("videoUrl")?.toString() || null;
-  const photoUrls = (formData.get("photoUrls")?.toString() ?? "")
-    .split(",")
-    .map((url) => url.trim())
-    .filter(Boolean);
+  if (!name || !price || price < 100000 || unitArea <= 0 || installmentYears <= 0 || downPayment < 0 || downPayment > 100) {
+    redirect(`/developer/listings/new?error=${encodeURIComponent("Check the required listing and payment fields.")}`);
+  }
+  let media: Awaited<ReturnType<typeof resolveDeveloperListingMedia>>;
+  try {
+    media = await resolveDeveloperListingMedia(formData, session.developerId, crypto.randomUUID());
+  } catch (error) {
+    redirect(`/developer/listings/new?error=${encodeURIComponent((error as Error).message)}`);
+  }
 
-  if (
-    !name ||
-    !price ||
-    price < 100000 ||
-    unitArea <= 0 ||
-    installmentYears <= 0 ||
-    downPayment < 0 ||
-    downPayment > 100 ||
-    photoUrls.length < 3
-  ) {
-    return;
+  if (media.photoUrls.length < 3) {
+    redirect(`/developer/listings/new?error=${encodeURIComponent("Check the required fields and add at least three real property photos.")}`);
   }
 
   let projectId = selectedProjectId;
   if (!projectId && createProjectName) {
-    const { data } = await upsertDeveloperProject(session.developerId, {
+    const { data, error } = await upsertDeveloperProject(session.developerId, {
       name: createProjectName,
       location: createProjectLocation || undefined,
       description: createProjectDescription || undefined,
     });
+    if (error) redirect(`/developer/listings/new?error=${encodeURIComponent(error.message)}`);
     projectId = data?.id ?? null;
   }
 
@@ -261,13 +267,13 @@ async function createListingAction(formData: FormData) {
     .map((value) => value.trim())
     .filter(Boolean);
 
-  await createDeveloperListing(session.developerId, {
+  const { error } = await createDeveloperListing(session.developerId, {
     name,
     area,
     projectId,
     price,
     description,
-    photoUrls,
+    photoUrls: media.photoUrls,
     propertyType,
     saleType,
     bedrooms,
@@ -279,8 +285,9 @@ async function createListingAction(formData: FormData) {
     deliveryDate,
     finishingStatus,
     amenities,
-    brochureUrl,
-    videoUrl,
+    brochureUrl: media.brochureUrl,
+    videoUrl: media.videoUrl,
   });
+  if (error) redirect(`/developer/listings/new?error=${encodeURIComponent(error.message)}`);
   redirect("/developer/listings");
 }

@@ -1,11 +1,5 @@
 import { supabaseServer } from "./supabaseServer";
 
-const fallbackPhotos = [
-  "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1479839672679-a46483c0e7c8?auto=format&fit=crop&w=1200&q=80",
-  "https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80",
-];
-
 type ProjectMediaPayload = Record<string, unknown> | null | undefined;
 
 export type ProjectUnitType = {
@@ -82,6 +76,7 @@ export type DeveloperListing = {
   renewal_status?: string | null;
   sale_type?: string | null;
   project_id?: string | null;
+  is_demo: boolean;
 };
 
 export async function fetchDeveloperListings(developerId: string): Promise<DeveloperListing[]> {
@@ -90,7 +85,7 @@ export async function fetchDeveloperListings(developerId: string): Promise<Devel
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, approval_status, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id",
+        "id, property_name, price, approval_status, is_active, is_demo, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id",
       )
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
@@ -103,7 +98,8 @@ export async function fetchDeveloperListings(developerId: string): Promise<Devel
       name: row.property_name,
       price: Number(row.price ?? 0),
       status: row.approval_status ?? "pending",
-      visibility: "public",
+      visibility: row.is_active === false ? "hidden" : "public",
+      is_demo: Boolean(row.is_demo),
       updated_at: row.updated_at,
       inquiries: Number(row.inquiries_count ?? 0),
       expires_at: row.expires_at ?? null,
@@ -124,7 +120,7 @@ export async function fetchDeveloperResales(developerId: string): Promise<Develo
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, approval_status, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id, developer_projects!inner(id, developer_id)",
+        "id, property_name, price, approval_status, is_active, is_demo, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id, developer_projects!inner(id, developer_id)",
       )
       .eq("developer_projects.developer_id", id)
       .eq("sale_type", "resale")
@@ -138,7 +134,8 @@ export async function fetchDeveloperResales(developerId: string): Promise<Develo
       name: row.property_name,
       price: Number(row.price ?? 0),
       status: row.approval_status ?? "pending",
-      visibility: "public",
+      visibility: row.is_active === false ? "hidden" : "public",
+      is_demo: Boolean(row.is_demo),
       updated_at: row.updated_at,
       inquiries: Number(row.inquiries_count ?? 0),
       expires_at: row.expires_at ?? null,
@@ -159,7 +156,7 @@ export async function fetchDeveloperListing(listingId: string, developerId: stri
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, description, amenities, photos, specific_location, expires_at, renewal_status, property_type, sale_type, bedrooms, bathrooms, unit_area, down_payment_percentage, installment_years, monthly_installment, delivery_date, finishing_status, floor_plan_url, video_tour_url, project_id"
+        "id, property_name, price, description, amenities, photos, specific_location, expires_at, renewal_status, property_type, sale_type, bedrooms, bathrooms, unit_area, down_payment_percentage, installment_years, monthly_installment, delivery_date, finishing_status, floor_plan_url, video_tour_url, project_id, approval_status, is_active, is_demo"
       )
       .eq("developer_id", id)
       .eq("id", listingId)
@@ -199,7 +196,10 @@ export async function createDeveloperListing(
   payload: DeveloperListingPayload,
 ) {
   const id = assertDeveloperId(developerId);
-  const photos = payload.photoUrls.length >= 3 ? payload.photoUrls : fallbackPhotos;
+  const photos = payload.photoUrls.map((url) => url.trim()).filter(Boolean);
+  if (photos.length < 3) {
+    return { error: new Error("Add at least three real property photos before submitting.") };
+  }
   const monthlyInstallment =
     payload.monthlyInstallment && payload.monthlyInstallment > 0
       ? payload.monthlyInstallment
@@ -227,6 +227,7 @@ export async function createDeveloperListing(
     amenities: payload.amenities.length ? payload.amenities : ["Developer submission"],
     floor_plan_url: payload.brochureUrl ?? null,
     video_tour_url: payload.videoUrl ?? null,
+    is_demo: false,
   });
   return { error };
 }
@@ -237,7 +238,10 @@ export async function updateDeveloperListing(
   payload: DeveloperListingPayload & { visibility: string },
 ) {
   const id = assertDeveloperId(developerId);
-  const photos = payload.photoUrls.length >= 3 ? payload.photoUrls : fallbackPhotos;
+  const photos = payload.photoUrls.map((url) => url.trim()).filter(Boolean);
+  if (photos.length < 3) {
+    return { error: new Error("Add at least three real property photos before saving.") };
+  }
   const monthlyInstallment =
     payload.monthlyInstallment && payload.monthlyInstallment > 0
       ? payload.monthlyInstallment
@@ -263,6 +267,7 @@ export async function updateDeveloperListing(
       video_tour_url: payload.videoUrl ?? null,
       photos,
       cover_photo_url: photos[0],
+      is_active: payload.visibility !== "hidden",
     })
     .eq("developer_id", id)
     .eq("id", listingId);
@@ -270,10 +275,24 @@ export async function updateDeveloperListing(
 }
 
 export async function toggleListingVisibility(developerId: string, listingId: string, visibility: string) {
-  assertDeveloperId(developerId);
-  void listingId;
-  void visibility;
-  return { error: null };
+  const id = assertDeveloperId(developerId);
+  const { data: listing, error: lookupError } = await supabaseServer
+    .from("properties")
+    .select("id, developer_id, developer_projects(developer_id)")
+    .eq("id", listingId)
+    .maybeSingle();
+  if (lookupError || !listing) return { error: lookupError ?? new Error("Listing not found.") };
+  const project = Array.isArray(listing.developer_projects)
+    ? listing.developer_projects[0]
+    : listing.developer_projects;
+  if (listing.developer_id !== id && project?.developer_id !== id) {
+    return { error: new Error("Listing does not belong to this developer.") };
+  }
+  const { error } = await supabaseServer
+    .from("properties")
+    .update({ is_active: visibility !== "hidden", updated_at: new Date().toISOString() })
+    .eq("id", listingId);
+  return { error };
 }
 
 export async function deleteListing(developerId: string, listingId: string) {
@@ -414,7 +433,7 @@ export async function fetchDeveloperProjects(developerId: string) {
     const id = assertDeveloperId(developerId);
     const { data, error } = await supabaseServer
       .from("developer_projects")
-      .select("id, name, description, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, project_unit_types(id, project_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, has_garden, has_roof, garden_area_sqm, roof_area_sqm, finishing_status, delivery_date, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, layout_options, down_payment_percent, installment_years, stock_count, description, amenities))")
+      .select("id, name, description, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, is_demo, project_unit_types(id, project_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, has_garden, has_roof, garden_area_sqm, roof_area_sqm, finishing_status, delivery_date, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, layout_options, down_payment_percent, installment_years, stock_count, description, amenities))")
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
     if (error || !data) return [];
@@ -787,14 +806,40 @@ export async function fetchDeveloperStats(developerId: string) {
     const id = assertDeveloperId(developerId);
     const { data, error } = await supabaseServer.rpc("developer_dashboard_metrics", { dev_id: id });
     if (error || !data || !data.length) {
-      return { listings: 0, hidden: 0, pending: 0, inquiries: 0 };
+      return emptyDeveloperStats();
     }
-    const row = data[0] as { listings: number; hidden: number; pending: number; inquiries: number };
-    return row;
+    const row = data[0] as Record<string, number | string | null>;
+    return {
+      listings: Number(row.listings ?? 0),
+      hidden: Number(row.hidden ?? 0),
+      pending: Number(row.pending ?? 0),
+      inquiries: Number(row.inquiries ?? 0),
+      eois: Number(row.eois ?? 0),
+      cils: Number(row.cils ?? 0),
+      reservations: Number(row.reservations ?? 0),
+      salesClaims: Number(row.sales_claims ?? 0),
+      stageShifts: Number(row.stage_shifts ?? 0),
+      dealsThisMonth: Number(row.deals_this_month ?? 0),
+    };
   } catch (error) {
     console.warn('fetchDeveloperStats failed', error);
-    return { listings: 0, hidden: 0, pending: 0, inquiries: 0 };
+    return emptyDeveloperStats();
   }
+}
+
+function emptyDeveloperStats() {
+  return {
+    listings: 0,
+    hidden: 0,
+    pending: 0,
+    inquiries: 0,
+    eois: 0,
+    cils: 0,
+    reservations: 0,
+    salesClaims: 0,
+    stageShifts: 0,
+    dealsThisMonth: 0,
+  };
 }
 
 export async function findDeveloperAccountByUser(authUserId: string, options?: { includeInactive?: boolean }) {

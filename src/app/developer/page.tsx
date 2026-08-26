@@ -57,12 +57,12 @@ export default async function DeveloperDashboardPage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         {[
-          { label: "EOIs", value: "—" },
-          { label: "CILs", value: "—" },
-          { label: "Reservations", value: "—" },
-          { label: "Sales claims", value: "—" },
-          { label: "Stage shifts", value: "—" },
-          { label: "Deals this month", value: "—" },
+          { label: "EOIs", value: stats.eois },
+          { label: "CILs", value: stats.cils },
+          { label: "Reservations", value: stats.reservations },
+          { label: "Sales claims", value: stats.salesClaims },
+          { label: "Stage shifts · 30d", value: stats.stageShifts },
+          { label: "Deals this month", value: stats.dealsThisMonth },
         ].map((metric) => (
           <StatCard key={metric.label} label={metric.label} value={metric.value} />
         ))}
@@ -82,7 +82,14 @@ export default async function DeveloperDashboardPage() {
           {resales.slice(0, 5).map((listing) => (
             <div key={listing.id} className="flex items-center justify-between border-b border-black/5 py-3 last:border-b-0">
               <div>
-                <p className="font-semibold text-[#050505]">{listing.name}</p>
+                <p className="flex items-center gap-2 font-semibold text-[#050505]">
+                  {listing.name}
+                  {listing.is_demo ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">
+                      Demo
+                    </span>
+                  ) : null}
+                </p>
                 <p className="text-xs text-neutral-500">
                   {listing.status} · {listing.visibility} · {listing.updated_at ? new Date(listing.updated_at).toLocaleString() : '—'}
                 </p>

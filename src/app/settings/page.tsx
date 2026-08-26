@@ -1,10 +1,12 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { buildAdminUi } from "@/lib/adminUi";
 import { requireAdminContext } from "@/lib/adminAuth";
 import { logAdminActivity } from "@/lib/adminQueries";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 type ReferralTier = {
   id: string;
@@ -28,8 +30,17 @@ type Badge = {
   display_order: number | null;
 };
 
-async function getSettingsData(): Promise<{ tiers: ReferralTier[]; badges: Badge[] }> {
-  const [{ data: tiers }, { data: badges }] = await Promise.all([
+type DemoBatch = {
+  batch_key: string;
+  label: string;
+  notes: string | null;
+  status: string;
+  created_at: string;
+  removed_at: string | null;
+};
+
+async function getSettingsData(): Promise<{ tiers: ReferralTier[]; badges: Badge[]; demoBatches: DemoBatch[] }> {
+  const [{ data: tiers }, { data: badges }, { data: demoBatches }] = await Promise.all([
     supabaseServer
       .from("referral_bonus_rules")
       .select("id, tier_name, min_referrals, max_referrals, bonus_percentage, requires_verification, requires_first_deal, behavior_requirement")
@@ -38,11 +49,16 @@ async function getSettingsData(): Promise<{ tiers: ReferralTier[]; badges: Badge
       .from("badges")
       .select("id, name, badge_type, unlock_criteria, benefit_type, benefit_value, is_active, display_order")
       .order("display_order", { ascending: true }),
+    supabaseServer
+      .from("demo_data_batches")
+      .select("batch_key, label, notes, status, created_at, removed_at")
+      .order("created_at", { ascending: false }),
   ]);
 
   return {
     tiers: (tiers ?? []) as ReferralTier[],
     badges: (badges ?? []) as Badge[],
+    demoBatches: (demoBatches ?? []) as DemoBatch[],
   };
 }
 
@@ -147,9 +163,27 @@ async function deleteBadge(formData: FormData) {
   revalidatePath("/settings");
 }
 
-export default async function SettingsPage() {
+async function removeDemoBatch(formData: FormData) {
+  "use server";
+  const admin = await requireAdminContext();
+  const batchKey = formData.get("batchKey")?.toString();
+  if (!batchKey) return;
+  const { error } = await supabaseServer.rpc("cleanup_demo_batch", { p_batch: batchKey });
+  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+  await logAdminActivity({
+    adminId: admin.adminId,
+    action: "settings.remove_demo_batch",
+    resourceType: "demo_data_batches",
+    resourceId: batchKey,
+  });
+  revalidatePath("/settings");
+  redirect("/settings?success=Demo%20batch%20removed.");
+}
+
+export default async function SettingsPage({ searchParams }: { searchParams?: Promise<{ success?: string; error?: string }> }) {
   const ui = await buildAdminUi(["super_admin"]);
-  const { tiers, badges } = await getSettingsData();
+  const { tiers, badges, demoBatches } = await getSettingsData();
+  const feedback = (await searchParams) ?? {};
 
   return (
     <AdminLayout
@@ -166,6 +200,9 @@ export default async function SettingsPage() {
       {!ui.hasAccess ? (
         <AdminAccessDenied />
       ) : (
+        <>
+        {feedback.success ? <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">{feedback.success}</div> : null}
+        {feedback.error ? <div className="rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{feedback.error}</div> : null}
         <section className="grid gap-6 lg:grid-cols-2">
         <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
           <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Referral tiers</p>
@@ -510,6 +547,20 @@ export default async function SettingsPage() {
           </div>
         </article>
         </section>
+        <section className="mt-6 rounded-3xl border border-amber-300/20 bg-amber-300/5 p-6">
+          <p className="text-sm uppercase tracking-[0.3em] text-amber-200">Demo data control</p>
+          <p className="mt-2 max-w-3xl text-sm text-slate-400">Every seeded project, listing, support item, campaign, and task belongs to a named batch. Remove one batch here before launch without touching production records.</p>
+          <div className="mt-5 space-y-3">
+            {demoBatches.map((batch) => (
+              <article key={batch.batch_key} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div><div className="flex items-center gap-2"><p className="font-semibold text-white">{batch.label}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${batch.status === "active" ? "bg-amber-300/15 text-amber-200" : "bg-white/10 text-slate-400"}`}>{batch.status}</span></div><p className="mt-1 font-mono text-xs text-slate-500">{batch.batch_key}</p>{batch.notes ? <p className="mt-2 text-sm text-slate-400">{batch.notes}</p> : null}</div>
+                {batch.status === "active" ? <form action={removeDemoBatch}><input type="hidden" name="batchKey" value={batch.batch_key}/><ConfirmSubmitButton pendingLabel="Removing…" confirmMessage={`Remove all demo records in ${batch.label}? This cannot be undone.`} className="rounded-full border border-rose-300/40 px-4 py-2 text-xs font-semibold text-rose-200">Remove demo batch</ConfirmSubmitButton></form> : <p className="text-xs text-slate-500">Removed {batch.removed_at ? new Date(batch.removed_at).toLocaleString() : ""}</p>}
+              </article>
+            ))}
+            {!demoBatches.length ? <p className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">No demo batches have been registered.</p> : null}
+          </div>
+        </section>
+        </>
       )}
     </AdminLayout>
   );

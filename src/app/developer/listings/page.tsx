@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import {
   fetchDeveloperProjects,
@@ -10,8 +12,13 @@ import {
   requestListingRenewal,
 } from "@/lib/developerQueries";
 
-export default async function DeveloperListingsPage() {
+export default async function DeveloperListingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ success?: string; error?: string }>;
+}) {
   const session = await requireDeveloperSession();
+  const feedback = (await searchParams) ?? {};
   const [listings, projects, impersonation] = await Promise.all([
     fetchDeveloperResales(session.developerId),
     fetchDeveloperProjects(session.developerId),
@@ -30,6 +37,16 @@ export default async function DeveloperListingsPage() {
       description="Add resale units to an existing project or spin up a new linked project for resale inventory."
       impersonation={impersonation}
     >
+      {feedback.success ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {feedback.success}
+        </div>
+      ) : null}
+      {feedback.error ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {feedback.error}
+        </div>
+      ) : null}
       <section className="rounded-3xl border border-black/5 bg-white p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -69,7 +86,10 @@ export default async function DeveloperListingsPage() {
             <article key={project.id} className="rounded-3xl border border-black/5 bg-white p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-[#050505]">{project.name}</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold text-[#050505]">
+                    {project.name}
+                    {project.is_demo ? <DemoBadge /> : null}
+                  </p>
                   <p className="mt-1 text-xs text-neutral-500">{project.location ?? "Location not set"}</p>
                 </div>
                 <span className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-600">
@@ -137,7 +157,10 @@ export default async function DeveloperListingsPage() {
             {listings.map((listing) => (
               <tr key={listing.id} className="border-t border-black/5">
                 <td className="px-4 py-3">
-                  <div className="font-semibold text-[#050505]">{listing.name}</div>
+                  <div className="flex items-center gap-2 font-semibold text-[#050505]">
+                    {listing.name}
+                    {listing.is_demo ? <DemoBadge /> : null}
+                  </div>
                   <div className="text-xs text-neutral-500">
                     {listing.project_id
                       ? `Linked project · ${projects.find((project) => project.id === listing.project_id)?.name ?? "Unknown project"}`
@@ -182,9 +205,13 @@ export default async function DeveloperListingsPage() {
                     </form>
                     <form action={deleteListingAction}>
                       <input type="hidden" name="listingId" value={listing.id} />
-                      <button className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-600" type="submit">
+                      <ConfirmSubmitButton
+                        className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-600 disabled:opacity-50"
+                        confirmMessage="Delete this listing permanently? This cannot be undone."
+                        pendingLabel="Deleting…"
+                      >
                         Delete
-                      </button>
+                      </ConfirmSubmitButton>
                     </form>
                   </div>
                 </td>
@@ -204,6 +231,14 @@ export default async function DeveloperListingsPage() {
   );
 }
 
+function DemoBadge() {
+  return (
+    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">
+      Demo
+    </span>
+  );
+}
+
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
     <article className="rounded-3xl border border-black/5 bg-white p-5">
@@ -219,8 +254,10 @@ async function toggleVisibilityAction(formData: FormData) {
   const listingId = formData.get("listingId")?.toString();
   const visibility = formData.get("visibility")?.toString() ?? "public";
   if (!listingId) return;
-  await toggleListingVisibility(session.developerId, listingId, visibility);
+  const { error } = await toggleListingVisibility(session.developerId, listingId, visibility);
   revalidatePath("/developer/listings");
+  if (error) redirect(`/developer/listings?error=${encodeURIComponent(error.message)}`);
+  redirect(`/developer/listings?success=${encodeURIComponent(visibility === "hidden" ? "Listing hidden from the mobile catalog." : "Listing restored to the mobile catalog.")}`);
 }
 
 async function deleteListingAction(formData: FormData) {
@@ -228,8 +265,10 @@ async function deleteListingAction(formData: FormData) {
   const session = await requireDeveloperSession();
   const listingId = formData.get("listingId")?.toString();
   if (!listingId) return;
-  await deleteListing(session.developerId, listingId);
+  const { error } = await deleteListing(session.developerId, listingId);
   revalidatePath("/developer/listings");
+  if (error) redirect(`/developer/listings?error=${encodeURIComponent(error.message)}`);
+  redirect("/developer/listings?success=Listing%20deleted.");
 }
 
 async function requestRenewalAction(formData: FormData) {
@@ -237,6 +276,12 @@ async function requestRenewalAction(formData: FormData) {
   const session = await requireDeveloperSession();
   const listingId = formData.get("listingId")?.toString();
   if (!listingId) return;
-  await requestListingRenewal(listingId, session.userId);
+  try {
+    await requestListingRenewal(listingId, session.userId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to request renewal.";
+    redirect(`/developer/listings?error=${encodeURIComponent(message)}`);
+  }
   revalidatePath("/developer/listings");
+  redirect("/developer/listings?success=Renewal%20request%20submitted.");
 }
