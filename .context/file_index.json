@@ -860,9 +860,9 @@
       "summary": "import { revalidatePath } from \"next/cache\"; import { redirect } from \"next/navigation\"; import { AdminLayout } from \"@/components/AdminLayout\"; import { AdminAccessDenied } from \"@/components/AdminAc"
     },
     {
-      "bytes": 12163,
+      "bytes": 12133,
       "path": "src/app/page.tsx",
-      "sha256": "43577f9fa6e296642c38aec8a5d6f2fc2ef50aa78fc7454a8f99e67e8347b139",
+      "sha256": "f2860a87343211fe21ea57dc06b1a95bc075e735112d04158e1b23b88973e97b",
       "summary": "import { AdminLayout } from \"@/components/AdminLayout\"; import { AdminAccessDenied } from \"@/components/AdminAccessDenied\"; import { buildAdminUi } from \"@/lib/adminUi\";"
     },
     {

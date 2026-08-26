@@ -3,7 +3,6 @@ import { AdminLayout } from "@/components/AdminLayout";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
-import Link from "next/link";
 
 type MetricCard = {
   label: string;
