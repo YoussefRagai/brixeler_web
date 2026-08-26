@@ -199,7 +199,7 @@ export default async function Home() {
             ))}
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-[1.55fr,0.95fr]">
+          <section className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,0.95fr)]">
             <article className="dashboard-panel rounded-3xl border border-black/5 bg-white p-6 shadow-lg shadow-black/5">
               <header className="flex items-center justify-between">
                 <div>
@@ -213,7 +213,7 @@ export default async function Home() {
               <div className="mt-4 divide-y divide-black/5">
                 {recentDeals.length ? (
                   recentDeals.map((deal) => (
-                    <div key={deal.id} className="dashboard-list-row grid gap-2 py-3 sm:grid-cols-[minmax(0,1.3fr),auto,auto] sm:items-center">
+                    <div key={deal.id} className="dashboard-list-row grid gap-2 py-3 sm:grid-cols-[minmax(0,1.3fr)_auto_auto] sm:items-center">
                       <div className="min-w-0">
                         <Link href={`/deals/${deal.id}`} className="block truncate text-sm font-semibold text-[#050505] underline-offset-4 hover:underline">
                           {deal.property}

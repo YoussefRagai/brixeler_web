@@ -80,7 +80,7 @@ export default async function DeveloperDashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.15fr,0.85fr]">
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <article className="dashboard-panel rounded-3xl border border-black/5 bg-white p-6">
           <div className="flex items-center justify-between gap-4">
             <div>

@@ -794,9 +794,9 @@
       "summary": "import { NextRequest, NextResponse } from \"next/server\"; import { clearDeveloperImpersonation } from \"@/lib/developerImpersonation\"; import { clearDeveloperSession } from \"@/lib/developerSession\";"
     },
     {
-      "bytes": 10362,
+      "bytes": 10382,
       "path": "src/app/developer/page.tsx",
-      "sha256": "dbcd4f98fe351068a694b29d6c1257431157b70cb73234066e7e22083670b27a",
+      "sha256": "46605c9f3a0017add52d3c498589c66510506df32c044ff199818ce5a38ddd3e",
       "summary": "import { DeveloperLayout } from \"@/components/DeveloperLayout\"; import { currentDeveloperImpersonation, requireDeveloperSession } from \"@/lib/developerAuth\"; import {"
     },
     {
@@ -860,9 +860,9 @@
       "summary": "import { revalidatePath } from \"next/cache\"; import { redirect } from \"next/navigation\"; import { AdminLayout } from \"@/components/AdminLayout\"; import { AdminAccessDenied } from \"@/components/AdminAc"
     },
     {
-      "bytes": 12133,
+      "bytes": 12153,
       "path": "src/app/page.tsx",
-      "sha256": "f2860a87343211fe21ea57dc06b1a95bc075e735112d04158e1b23b88973e97b",
+      "sha256": "c1e96a967690ed37fb2d03e72e363b340bb3bdb9141d67d0d36862700996c8d0",
       "summary": "import { AdminLayout } from \"@/components/AdminLayout\"; import { AdminAccessDenied } from \"@/components/AdminAccessDenied\"; import { buildAdminUi } from \"@/lib/adminUi\";"
     },
     {
