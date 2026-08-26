@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       .select("id, developer_id, name, developers(name)")
       .eq("id", projectId)
       .eq("developer_id", developerId)
+      .eq("approval_status", "approved")
       .maybeSingle(),
     supabaseServer
       .from("users_profile")
@@ -68,6 +69,8 @@ export async function POST(request: Request) {
       .eq("id", propertyId)
       .eq("project_id", projectId)
       .eq("developer_id", developerId)
+      .eq("approval_status", "approved")
+      .eq("is_active", true)
       .maybeSingle();
     if (propertyError || !property) {
       return NextResponse.json({ error: "Property not found for this project." }, { status: 404 });
@@ -83,7 +86,7 @@ export async function POST(request: Request) {
     email ||
     "Brixeler agent";
 
-  const { error: insertError } = await supabaseServer.from("developer_contact_requests").insert({
+  const { data: contactRequest, error: insertError } = await supabaseServer.from("developer_contact_requests").insert({
     developer_id: developerId,
     project_id: projectId,
     property_id: propertyId,
@@ -97,11 +100,18 @@ export async function POST(request: Request) {
     developer_name_snapshot: developerRelation?.name ?? "Developer",
     project_name_snapshot: project.name ?? "Project",
     property_name_snapshot: propertyNameSnapshot,
-  });
+  }).select("id").single();
 
   if (insertError) {
     return NextResponse.json({ error: insertError.message ?? "Unable to send contact request right now." }, { status: 500 });
   }
+
+  await supabaseServer.from("developer_notifications").insert({
+    developer_id: developerId,
+    contact_request_id: contactRequest.id,
+    title: `${requestType === "meeting" ? "Meeting" : "Call"} request from ${displayName}`,
+    message: `${project.name ?? "Project"}: ${message}`,
+  });
 
   return NextResponse.json({ ok: true });
 }

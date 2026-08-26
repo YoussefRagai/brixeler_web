@@ -6,16 +6,20 @@ import {
   fetchDeveloperResales,
   fetchDeveloperStats,
 } from "@/lib/developerQueries";
+import { supabaseServer } from "@/lib/supabaseServer";
+import { revalidatePath } from "next/cache";
 
 export default async function DeveloperDashboardPage() {
   const session = await requireDeveloperSession();
-  const [stats, resales, projects, profile, impersonation] = await Promise.all([
+  const [stats, resales, projects, profile, impersonation, notificationResult] = await Promise.all([
     fetchDeveloperStats(session.developerId),
     fetchDeveloperResales(session.developerId),
     fetchDeveloperProjects(session.developerId),
     fetchDeveloperProfile(session.developerId),
     currentDeveloperImpersonation(),
+    supabaseServer.from("developer_notifications").select("id, title, message, is_read, created_at").eq("developer_id", session.developerId).order("created_at", { ascending: false }).limit(10),
   ]);
+  const developerNotifications = notificationResult.data ?? [];
 
   return (
     <DeveloperLayout
@@ -53,6 +57,36 @@ export default async function DeveloperDashboardPage() {
         <StatCard label="Hidden" value={stats.hidden} />
         <StatCard label="Pending review" value={stats.pending} />
         <StatCard label="New inquiries" value={stats.inquiries} />
+      </section>
+
+      <section className="rounded-3xl border border-black/5 bg-white p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Inbox</p>
+            <p className="text-base text-neutral-700">Agent requests and workflow updates</p>
+          </div>
+          <span className="rounded-full bg-black px-3 py-1 text-xs font-semibold text-white">
+            {developerNotifications.filter((item) => !item.is_read).length} unread
+          </span>
+        </div>
+        <div className="mt-4 divide-y divide-black/5">
+          {developerNotifications.map((item) => (
+            <div key={item.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+              <div>
+                <p className="text-sm font-semibold text-black">{item.title}</p>
+                <p className="text-sm text-neutral-600">{item.message}</p>
+                <p className="mt-1 text-xs text-neutral-400">{new Date(item.created_at).toLocaleString()}</p>
+              </div>
+              {!item.is_read ? (
+                <form action={markDeveloperNotificationReadAction}>
+                  <input type="hidden" name="notificationId" value={item.id} />
+                  <button type="submit" className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold">Mark read</button>
+                </form>
+              ) : <span className="text-xs text-neutral-400">Read</span>}
+            </div>
+          ))}
+          {!developerNotifications.length ? <p className="py-4 text-sm text-neutral-500">No notifications yet.</p> : null}
+        </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
@@ -123,6 +157,15 @@ export default async function DeveloperDashboardPage() {
       </section>
     </DeveloperLayout>
   );
+}
+
+async function markDeveloperNotificationReadAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperSession();
+  const notificationId = formData.get("notificationId")?.toString();
+  if (!notificationId) return;
+  await supabaseServer.from("developer_notifications").update({ is_read: true, read_at: new Date().toISOString() }).eq("id", notificationId).eq("developer_id", session.developerId);
+  revalidatePath("/developer");
 }
 
 function StatCard({ label, value }: { label: string; value: number | string }) {

@@ -267,7 +267,12 @@ export async function updateDeveloperListing(
       video_tour_url: payload.videoUrl ?? null,
       photos,
       cover_photo_url: photos[0],
-      is_active: payload.visibility !== "hidden",
+      is_active: false,
+      approval_status: "pending",
+      rejection_reason: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      published_at: null,
     })
     .eq("developer_id", id)
     .eq("id", listingId);
@@ -433,7 +438,7 @@ export async function fetchDeveloperProjects(developerId: string) {
     const id = assertDeveloperId(developerId);
     const { data, error } = await supabaseServer
       .from("developer_projects")
-      .select("id, name, description, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, is_demo, project_unit_types(id, project_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, has_garden, has_roof, garden_area_sqm, roof_area_sqm, finishing_status, delivery_date, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, layout_options, down_payment_percent, installment_years, stock_count, description, amenities))")
+      .select("id, name, description, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, is_demo, approval_status, rejection_reason, project_unit_types(id, project_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, has_garden, has_roof, garden_area_sqm, roof_area_sqm, finishing_status, delivery_date, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, layout_options, down_payment_percent, installment_years, stock_count, description, amenities))")
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
     if (error || !data) return [];
@@ -484,7 +489,13 @@ export async function upsertDeveloperProject(
     }
     const { data, error } = await supabaseServer
       .from("developer_projects")
-      .update(projectPayload)
+      .update({
+        ...projectPayload,
+        approval_status: "pending",
+        rejection_reason: null,
+        reviewed_by: null,
+        reviewed_at: null,
+      })
       .eq("id", projectId)
       .eq("developer_id", id)
       .select("id")
@@ -493,7 +504,7 @@ export async function upsertDeveloperProject(
   }
   const { data, error } = await supabaseServer
     .from("developer_projects")
-    .insert({ ...projectPayload, developer_id: id })
+    .insert({ ...projectPayload, developer_id: id, approval_status: "pending" })
     .select("id")
     .single();
   return { error, data };
@@ -718,6 +729,42 @@ export async function fetchDeveloperContactRequests(developerId: string): Promis
     console.warn("fetchDeveloperContactRequests failed", error);
     return [];
   }
+}
+
+export async function updateDeveloperContactRequestStatus(
+  developerId: string,
+  requestId: string,
+  status: DeveloperContactRequest["status"],
+) {
+  const id = assertDeveloperId(developerId);
+  const { data: request, error: lookupError } = await supabaseServer
+    .from("developer_contact_requests")
+    .select("id, developer_id, requester_user_id, project_name_snapshot")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (lookupError || !request || request.developer_id !== id) {
+    return { error: lookupError ?? new Error("Contact request not found.") };
+  }
+  const { error } = await supabaseServer
+    .from("developer_contact_requests")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", requestId)
+    .eq("developer_id", id);
+  if (error) return { error };
+  const { error: notificationError } = await supabaseServer.from("notifications").insert({
+    agent_id: request.requester_user_id,
+    type: "admin_message",
+    title: "Developer request updated",
+    message: `Your ${request.project_name_snapshot} request is now ${status}.`,
+    action_url: "/properties",
+    related_entity_type: "developer_contact_request",
+    related_entity_id: request.id,
+  });
+  if (notificationError) {
+    console.error("Failed to notify agent about developer request status", notificationError);
+    return { error: notificationError };
+  }
+  return { error: null };
 }
 
 export async function deleteProjectUnitVariant(developerId: string, variantId: string) {

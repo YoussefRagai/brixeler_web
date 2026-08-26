@@ -17,6 +17,7 @@ import {
   type DeveloperContactRequest,
   type LimitedTimeOffer,
   type StructuredPaymentPlan,
+  updateDeveloperContactRequestStatus,
   upsertDeveloperProject,
   upsertProjectUnitType,
   upsertProjectUnitVariant,
@@ -987,6 +988,10 @@ export default async function DeveloperProjectsPage({
                 <div>
                   <p className="flex items-center gap-2 text-sm font-semibold text-[#050505]">{project.name}{project.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">DEMO</span> : null}</p>
                   <p className="text-sm text-neutral-500">{project.description ?? "No description yet."}</p>
+                  <p className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${project.approval_status === "approved" ? "bg-emerald-100 text-emerald-800" : project.approval_status === "rejected" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>
+                    {project.approval_status === "approved" ? "Live in mobile" : project.approval_status === "rejected" ? "Changes requested" : "Pending review"}
+                  </p>
+                  {project.rejection_reason ? <p className="mt-2 text-xs text-rose-700">Reviewer note: {project.rejection_reason}</p> : null}
                 </div>
                 <form action={deleteProjectAction}>
                   <input type="hidden" name="projectId" value={project.id} />
@@ -1204,6 +1209,14 @@ export default async function DeveloperProjectsPage({
                             <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3 text-sm text-neutral-700">
                               {request.request_body}
                             </div>
+                            <form action={updateContactRequestStatusAction} className="mt-3 flex flex-wrap gap-2">
+                              <input type="hidden" name="requestId" value={request.id} />
+                              {(["open", "contacted", "closed"] as const).filter((status) => status !== request.status).map((status) => (
+                                <button key={status} name="status" value={status} className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold capitalize hover:border-black/30" type="submit">
+                                  Mark {status}
+                                </button>
+                              ))}
+                            </form>
                           </div>
                         ))}
                       </div>
@@ -1903,11 +1916,22 @@ async function moveProjectStatusAction(formData: FormData) {
   if (!projectId) return;
   await supabaseServer
     .from("developer_projects")
-    .update({ launch_status: status })
+    .update({ launch_status: status, approval_status: "pending", rejection_reason: null, reviewed_by: null, reviewed_at: null })
     .eq("developer_id", session.developerId)
     .eq("id", projectId);
   revalidatePath("/developer/projects");
   redirect(`/developer/projects?status=${status}&project=${projectId}`);
+}
+
+async function updateContactRequestStatusAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperSession();
+  const requestId = formData.get("requestId")?.toString();
+  const value = formData.get("status")?.toString();
+  const status = value === "contacted" || value === "closed" ? value : value === "open" ? value : null;
+  if (!requestId || !status) return;
+  await updateDeveloperContactRequestStatus(session.developerId, requestId, status);
+  revalidatePath("/developer/projects");
 }
 
 async function upsertProjectCommissionRule(input: {

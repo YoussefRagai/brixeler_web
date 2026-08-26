@@ -6,6 +6,7 @@ import { PropertyApprovalQueue, type PropertyApprovalEntry } from "@/components/
 import { requireAdminRole } from "@/lib/adminAuth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { logAdminActivity } from "@/lib/adminQueries";
 
 type PropertyQueueRow = {
   id: string;
@@ -66,10 +67,20 @@ async function loadPropertyQueue(): Promise<PropertyApprovalEntry[]> {
   })) as PropertyApprovalEntry[];
 }
 
+async function loadProjectQueue() {
+  const { data } = await supabaseServer
+    .from("developer_projects")
+    .select("id, name, description, location, approval_status, rejection_reason, updated_at, developers(name)")
+    .neq("approval_status", "approved")
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  return data ?? [];
+}
+
 export default async function PropertiesPage({ searchParams }: { searchParams?: Promise<{ success?: string; error?: string }> }) {
   const ui = await buildAdminUi(["listing_admin"]);
   const feedback = (await searchParams) ?? {};
-  const queue = await loadPropertyQueue();
+  const [queue, projectQueue] = await Promise.all([loadPropertyQueue(), loadProjectQueue()]);
   return (
     <AdminLayout
       title="Property operations"
@@ -106,10 +117,66 @@ export default async function PropertiesPage({ searchParams }: { searchParams?: 
         </header>
         <PropertyApprovalQueue entries={queue} />
           </section>
+          <section className="rounded-3xl border border-black/5 bg-white p-6 shadow-xl shadow-black/5">
+            <header>
+              <p className="text-sm uppercase tracking-[0.3em] text-neutral-500">Project content review</p>
+              <p className="text-lg text-neutral-700">Developer projects that feed the mobile app</p>
+            </header>
+            <div className="mt-5 space-y-4">
+              {projectQueue.map((project) => {
+                const developer = Array.isArray(project.developers) ? project.developers[0] : project.developers;
+                return (
+                  <article key={project.id} className="rounded-2xl border border-black/10 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-black">{project.name}</p>
+                        <p className="text-xs text-neutral-500">{developer?.name ?? "Developer"} · {project.location ?? "Location not set"}</p>
+                        <p className="mt-2 max-w-3xl text-sm text-neutral-700">{project.description ?? "No description provided."}</p>
+                        {project.rejection_reason ? <p className="mt-2 text-xs text-rose-700">Previous note: {project.rejection_reason}</p> : null}
+                      </div>
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold capitalize text-amber-800">{project.approval_status}</span>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                      <form action={moderateProjectAction} className="flex flex-wrap gap-2">
+                        <input type="hidden" name="projectId" value={project.id} />
+                        <button name="decision" value="approved" className="rounded-full bg-emerald-700 px-4 py-2 text-xs font-semibold text-white" type="submit">Approve for mobile</button>
+                      </form>
+                      <form action={moderateProjectAction} className="flex flex-wrap gap-2">
+                        <input type="hidden" name="projectId" value={project.id} />
+                        <input name="reason" required minLength={5} placeholder="Required reviewer note" className="rounded-full border border-black/10 px-4 py-2 text-xs" />
+                        <button name="decision" value="rejected" className="rounded-full bg-rose-700 px-4 py-2 text-xs font-semibold text-white" type="submit">Request changes</button>
+                      </form>
+                    </div>
+                  </article>
+                );
+              })}
+              {!projectQueue.length ? <p className="text-sm text-neutral-500">No developer projects are waiting for review.</p> : null}
+            </div>
+          </section>
         </>
       )}
     </AdminLayout>
   );
+}
+
+async function moderateProjectAction(formData: FormData) {
+  "use server";
+  const admin = await requireAdminRole(["listing_admin"]);
+  if (!admin) redirect("/properties?error=Access%20denied.");
+  const projectId = formData.get("projectId")?.toString();
+  const decision = formData.get("decision")?.toString() === "approved" ? "approved" : "rejected";
+  const reason = formData.get("reason")?.toString().trim() || null;
+  if (!projectId || (decision === "rejected" && !reason)) redirect("/properties?error=Reviewer%20note%20is%20required.");
+  const { error } = await supabaseServer.from("developer_projects").update({
+    approval_status: decision,
+    rejection_reason: decision === "rejected" ? reason : null,
+    reviewed_by: admin.adminId,
+    reviewed_at: new Date().toISOString(),
+  }).eq("id", projectId);
+  if (error) redirect(`/properties?error=${encodeURIComponent(error.message)}`);
+  await logAdminActivity({ adminId: admin.adminId, action: `developer_project.${decision}`, resourceType: "developer_projects", resourceId: projectId, metadata: { reason } });
+  revalidatePath("/properties");
+  redirect(`/properties?success=${encodeURIComponent(decision === "approved" ? "Project approved for mobile." : "Changes requested from developer.")}`);
 }
 
 async function bulkImportPropertiesAction(formData: FormData) {

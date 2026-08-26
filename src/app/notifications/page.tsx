@@ -7,6 +7,7 @@ import { requireAdminRole } from "@/lib/adminAuth";
 import { logAdminActivity } from "@/lib/adminQueries";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { ReactNode } from "react";
+import { MOBILE_ACTIONS, parseMobileActionUrl } from "@/lib/mobileActions";
 
 type Campaign = {
   id: string;
@@ -20,10 +21,13 @@ type Campaign = {
   scheduled_for: string;
   sent_at: string | null;
   is_demo: boolean;
+  pushDelivered?: number;
+  pushPending?: number;
+  pushFailed?: number;
 };
 
 async function loadNotificationData() {
-  const [{ count: all }, { count: verified }, { count: newThisWeek }, { data: campaigns }] = await Promise.all([
+  const [{ count: all }, { count: verified }, { count: newThisWeek }, { data: campaigns }, { data: pushBatches }] = await Promise.all([
     supabaseServer.from("users_profile").select("id", { count: "exact", head: true }).eq("account_status", "active"),
     supabaseServer.from("users_profile").select("id", { count: "exact", head: true }).eq("verification_status", "verified"),
     supabaseServer
@@ -35,14 +39,31 @@ async function loadNotificationData() {
       .select("id, title, audience, channel, status, recipient_count, push_recipient_count, push_batch_count, scheduled_for, sent_at, is_demo")
       .order("created_at", { ascending: false })
       .limit(20),
+    supabaseServer
+      .from("push_delivery_batches")
+      .select("campaign_id, status, token_count"),
   ]);
+  const deliveryByCampaign = new Map<string, { delivered: number; pending: number; failed: number }>();
+  (pushBatches ?? []).forEach((batch) => {
+    const current = deliveryByCampaign.get(batch.campaign_id) ?? { delivered: 0, pending: 0, failed: 0 };
+    if (batch.status === "delivered") current.delivered += 1;
+    else if (batch.status === "failed") current.failed += 1;
+    else if (batch.status === "partial") {
+      current.delivered += 1;
+      current.failed += 1;
+    } else current.pending += 1;
+    deliveryByCampaign.set(batch.campaign_id, current);
+  });
   return {
     segments: [
       { label: "Active agents", value: all ?? 0 },
       { label: "Verified", value: verified ?? 0 },
       { label: "New this week", value: newThisWeek ?? 0 },
     ],
-    campaigns: (campaigns ?? []) as Campaign[],
+    campaigns: ((campaigns ?? []) as Campaign[]).map((campaign) => {
+      const delivery = deliveryByCampaign.get(campaign.id) ?? { delivered: 0, pending: 0, failed: 0 };
+      return { ...campaign, pushDelivered: delivery.delivered, pushPending: delivery.pending, pushFailed: delivery.failed };
+    }),
   };
 }
 
@@ -107,8 +128,10 @@ export default async function NotificationsPage({
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm">
-                  <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Mobile action URL</span>
-                  <input name="actionUrl" className="mt-2 w-full rounded-2xl border border-black/10 bg-[#f7f7f7] px-4 py-3" placeholder="/properties" />
+                  <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Open in mobile</span>
+                  <select name="actionUrl" defaultValue="/" className="mt-2 w-full rounded-2xl border border-black/10 bg-[#f7f7f7] px-4 py-3">
+                    {MOBILE_ACTIONS.map((action) => <option key={action.value} value={action.value}>{action.label}</option>)}
+                  </select>
                 </label>
                 <label className="text-sm">
                   <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Schedule for</span>
@@ -139,7 +162,9 @@ export default async function NotificationsPage({
                       <td className="px-4 py-3">{new Date(campaign.scheduled_for).toLocaleString()}</td>
                       <td className="px-4 py-3 capitalize">{campaign.status}</td>
                       <td className="px-4 py-3">{campaign.recipient_count}</td>
-                      <td className="px-4 py-3">{campaign.channel === "in_app_push" ? `${campaign.push_recipient_count} · ${campaign.push_batch_count} batch${campaign.push_batch_count === 1 ? "" : "es"}` : "—"}</td>
+                      <td className="px-4 py-3">{campaign.channel === "in_app_push" ? (
+                        <span>{campaign.pushDelivered ?? 0} delivered batches · {campaign.pushPending ?? 0} pending · {campaign.pushFailed ?? 0} failed</span>
+                      ) : "—"}</td>
                     </tr>
                   ))}
                   {!data.campaigns.length ? <tr><td colSpan={6} className="px-4 py-8 text-center text-neutral-500">No campaigns yet.</td></tr> : null}
@@ -169,7 +194,7 @@ async function createCampaignAction(formData: FormData) {
   const message = formData.get("message")?.toString().trim() ?? "";
   const audience = formData.get("audience")?.toString() ?? "verified";
   const channel = formData.get("channel")?.toString() ?? "in_app";
-  const actionUrl = formData.get("actionUrl")?.toString().trim() || null;
+  const actionUrl = parseMobileActionUrl(formData.get("actionUrl"));
   const scheduledRaw = formData.get("scheduledFor")?.toString();
   const scheduledFor = scheduledRaw ? new Date(scheduledRaw) : new Date();
   if (!title || !message || Number.isNaN(scheduledFor.getTime())) redirect("/notifications?error=Check%20the%20campaign%20fields.");

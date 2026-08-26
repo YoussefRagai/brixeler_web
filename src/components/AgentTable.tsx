@@ -138,21 +138,22 @@ export function AgentTable({ agents }: Props) {
     setNote("");
   };
 
-  const runAccountAction = async (agent: AgentRow, action: "suspend" | "delete") => {
-    const label = action === "delete" ? "permanently delete" : "suspend";
+  const runAccountAction = async (agent: AgentRow, action: "suspend" | "reactivate" | "delete") => {
+    const label = action === "delete" ? "permanently delete" : action;
     if (!window.confirm(`Are you sure you want to ${label} ${agent.name}?`)) return;
     setActionMessage("Working…");
-    const response = await fetch(`/api/admin/agents/${action}`, {
+    const endpoint = action === "delete" ? "delete" : "suspend";
+    const response = await fetch(`/api/admin/agents/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agentId: agent.id }),
+      body: JSON.stringify({ agentId: agent.id, suspended: action !== "reactivate" }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       setActionMessage(payload.error ?? `Unable to ${action} account.`);
       return;
     }
-    setActionMessage(action === "delete" ? "Account deleted." : "Account suspended.");
+    setActionMessage(action === "delete" ? "Account deleted." : action === "reactivate" ? "Account reactivated." : "Account suspended.");
     router.refresh();
     if (action === "delete") closeModal();
   };
@@ -205,12 +206,21 @@ export function AgentTable({ agents }: Props) {
                     >
                       Open profile
                     </button>
-                    <button
-                      onClick={() => runAccountAction(agent, "suspend")}
-                      className="rounded-full border border-amber-300/50 px-3 py-1 text-xs text-amber-200 hover:bg-amber-500/10"
-                    >
-                      Suspend user
-                    </button>
+                    {agent.status === "suspended" ? (
+                      <button
+                        onClick={() => runAccountAction(agent, "reactivate")}
+                        className="rounded-full border border-emerald-300/50 px-3 py-1 text-xs text-emerald-200 hover:bg-emerald-500/10"
+                      >
+                        Reactivate user
+                      </button>
+                    ) : agent.status === "active" ? (
+                      <button
+                        onClick={() => runAccountAction(agent, "suspend")}
+                        className="rounded-full border border-amber-300/50 px-3 py-1 text-xs text-amber-200 hover:bg-amber-500/10"
+                      >
+                        Suspend user
+                      </button>
+                    ) : null}
                     <button
                       onClick={() => runAccountAction(agent, "delete")}
                       className="rounded-full border border-rose-300/50 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/10"
