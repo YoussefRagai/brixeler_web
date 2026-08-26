@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated repository summaries can echo ignored local configuration; the index is scrubbed before commit."
+paths = ['''^\.context/file_index\.json$''']
