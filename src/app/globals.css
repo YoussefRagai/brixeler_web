@@ -55,6 +55,96 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* Desktop command-center rhythm. The shells opt every dashboard route into this
+   layer, while mobile keeps the existing generous touch-friendly treatment. */
+@media (min-width: 1024px) {
+  .dashboard-shell .dashboard-sidebar {
+    width: 15rem;
+    padding: 1.75rem 1.25rem;
+    box-shadow: 8px 0 24px rgba(5, 5, 5, 0.025);
+  }
+
+  .dashboard-shell .dashboard-topbar {
+    padding: 1rem 1.75rem;
+  }
+
+  .dashboard-shell .dashboard-main {
+    padding: 1.75rem;
+  }
+
+  .dashboard-shell .dashboard-content {
+    gap: 1.25rem;
+  }
+
+  .dashboard-shell .dashboard-content > .rounded-3xl,
+  .dashboard-shell .dashboard-content > .rounded-2xl {
+    padding: 1.25rem !important;
+  }
+
+  .dashboard-shell .dashboard-heading {
+    font-size: 1.5rem;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+  }
+
+  .dashboard-shell .dashboard-panel,
+  .dashboard-shell .dashboard-kpi {
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgba(5, 5, 5, 0.035);
+  }
+
+  .dashboard-shell .dashboard-panel {
+    padding: 1.25rem !important;
+  }
+
+  .dashboard-shell .dashboard-kpi {
+    padding: 1rem !important;
+  }
+
+  /* Older routes use these utility values for editorial labels. Narrowing the
+     tracking on desktop reduces visual noise without changing copy or meaning. */
+  .dashboard-shell [class*="tracking-[0.3em]"],
+  .dashboard-shell [class*="tracking-[0.28em]"],
+  .dashboard-shell [class*="tracking-[0.25em]"] {
+    letter-spacing: 0.16em;
+  }
+
+  .dashboard-shell .rounded-3xl {
+    border-radius: 1rem;
+  }
+
+  .dashboard-shell .rounded-2xl {
+    border-radius: 0.75rem;
+  }
+
+  .dashboard-shell .dashboard-sidebar nav {
+    font-size: 0.875rem;
+  }
+
+  .dashboard-shell .dashboard-sidebar nav a {
+    border-radius: 0.65rem;
+    padding: 0.55rem 0.7rem;
+  }
+
+  .dashboard-shell .dashboard-stat-grid--four > *,
+  .dashboard-shell .dashboard-stat-grid--three > * {
+    min-width: 0;
+    border-left: 1px solid rgba(5, 5, 5, 0.08);
+    padding: 0 0 0 1rem;
+  }
+
+  .dashboard-shell .dashboard-stat-grid--four > *:nth-child(4n + 1),
+  .dashboard-shell .dashboard-stat-grid--three > *:nth-child(3n + 1) {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .dashboard-shell .dashboard-list-row {
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+  }
+}
+
 .project-wizard [data-wizard-panel] {
   scroll-margin-top: 1.5rem;
 }

@@ -111,3 +111,11 @@ Append meaningful work after each task.
 - Commands run: `npm run lint`, `npm run build`, `npm run test:contracts`, `npm audit --audit-level=high`, and `git diff --check`.
 - Result: All checks pass; no backend APIs, schema, authorization, or deployment files changed. Existing server actions remain the submit boundary.
 - Risks/follow-ups: Browser-local wizard progress is intentionally client-only; mobile previews are illustrative and do not publish data. Build emits existing warnings when local dashboard session secrets are absent.
+
+## 2026-08-26 - desktop dashboard visual revamp
+
+- Task: Reduce desktop density/noise across admin and developer dashboards while preserving existing actions, data contracts, routes, branding, and mobile behavior.
+- Files touched: `src/components/AdminLayout.tsx`, `src/components/DeveloperLayout.tsx`, `src/app/globals.css`, `src/app/page.tsx`, and `src/app/developer/page.tsx`.
+- Commands run: `npm run lint`, `npm run build`, `npm run test:contracts`, `npm audit --audit-level=high`, and `git diff --check`.
+- Result: Shared shells now provide a desktop-only compact command-center rhythm; admin overview uses dense KPI/list bands, links recent deals directly to their records, and provides a two-column verification queue; developer overview combines metrics into a restrained snapshot and pairs inbox/resales with a compact project panel. All checks pass with zero high-severity vulnerabilities.
+- Risks/follow-ups: Build retains existing warnings when local dashboard session secrets are absent. Authenticated visual inspection was limited to the local login shell because no dashboard session was available in the browser harness.

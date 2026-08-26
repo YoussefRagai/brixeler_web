@@ -93,7 +93,7 @@ export function AdminLayout({ title, description, actions, children, navItems, m
     .sort((left, right) => right.href.length - left.href.length)[0]?.href;
 
   const renderNav = (mobile = false) => (
-    <nav aria-label={mobile ? "Admin mobile navigation" : "Admin navigation"} className={mobile ? "grid gap-5 sm:grid-cols-2" : "space-y-5"}>
+    <nav aria-label={mobile ? "Admin mobile navigation" : "Admin navigation"} className={mobile ? "grid gap-5 sm:grid-cols-2" : "space-y-4"}>
       {groupedItems.map((group) => (
         <div key={`${mobile ? "mobile-" : ""}${group.section}`} className="space-y-1">
           <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-neutral-400">
@@ -126,12 +126,12 @@ export function AdminLayout({ title, description, actions, children, navItems, m
   );
 
   return (
-    <div className="flex min-h-screen min-w-0 bg-[#f8f8f8] text-[#050505]">
+    <div className="dashboard-shell flex min-h-screen min-w-0 bg-[#f8f8f8] text-[#050505]">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-black focus:px-4 focus:py-2 focus:text-sm focus:text-white">
         Skip to content
       </a>
-      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-black/5 bg-white px-6 py-10 shadow-xl shadow-black/5 lg:flex xl:w-80">
-        <div className="mb-8 space-y-1">
+      <aside className="dashboard-sidebar sticky top-0 hidden h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-black/5 bg-white px-6 py-10 shadow-xl shadow-black/5 lg:flex xl:w-80">
+        <div className="mb-6 space-y-1">
           <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Brixeler</p>
           <p className="text-lg font-semibold text-[#050505]">Command Center</p>
           <p className="text-xs text-neutral-400">
@@ -147,7 +147,7 @@ export function AdminLayout({ title, description, actions, children, navItems, m
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-b border-black/5 bg-white px-4 py-5 sm:px-6">
+        <header className="dashboard-topbar border-b border-black/5 bg-white px-4 py-5 sm:px-6">
           <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
               <h1 className="dashboard-heading text-2xl font-semibold text-[#050505] sm:text-3xl">{title}</h1>
@@ -188,8 +188,8 @@ export function AdminLayout({ title, description, actions, children, navItems, m
             </div>
           ) : null}
         </header>
-        <main id="main-content" className="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-          <div className="glassless mx-auto flex w-full max-w-[1600px] min-w-0 flex-col gap-8">{children}</div>
+        <main id="main-content" className="dashboard-main min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          <div className="dashboard-content glassless mx-auto flex w-full max-w-[1600px] min-w-0 flex-col gap-8">{children}</div>
         </main>
       </div>
     </div>
