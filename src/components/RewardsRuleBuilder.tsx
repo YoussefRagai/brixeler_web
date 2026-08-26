@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { RuleFilterBuilder } from "@/components/RuleFilterBuilder";
 
 type TierOption = { id: string; name: string; level: number | null };
 type BadgeOption = { id: string; name: string };
@@ -234,15 +235,9 @@ export function RewardsRuleBuilder({
           </label>
         )}
 
-        <label className="md:col-span-2 text-sm text-neutral-500">
-          Filters (JSON)
-          <textarea
-            value={filtersJson}
-            onChange={(event) => setFiltersJson(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-[#050505]"
-            rows={3}
-          />
-        </label>
+        <div className="md:col-span-2">
+          <RuleFilterBuilder value={filtersJson} onChange={setFiltersJson} />
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">

@@ -87,6 +87,19 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
       revenueRunRate: totalRevenue,
       referrals: referralTotals,
     },
+    rates: {
+      paidDealRate: totalDeals ? Math.round((paidDeals / totalDeals) * 100) : 0,
+      pendingListingRate:
+        (approvedListings ?? 0) + (pendingListings ?? 0)
+          ? Math.round(((pendingListings ?? 0) / ((approvedListings ?? 0) + (pendingListings ?? 0))) * 100)
+          : 0,
+      verifiedReferralRate: referralTotals.total
+        ? Math.round((referralTotals.verified / referralTotals.total) * 100)
+        : 0,
+      referralConversionRate: referralTotals.verified
+        ? Math.round((referralTotals.converted / referralTotals.verified) * 100)
+        : 0,
+    },
   };
 }
 
@@ -101,8 +114,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams?: P
       description="Funnel, revenue, and activation KPIs with export-ready decks."
       actions={
         <div className="flex gap-2">
-          <a href="/api/admin/exports/download?type=dashboard&format=xlsx" className="rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white">Export XLSX</a>
-          <PrintButton className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-slate-900" />
+          <a href="/api/admin/exports/download?type=dashboard&format=xlsx" className="rounded-full border border-black/15 bg-white px-5 py-2 text-sm font-semibold text-neutral-800 transition-colors hover:border-black/35 hover:bg-neutral-50">Export XLSX</a>
+          <PrintButton className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800" />
         </div>
       }
       navItems={ui.navItems}
@@ -112,24 +125,24 @@ export default async function AnalyticsPage({ searchParams }: { searchParams?: P
         <AdminAccessDenied />
       ) : (
         <>
-          <form className="flex flex-wrap items-end gap-3 rounded-3xl border border-white/5 bg-white/5 p-4">
-            <label className="text-xs uppercase tracking-wider text-slate-400">From<input name="from" type="date" defaultValue={params.from} className="mt-1 block rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"/></label>
-            <label className="text-xs uppercase tracking-wider text-slate-400">To<input name="to" type="date" defaultValue={params.to} className="mt-1 block rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white"/></label>
-            <button className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black" type="submit">Apply range</button>
-            <a href="/analytics" className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70">Clear</a>
+          <form className="flex flex-wrap items-end gap-3 rounded-3xl border border-black/5 bg-white p-4 shadow-sm">
+            <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500">From<input name="from" type="date" defaultValue={params.from} className="mt-1 block min-h-11 rounded-xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm text-neutral-900"/></label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-neutral-500">To<input name="to" type="date" defaultValue={params.to} className="mt-1 block min-h-11 rounded-xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm text-neutral-900"/></label>
+            <button className="min-h-11 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800" type="submit">Apply range</button>
+            <a href="/analytics" className="min-h-11 rounded-full border border-black/10 px-4 py-2 text-sm leading-7 text-neutral-700 transition-colors hover:border-black/30 hover:text-black">Clear</a>
           </form>
           <section className="grid gap-6 lg:grid-cols-3">
             {(analytics?.cards ?? []).length ? (
               analytics?.cards.map((panel) => (
                 <article
                   key={panel.title}
-                  className="rounded-3xl border border-white/5 bg-gradient-to-br from-slate-900/60 to-slate-900/10 p-6"
+                  className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm"
                 >
-                  <p className="text-sm uppercase tracking-[0.3em] text-slate-500">{panel.title}</p>
-                  <ul className="mt-4 space-y-2 text-sm text-slate-300">
+                  <p className="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-500">{panel.title}</p>
+                  <ul className="mt-4 space-y-3 text-sm text-neutral-700">
                     {panel.points.map((point) => (
                       <li key={point} className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                        <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                         {point}
                       </li>
                     ))}
@@ -137,46 +150,67 @@ export default async function AnalyticsPage({ searchParams }: { searchParams?: P
                 </article>
               ))
             ) : (
-              <article className="rounded-3xl border border-white/5 bg-white/5 p-6 text-sm text-slate-300 lg:col-span-3">
+              <article className="rounded-3xl border border-black/5 bg-white p-6 text-sm text-neutral-600 shadow-sm lg:col-span-3">
                 Analytics are unavailable until the live database is configured.
               </article>
             )}
           </section>
 
-          <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+          <section className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Forecast</p>
-                <p className="text-lg text-slate-300">Current filtered performance snapshot</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-neutral-500">Forecast</p>
+                <p className="text-lg text-neutral-800">Current filtered performance snapshot</p>
               </div>
             </div>
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Deal run rate</p>
-                <p className="mt-3 text-3xl font-semibold text-white">
+              <div className="rounded-2xl border border-black/5 bg-neutral-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Deal run rate</p>
+                <p className="dashboard-number mt-3 text-3xl font-semibold text-neutral-950">
                   {analytics ? analytics.forecast.dealRunRate.toLocaleString("en-EG") : "—"}
                 </p>
-                <p className="text-sm text-slate-400">Deals submitted in the selected period</p>
+                <p className="text-sm text-neutral-600">Deals submitted in the selected period</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Revenue run rate</p>
-                <p className="mt-3 text-3xl font-semibold text-white">
+              <div className="rounded-2xl border border-black/5 bg-neutral-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Revenue run rate</p>
+                <p className="dashboard-number mt-3 text-3xl font-semibold text-neutral-950">
                   {analytics ? formatCurrency(analytics.forecast.revenueRunRate) : "—"}
                 </p>
-                <p className="text-sm text-slate-400">Pipeline value submitted in the selected period</p>
+                <p className="text-sm text-neutral-600">Pipeline value submitted in the selected period</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-4 md:col-span-2">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Referral funnel</p>
-                <p className="mt-3 text-lg font-semibold text-white">
+              <div className="rounded-2xl border border-black/5 bg-neutral-50 p-4 md:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Referral funnel</p>
+                <p className="mt-3 text-lg font-semibold text-neutral-950">
                   {analytics
                     ? `${analytics.forecast.referrals.total} total · ${analytics.forecast.referrals.verified} verified · ${analytics.forecast.referrals.converted} with first deal`
                     : "—"}
                 </p>
+                {analytics ? (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <RateBar label="Paid deal completion" value={analytics.rates.paidDealRate} />
+                    <RateBar label="Verified referrals" value={analytics.rates.verifiedReferralRate} />
+                    <RateBar label="Referral → first deal" value={analytics.rates.referralConversionRate} />
+                  </div>
+                ) : null}
               </div>
             </div>
           </section>
         </>
       )}
     </AdminLayout>
+  );
+}
+
+function RateBar({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 text-xs text-neutral-600">
+        <span>{label}</span>
+        <span className="dashboard-number font-semibold text-neutral-900">{value}%</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-neutral-200" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
+        <div className="h-full rounded-full bg-black transition-[width] duration-300" style={{ width: `${value}%` }} />
+      </div>
+    </div>
   );
 }

@@ -103,3 +103,11 @@ Append meaningful work after each task.
 - Commands/tools run: web lint/build/audit/contracts, mobile security suite, live Supabase migrations/catalog/advisor checks, migration-ledger reconciliation, and a fresh read-only security review.
 - Result: Suspensions now block active tokens at RLS/RPC/API/Auth boundaries and can be reactivated; project/listing edits return to moderation; agent leads have developer status controls and two-way notifications; managed content, in-app notification read/deep-link behavior, and support replies reach mobile; Expo receipts determine delivery; all release checks pass.
 - Risks/follow-ups: Real OS push delivery still requires the next native build and an Android/iOS device test. Supabase leaked-password protection remains an account-level setting to enable. Local builds intentionally warn when dashboard cookie secrets are absent.
+
+## 2026-08-26 - dashboard usability and accessibility pass
+
+- Task: Implement the practical dashboard audit fixes across shared navigation, responsive layout, project setup, verification, analytics, rule builders, and mobile-facing previews.
+- Files touched: shared admin/developer shells and navigation types, global styles, project wizard and preview/filter builder components, analytics/content/notifications pages, verification queue, and gift/reward rule builders.
+- Commands run: `npm run lint`, `npm run build`, `npm run test:contracts`, `npm audit --audit-level=high`, and `git diff --check`.
+- Result: All checks pass; no backend APIs, schema, authorization, or deployment files changed. Existing server actions remain the submit boundary.
+- Risks/follow-ups: Browser-local wizard progress is intentionally client-only; mobile previews are illustrative and do not publish data. Build emits existing warnings when local dashboard session secrets are absent.

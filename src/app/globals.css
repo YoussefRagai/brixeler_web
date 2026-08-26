@@ -12,9 +12,59 @@
 }
 
 body {
+  margin: 0;
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
+  overflow-x: hidden;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #050505;
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+::selection {
+  background: #050505;
+  color: #fff;
+}
+
+.dashboard-heading {
+  text-wrap: balance;
+}
+
+.dashboard-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.project-wizard [data-wizard-panel] {
+  scroll-margin-top: 1.5rem;
+}
+
+.project-wizard[data-active-step="basics"] [data-wizard-panel]:not([data-wizard-panel="basics"]),
+.project-wizard[data-active-step="commercial"] [data-wizard-panel]:not([data-wizard-panel="commercial"]),
+.project-wizard[data-active-step="launch"] [data-wizard-panel]:not([data-wizard-panel="launch"]),
+.project-wizard[data-active-step="media"] [data-wizard-panel]:not([data-wizard-panel="media"]),
+.project-wizard[data-active-step="amenities"] [data-wizard-panel]:not([data-wizard-panel="amenities"]) {
+  display: none;
 }
 
 .glassless .bg-white\/5,
@@ -40,6 +90,47 @@ body {
 .glassless .text-white\/60,
 .glassless .text-white\/50 {
   color: #050505 !important;
+}
+
+/* A few older dashboard modules still use the dark-theme slate utilities.
+   Keep the shared light command-center canvas readable without changing the
+   underlying data or action contracts. */
+.glassless .text-slate-200,
+.glassless .text-slate-300 {
+  color: #404040 !important;
+}
+
+.glassless .text-slate-400 {
+  color: #666 !important;
+}
+
+.glassless .text-slate-500 {
+  color: #737373 !important;
+}
+
+.glassless [class~="bg-[#0f1115]"] {
+  color: #f8f8f8;
+}
+
+.glassless [class~="bg-[#0f1115]"] .text-slate-200,
+.glassless [class~="bg-[#0f1115]"] .text-slate-300,
+.glassless [class~="bg-[#0f1115]"] .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+.glassless [class~="bg-[#0f1115]"] .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 .keep-white {

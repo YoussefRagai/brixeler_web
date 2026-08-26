@@ -45,9 +45,18 @@ export function VerificationCarousel({ queue }: Props) {
   const [showRequestChange, setShowRequestChange] = useState(false);
   const [reason, setReason] = useState("");
   const [activeDocIndex, setActiveDocIndex] = useState(0);
+  const [search, setSearch] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const current = queue[activeIndex];
-  const next = queue[activeIndex + 1];
+  const filteredQueue = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return queue;
+    return queue.filter((item) => [item.name, item.notes, item.id].some((value) => value.toLowerCase().includes(needle)));
+  }, [queue, search]);
+
+  const current = filteredQueue[activeIndex];
+  const next = filteredQueue[activeIndex + 1];
 
   const docs = useMemo(() => current?.docs ?? [], [current]);
   const activeDoc = docs[activeDocIndex];
@@ -60,7 +69,8 @@ export function VerificationCarousel({ queue }: Props) {
       setShowRequestChange(false);
       setReason("");
       setActiveDocIndex(0);
-      setActiveIndex((prev) => Math.min(prev + 1, queue.length));
+      setActionMessage(dir === "right" ? "Verification approved." : "Change request sent.");
+      setActiveIndex((prev) => Math.min(prev + 1, filteredQueue.length));
     }, 350);
   };
 
@@ -77,20 +87,22 @@ export function VerificationCarousel({ queue }: Props) {
   };
 
   const goNext = () => {
-    if (!current || activeIndex >= queue.length - 1) return;
+    if (!current || activeIndex >= filteredQueue.length - 1) return;
     setDirection("right");
     setTimeout(() => {
       setDirection(null);
       setShowRequestChange(false);
       setReason("");
       setActiveDocIndex(0);
-      setActiveIndex((prev) => Math.min(prev + 1, queue.length - 1));
+      setActiveIndex((prev) => Math.min(prev + 1, filteredQueue.length - 1));
     }, 200);
   };
 
   const approve = async () => {
     if (!current || isSubmitting) return;
     setIsSubmitting(true);
+    setErrorMessage(null);
+    setActionMessage(null);
     try {
       const response = await fetch("/api/admin/verification/approve", {
         method: "POST",
@@ -103,7 +115,7 @@ export function VerificationCarousel({ queue }: Props) {
       }
       advanceCard("right");
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Unable to approve this verification request.");
+      setErrorMessage(error instanceof Error ? error.message : "Unable to approve this verification request.");
     } finally {
       setIsSubmitting(false);
     }
@@ -116,6 +128,8 @@ export function VerificationCarousel({ queue }: Props) {
       return;
     }
     setIsSubmitting(true);
+    setErrorMessage(null);
+    setActionMessage(null);
     try {
       const response = await fetch("/api/admin/verification/reject", {
         method: "POST",
@@ -128,7 +142,7 @@ export function VerificationCarousel({ queue }: Props) {
       }
       advanceCard("left");
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Unable to request changes for this verification.");
+      setErrorMessage(error instanceof Error ? error.message : "Unable to request changes for this verification.");
     } finally {
       setIsSubmitting(false);
     }
@@ -136,22 +150,62 @@ export function VerificationCarousel({ queue }: Props) {
 
   if (!current) {
     return (
-      <div className="rounded-3xl border border-white/5 bg-white/5 p-10 text-center text-sm text-slate-300">
-        All verification requests are processed.
+      <div className="space-y-4">
+        {errorMessage ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{errorMessage}</div> : null}
+        {actionMessage ? <div aria-live="polite" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{actionMessage}</div> : null}
+        <label className="block text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
+          Search queue
+          <input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setActiveIndex(0);
+            }}
+            placeholder="Name, phone, or ID…"
+            className="mt-2 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-neutral-900"
+            type="search"
+            aria-label="Search verification queue"
+          />
+        </label>
+        <div className="rounded-3xl border border-dashed border-black/10 bg-neutral-50 p-10 text-center text-sm text-neutral-600">
+          {search ? "No verification requests match this search." : "All verification requests are processed."}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="grid gap-6">
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-black/10 bg-neutral-50 p-4">
+        <label className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
+          Search queue
+          <input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setActiveIndex(0);
+            }}
+            placeholder="Name, phone, or ID…"
+            className="mt-2 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-neutral-900"
+            type="search"
+            aria-label="Search verification queue"
+          />
+        </label>
+        <p className="text-xs text-neutral-500">{filteredQueue.length} of {queue.length} requests</p>
+      </div>
+      {errorMessage ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{errorMessage}</div> : null}
+      {actionMessage ? <div aria-live="polite" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{actionMessage}</div> : null}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Pending agents</p>
-          <p className="text-lg text-slate-300">{queue.length - activeIndex} submissions awaiting action</p>
+          <p className="text-lg text-slate-300">{filteredQueue.length - activeIndex} submissions awaiting action</p>
         </div>
         <div className="rounded-full border border-white/10 px-4 py-2 text-xs text-slate-300">
-          Card {activeIndex + 1} of {queue.length}
+          Card {activeIndex + 1} of {filteredQueue.length}
         </div>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-neutral-200" role="progressbar" aria-label="Verification queue progress" aria-valuemin={0} aria-valuemax={Math.max(filteredQueue.length, 1)} aria-valuenow={Math.min(activeIndex, filteredQueue.length)}>
+        <div className="h-full rounded-full bg-black transition-[width] duration-300" style={{ width: `${filteredQueue.length ? (activeIndex / filteredQueue.length) * 100 : 100}%` }} />
       </div>
 
       <div className="relative mx-auto h-[520px] w-full max-w-3xl">
@@ -248,6 +302,7 @@ export function VerificationCarousel({ queue }: Props) {
           type="button"
           onClick={goPrev}
           disabled={activeIndex === 0}
+          aria-label="Previous verification request"
           className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/60 px-4 py-3 text-white shadow-lg shadow-black/40 disabled:opacity-40 sm:left-0 sm:-translate-x-full"
         >
           ←
@@ -255,7 +310,8 @@ export function VerificationCarousel({ queue }: Props) {
         <button
           type="button"
           onClick={goNext}
-          disabled={activeIndex >= queue.length - 1}
+          disabled={activeIndex >= filteredQueue.length - 1}
+          aria-label="Next verification request"
           className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/60 px-4 py-3 text-white shadow-lg shadow-black/40 disabled:opacity-40 sm:right-0 sm:translate-x-full"
         >
           →

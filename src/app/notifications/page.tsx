@@ -8,6 +8,7 @@ import { logAdminActivity } from "@/lib/adminQueries";
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { ReactNode } from "react";
 import { MOBILE_ACTIONS, parseMobileActionUrl } from "@/lib/mobileActions";
+import { MobilePreviewButton } from "@/components/MobilePreviewButton";
 
 type Campaign = {
   id: string;
@@ -99,7 +100,7 @@ export default async function NotificationsPage({
           </section>
 
           <section className="rounded-3xl border border-black/5 bg-white p-6 shadow-lg">
-            <form action={createCampaignAction} className="space-y-6">
+            <form id="notification-composer" action={createCampaignAction} className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm">
                   <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Recipients</span>
@@ -139,9 +140,12 @@ export default async function NotificationsPage({
                 </label>
               </div>
               <p className="text-xs text-neutral-500">Leave the schedule blank to deliver now. Phone alerts go to agents who enabled notifications and registered this version of the mobile app; every recipient still receives the in-app message.</p>
-              <button className="rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white" type="submit">
-                Create campaign
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button className="min-h-11 rounded-full bg-black px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-neutral-800" type="submit">
+                  Create campaign
+                </button>
+                <MobilePreviewButton formId="notification-composer" titleField="title" bodyField="message" typeField="channel" label="Preview in mobile" />
+              </div>
             </form>
           </section>
 

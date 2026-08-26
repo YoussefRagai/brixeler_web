@@ -4,6 +4,7 @@ import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { DeveloperProjectRequestTabs } from "@/components/DeveloperProjectRequestTabs";
 import { ProjectImportPanel } from "@/components/ProjectImportPanel";
+import { ProjectWizard } from "@/components/ProjectWizard";
 import { VariantOutdoorFields } from "@/components/VariantOutdoorFields";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
@@ -306,7 +307,8 @@ export default async function DeveloperProjectsPage({
             </a>
           </div>
           <div className="mt-4">
-            <form action={upsertProjectAction} className="space-y-4">
+            <ProjectWizard action={upsertProjectAction}>
+              <div data-wizard-panel="basics" className="space-y-4">
               {projects.length ? (
                 <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
                   <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Reuse an existing setup</p>
@@ -345,6 +347,8 @@ export default async function DeveloperProjectsPage({
                 <Field label="CH fees" name="chFees" type="number" min="0" step="0.01" placeholder="250000" defaultValue={templateProject?.ch_fees ?? ""} />
               </div>
               <Field label="Location" name="location" placeholder="North Coast, Ras El Hekma" defaultValue={templateProject?.location ?? ""} />
+              </div>
+              <div data-wizard-panel="commercial" className="space-y-4">
               <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
                 <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Original payment plans</p>
                 <p className="mt-1 text-xs text-neutral-500">
@@ -407,6 +411,8 @@ export default async function DeveloperProjectsPage({
                   </label>
                 </div>
               </div>
+              </div>
+              <div data-wizard-panel="launch" className="space-y-4">
               <Field
                 as="textarea"
                 label="Types"
@@ -464,6 +470,8 @@ export default async function DeveloperProjectsPage({
                   placeholder="0.25"
                 />
               </div>
+              </div>
+              <div data-wizard-panel="media" className="space-y-4">
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project images</span>
                 <input
@@ -529,6 +537,8 @@ export default async function DeveloperProjectsPage({
                   , fill it, then upload the `.xlsx` file here.
                 </span>
               </label>
+              </div>
+              <div data-wizard-panel="amenities" className="space-y-4">
               <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3">
                 <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add amenities</p>
                 <p className="mt-1 text-xs text-neutral-500">
@@ -551,10 +561,8 @@ export default async function DeveloperProjectsPage({
                   ))}
                 </div>
               </div>
-              <button className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white" type="submit">
-                Create project
-              </button>
-            </form>
+              </div>
+            </ProjectWizard>
           </div>
         </section>
       ) : null}

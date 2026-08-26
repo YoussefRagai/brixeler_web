@@ -49,6 +49,8 @@ export type AdminNavItem = {
   href: string;
   label: string;
   icon: AdminNavIcon;
+  /** Domain grouping used by the command-center navigation. */
+  section?: "Workspace" | "People" | "Inventory" | "Growth" | "System";
   roles?: AdminRole[];
 };
 

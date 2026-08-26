@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { RuleFilterBuilder } from "@/components/RuleFilterBuilder";
 
 const metrics = [
   { value: "deals_count", label: "Deals count" },
@@ -208,15 +209,9 @@ export function GiftRuleBuilder({ gifts }: { gifts: GiftOption[] }) {
           </label>
         )}
 
-        <label className="text-sm text-neutral-500 md:col-span-2">
-          Filters (JSON)
-          <textarea
-            value={filtersJson}
-            onChange={(event) => setFiltersJson(event.target.value)}
-            rows={3}
-            className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-[#050505]"
-          />
-        </label>
+        <div className="md:col-span-2">
+          <RuleFilterBuilder value={filtersJson} onChange={setFiltersJson} />
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -233,7 +228,7 @@ export function GiftRuleBuilder({ gifts }: { gifts: GiftOption[] }) {
           disabled={isPending}
           className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-black/10 hover:bg-black/90 disabled:opacity-60"
         >
-          {isPending ? "Saving..." : "Save rule"}
+          {isPending ? "Saving…" : "Save rule"}
         </button>
         {actionMessage ? <span className="text-xs text-emerald-600">{actionMessage}</span> : null}
         {previewError ? <span className="text-xs text-red-500">{previewError}</span> : null}
