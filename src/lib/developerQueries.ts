@@ -198,11 +198,24 @@ export type DeveloperListingPayload = {
   videoUrl?: string | null;
 };
 
+async function developerOwnsProject(developerId: string, projectId: string) {
+  const { data, error } = await supabaseServer
+    .from("developer_projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("developer_id", developerId)
+    .maybeSingle();
+  return !error && Boolean(data);
+}
+
 export async function createDeveloperListing(
   developerId: string,
   payload: DeveloperListingPayload,
 ) {
   const id = assertDeveloperId(developerId);
+  if (payload.projectId && !(await developerOwnsProject(id, payload.projectId))) {
+    return { error: new Error("Choose a project owned by this developer account.") };
+  }
   const photos = payload.photoUrls.map((url) => url.trim()).filter(Boolean);
   if (photos.length < 3) {
     return { error: new Error("Add at least three real property photos before submitting.") };
@@ -245,6 +258,9 @@ export async function updateDeveloperListing(
   payload: DeveloperListingPayload & { visibility: string },
 ) {
   const id = assertDeveloperId(developerId);
+  if (payload.projectId && !(await developerOwnsProject(id, payload.projectId))) {
+    return { error: new Error("Choose a project owned by this developer account.") };
+  }
   const photos = payload.photoUrls.map((url) => url.trim()).filter(Boolean);
   if (photos.length < 3) {
     return { error: new Error("Add at least three real property photos before saving.") };

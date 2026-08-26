@@ -344,9 +344,9 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 18164,
+      "bytes": 18223,
       "path": "TASK_LOG.md",
-      "sha256": "8799a5ce87760b4ebdf6d9297e7e29be1bce21e20d4590b9b544f01eaad970e4",
+      "sha256": "d33472a35e421538dc8d6155acc727d0c9107d28e4534e8030cdcc0c71c853fa",
       "summary": "# Task Log Append meaningful work after each task."
     },
     {
@@ -356,10 +356,10 @@
       "summary": "import { defineConfig, globalIgnores } from \"eslint/config\"; import nextVitals from \"eslint-config-next/core-web-vitals\"; import nextTs from \"eslint-config-next/typescript\";"
     },
     {
-      "bytes": 296,
+      "bytes": 288,
       "path": "next-env.d.ts",
-      "sha256": "0f70629890b72a0a82e91972cc032c04b658b26c265373cb711cf576bfbf8fcc",
-      "summary": "/// <reference types=\"next\" /> /// <reference types=\"next/image-types/global\" /> import \"./.next/dev/types/routes.d.ts\";"
+      "sha256": "1862ac4bbbc5192d4bf562161df66ea547ed3e67173100656ab606ae9797db2b",
+      "summary": "/// <reference types=\"next\" /> /// <reference types=\"next/image-types/global\" /> import \"./.next/types/routes.d.ts\";"
     },
     {
       "bytes": 133,
@@ -1208,9 +1208,9 @@
       "summary": "import \"server-only\"; import { isFile, STORAGE_BUCKETS, uploadFileToBucket } from \"./storageServer\";"
     },
     {
-      "bytes": 31500,
+      "bytes": 32140,
       "path": "src/lib/developerQueries.ts",
-      "sha256": "ccb76eb0a69756c655d0e220a01eedf9ac45ba91ac23841d31e3aaebdfff79e4",
+      "sha256": "6384cef8d26fdc4bd147a39aaaf112351b1f99abeaa1a8ab50c973b706e094eb",
       "summary": "import { supabaseServer } from \"./supabaseServer\"; type ProjectMediaPayload = Record<string, unknown> | null | undefined;"
     },
     {
