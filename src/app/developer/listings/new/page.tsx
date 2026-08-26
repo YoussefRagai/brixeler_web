@@ -1,216 +1,43 @@
 import { redirect } from "next/navigation";
-import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes } from "react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
+import { DeveloperListingWizard } from "@/components/DeveloperListingWizard";
 import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import { createDeveloperListing, fetchDeveloperProjects, upsertDeveloperProject } from "@/lib/developerQueries";
 import { resolveDeveloperListingMedia } from "@/lib/developerListingMedia";
 
-const PROPERTY_TYPES = ["apartment", "villa", "townhouse", "penthouse", "duplex"];
-const SALE_TYPES = [
-  { value: "developer_sale", label: "Developer sale" },
-  { value: "resale", label: "Resale" },
-];
-const FINISHING_STATUSES = ["finished", "semi_finished", "core_and_shell", "furnished"];
+const SALE_TYPES = ["developer_sale", "resale"];
 
 export default async function NewListingPage({
   searchParams,
 }: {
-  searchParams?: Promise<{
-    project?: string | string[];
-    saleType?: string | string[];
-    createProject?: string | string[];
-    error?: string | string[];
-  }>;
+  searchParams?: Promise<{ project?: string | string[]; saleType?: string | string[]; createProject?: string | string[]; error?: string | string[] }>;
 }) {
   const session = await requireDeveloperSession();
   const [projects, impersonation] = await Promise.all([
     fetchDeveloperProjects(session.developerId),
     currentDeveloperImpersonation(),
   ]);
-  return <NewListingPageContent projects={projects} searchParams={searchParams} impersonation={impersonation} />;
-}
+  const params = (await searchParams) ?? {};
+  const preselectedProjectId = typeof params.project === "string" ? params.project : "";
+  const preselectedSaleType = typeof params.saleType === "string" && SALE_TYPES.includes(params.saleType) ? params.saleType : "developer_sale";
+  const emphasizeCreateProject = params.createProject === "1";
+  const errorMessage = typeof params.error === "string" ? params.error : null;
 
-async function NewListingPageContent({
-  projects,
-  impersonation,
-  searchParams,
-}: {
-  projects: Awaited<ReturnType<typeof fetchDeveloperProjects>>;
-  impersonation: Awaited<ReturnType<typeof currentDeveloperImpersonation>>;
-  searchParams?: Promise<{
-    project?: string | string[];
-    saleType?: string | string[];
-    createProject?: string | string[];
-    error?: string | string[];
-  }>;
-}) {
-  const resolvedSearchParams = (await searchParams) ?? {};
-  const preselectedProjectId =
-    typeof resolvedSearchParams.project === "string" ? resolvedSearchParams.project : "";
-  const preselectedSaleType =
-    typeof resolvedSearchParams.saleType === "string" && SALE_TYPES.some((item) => item.value === resolvedSearchParams.saleType)
-      ? resolvedSearchParams.saleType
-      : "developer_sale";
-  const emphasizeCreateProject =
-    typeof resolvedSearchParams.createProject === "string" ? resolvedSearchParams.createProject === "1" : false;
-  const errorMessage = typeof resolvedSearchParams.error === "string" ? resolvedSearchParams.error : null;
   return (
     <DeveloperLayout
-      title={preselectedSaleType === "resale" ? "Create resale listing" : "Create listing"}
-      description={
-        preselectedSaleType === "resale"
-          ? "Attach resale inventory to an existing project or create a new linked project inline."
-          : "Publish a property for Brixeler agents"
-      }
+      title={preselectedSaleType === "resale" ? "Add developer resale" : "Create listing"}
+      description="A focused, guided flow for inventory managed by your team."
       impersonation={impersonation}
     >
-      {errorMessage ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {errorMessage}
-        </div>
-      ) : null}
-      <form action={createListingAction} className="space-y-4 rounded-3xl border border-black/5 bg-white p-6">
-        <Field label="Listing title" name="name" required placeholder="Palm Gardens – Tower B" />
-        <Field label="Area / location" name="area" placeholder="New Cairo – Golden Square" />
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Linked project</span>
-          <select
-            className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-            name="projectId"
-            defaultValue={preselectedProjectId}
-          >
-            <option value="">No linked project</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div
-          className={`rounded-2xl border border-dashed p-4 ${
-            emphasizeCreateProject ? "border-black/20 bg-black/[0.03]" : "border-black/10 bg-neutral-50"
-          }`}
-        >
-          <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Or create a new linked project</p>
-          <p className="mt-1 text-xs text-neutral-500">
-            Useful when you are adding a resale unit for a project that is not in the dashboard yet.
-          </p>
-          <div className="mt-3 grid gap-4 md:grid-cols-3">
-            <Field label="New project name" name="createProjectName" placeholder="Palm Gardens Residences" />
-            <Field label="New project location" name="createProjectLocation" placeholder="New Cairo" />
-            <Field as="textarea" label="New project description" name="createProjectDescription" placeholder="Optional short brief" />
-          </div>
-        </div>
-        <Field label="Price (EGP)" name="price" type="number" min="100000" required />
-        <div className="grid gap-4 md:grid-cols-2">
-          <SelectField label="Property type" name="propertyType" options={PROPERTY_TYPES} defaultValue={PROPERTY_TYPES[0]} required />
-          <SelectField
-            label="Sale type"
-            name="saleType"
-            options={SALE_TYPES.map((option) => option.value)}
-            optionLabels={SALE_TYPES.reduce<Record<string, string>>((acc, option) => {
-              acc[option.value] = option.label;
-              return acc;
-            }, {})}
-            defaultValue={preselectedSaleType}
-            required
-          />
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <Field label="Bedrooms" name="bedrooms" type="number" min="0" step="1" placeholder="3" required />
-          <Field label="Bathrooms" name="bathrooms" type="number" min="0" step="1" placeholder="2" required />
-          <Field label="Unit area (m²)" name="unitArea" type="number" min="30" step="10" placeholder="180" required />
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <Field label="Down payment (%)" name="downPayment" type="number" min="0" max="100" placeholder="10" required />
-          <Field label="Installment years" name="installmentYears" type="number" min="1" step="1" placeholder="8" required />
-          <Field label="Monthly installment (EGP)" name="monthlyInstallment" type="number" min="0" placeholder="Optional" />
-        </div>
-        <Field label="Delivery date" name="deliveryDate" type="date" />
-        <SelectField
-          label="Finishing status"
-          name="finishingStatus"
-          options={FINISHING_STATUSES}
-          optionLabels={{
-            finished: "Fully finished",
-            semi_finished: "Semi finished",
-            core_and_shell: "Core & shell",
-            furnished: "Furnished",
-          }}
-          defaultValue="finished"
-          required
-        />
-        <Field as="textarea" label="Description" name="description" placeholder="Key highlights, payment terms, and delivery" />
-        <Field
-          as="textarea"
-          label="Amenities (comma separated)"
-          name="amenities"
-          placeholder="Clubhouse, Rooftop pool, Concierge"
-        />
-        <Field
-          as="textarea"
-          label="Photo URLs (optional when uploading)"
-          name="photoUrls"
-          placeholder="Paste 3+ comma-separated image URLs"
-        />
-        <Field label="Upload property photos" name="photoFiles" type="file" accept="image/*" multiple />
-        <Field label="Brochure / floor plan URL" name="brochureUrl" placeholder="https://example.com/brochure.pdf" />
-        <Field label="Or upload brochure / floor plan" name="brochureFile" type="file" accept="application/pdf,image/*,.xlsx" />
-        <Field label="Video tour URL" name="videoUrl" placeholder="https://youtu.be/..." />
-        <Field label="Or upload video tour" name="videoFile" type="file" accept="video/*" />
-        <button className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white" type="submit">
-          Submit for review
-        </button>
-      </form>
+      {errorMessage ? <div className="mx-auto max-w-5xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{errorMessage}</div> : null}
+      <DeveloperListingWizard
+        action={createListingAction}
+        projects={projects}
+        preselectedProjectId={preselectedProjectId}
+        preselectedSaleType={preselectedSaleType}
+        emphasizeCreateProject={emphasizeCreateProject}
+      />
     </DeveloperLayout>
-  );
-}
-
-type InputProps = InputHTMLAttributes<HTMLInputElement> & { label: string; as?: "input" };
-type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; as: "textarea" };
-type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
-  label: string;
-  options: string[];
-  optionLabels?: Record<string, string>;
-};
-
-function Field(props: InputProps | TextareaProps) {
-  const { label } = props;
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">{label}</span>
-      {props.as === "textarea" ? (
-        <textarea
-          className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-          rows={4}
-          {...(props as TextareaProps)}
-        />
-      ) : (
-        <input
-          className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-          {...(props as InputProps)}
-        />
-      )}
-    </label>
-  );
-}
-
-function SelectField({ label, options, optionLabels, ...selectProps }: SelectProps) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">{label}</span>
-      <select
-        className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-        {...selectProps}
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {optionLabels?.[option] ?? option}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -236,58 +63,30 @@ async function createListingAction(formData: FormData) {
   const deliveryDate = formData.get("deliveryDate")?.toString() || null;
   const finishingStatus = formData.get("finishingStatus")?.toString() ?? "finished";
   const amenitiesRaw = formData.get("amenities")?.toString() ?? "";
-  if (!name || !price || price < 100000 || unitArea <= 0 || installmentYears <= 0 || downPayment < 0 || downPayment > 100) {
-    redirect(`/developer/listings/new?error=${encodeURIComponent("Check the required listing and payment fields.")}`);
+  const returnQuery = `saleType=${encodeURIComponent(saleType)}`;
+
+  if (!name || !price || price < 100000 || unitArea <= 0 || installmentYears <= 0 || downPayment < 0 || downPayment > 100 || (!selectedProjectId && !createProjectName)) {
+    redirect(`/developer/listings/new?${returnQuery}&error=${encodeURIComponent("Check the required listing, project, and payment fields.")}`);
   }
   let media: Awaited<ReturnType<typeof resolveDeveloperListingMedia>>;
-  try {
-    media = await resolveDeveloperListingMedia(formData, session.developerId, crypto.randomUUID());
-  } catch (error) {
-    redirect(`/developer/listings/new?error=${encodeURIComponent((error as Error).message)}`);
-  }
-
-  if (media.photoUrls.length < 3) {
-    redirect(`/developer/listings/new?error=${encodeURIComponent("Check the required fields and add at least three real property photos.")}`);
-  }
+  try { media = await resolveDeveloperListingMedia(formData, session.developerId, crypto.randomUUID()); }
+  catch (error) { redirect(`/developer/listings/new?${returnQuery}&error=${encodeURIComponent((error as Error).message)}`); }
+  if (media.photoUrls.length < 3) redirect(`/developer/listings/new?${returnQuery}&error=${encodeURIComponent("Add at least three real property photos.")}`);
 
   let projectId = selectedProjectId;
   if (!projectId && createProjectName) {
-    const { data, error } = await upsertDeveloperProject(session.developerId, {
-      name: createProjectName,
-      location: createProjectLocation || undefined,
-      description: createProjectDescription || undefined,
-    });
-    if (error) redirect(`/developer/listings/new?error=${encodeURIComponent(error.message)}`);
+    const { data, error } = await upsertDeveloperProject(session.developerId, { name: createProjectName, location: createProjectLocation || undefined, description: createProjectDescription || undefined });
+    if (error) redirect(`/developer/listings/new?${returnQuery}&error=${encodeURIComponent(error.message)}`);
     projectId = data?.id ?? null;
   }
 
-  const monthlyInstallment = monthlyInstallmentRaw > 0 ? monthlyInstallmentRaw : undefined;
-  const amenities = amenitiesRaw
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
+  const amenities = amenitiesRaw.split(",").map((value) => value.trim()).filter(Boolean);
   const { error } = await createDeveloperListing(session.developerId, {
-    name,
-    area,
-    projectId,
-    price,
-    description,
-    photoUrls: media.photoUrls,
-    propertyType,
-    saleType,
-    bedrooms,
-    bathrooms,
-    unitArea,
-    downPayment,
-    installmentYears,
-    monthlyInstallment,
-    deliveryDate,
-    finishingStatus,
-    amenities,
-    brochureUrl: media.brochureUrl,
-    videoUrl: media.videoUrl,
+    name, area, projectId, price, description, photoUrls: media.photoUrls, propertyType, saleType,
+    bedrooms, bathrooms, unitArea, downPayment, installmentYears,
+    monthlyInstallment: monthlyInstallmentRaw > 0 ? monthlyInstallmentRaw : undefined,
+    deliveryDate, finishingStatus, amenities, brochureUrl: media.brochureUrl, videoUrl: media.videoUrl,
   });
-  if (error) redirect(`/developer/listings/new?error=${encodeURIComponent(error.message)}`);
-  redirect("/developer/listings");
+  if (error) redirect(`/developer/listings/new?${returnQuery}&error=${encodeURIComponent(error.message)}`);
+  redirect(saleType === "resale" ? "/developer/listings?view=developer&success=Resale%20submitted%20for%20review." : "/developer/listings?success=Listing%20submitted%20for%20review.");
 }

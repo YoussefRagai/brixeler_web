@@ -53,16 +53,16 @@ export function ProjectWizard({ action, children }: { action: WizardAction; chil
   };
 
   return (
-    <div className="project-wizard" data-active-step={steps[activeStep].id}>
-      <div className="mb-5 rounded-2xl border border-black/10 bg-neutral-50 p-3">
+    <div className="project-wizard overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.05)]" data-active-step={steps[activeStep].id}>
+      <div className="border-b border-black/5 bg-neutral-50/70 p-3 sm:px-5">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500">Setup progress</p>
-            <p className="mt-1 text-sm text-neutral-600">Your current step is remembered in this browser while you work.</p>
+            <p className="mt-1 text-xs text-neutral-500">Progress is saved in this browser.</p>
           </div>
           <span className="dashboard-number shrink-0 text-sm font-semibold text-neutral-900">{activeStep + 1} / {steps.length}</span>
         </div>
-        <ol className="mt-4 grid gap-2 sm:grid-cols-5" aria-label="Project setup steps">
+        <ol className="mt-3 grid grid-cols-5 gap-1" aria-label="Project setup steps">
           {steps.map((step, index) => {
             const active = index === activeStep;
             const complete = index < activeStep;
@@ -72,17 +72,17 @@ export function ProjectWizard({ action, children }: { action: WizardAction; chil
                   type="button"
                   onClick={() => changeStep(index)}
                   aria-current={active ? "step" : undefined}
-                  className={`w-full rounded-xl border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/60 ${
+                  className={`w-full rounded-xl border px-2 py-2 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/60 sm:px-3 sm:text-left ${
                     active ? "border-black bg-black text-white" : "border-black/10 bg-white text-neutral-700 hover:border-black/30"
                   }`}
                 >
-                  <span className="flex items-center gap-2 text-xs font-semibold">
+                  <span className="flex items-center justify-center gap-2 text-xs font-semibold sm:justify-start">
                     <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${active ? "bg-white text-black" : complete ? "bg-black text-white" : "bg-neutral-200 text-neutral-600"}`}>
                       {complete ? "✓" : index + 1}
                     </span>
-                    {step.label}
+                    <span className="hidden sm:inline">{step.label}</span>
                   </span>
-                  <span className={`mt-1 block truncate text-[11px] ${active ? "text-white/70" : "text-neutral-500"}`}>{step.hint}</span>
+                  <span className={`mt-1 hidden truncate text-[11px] lg:block ${active ? "text-white/70" : "text-neutral-500"}`}>{step.hint}</span>
                 </button>
               </li>
             );
@@ -90,8 +90,8 @@ export function ProjectWizard({ action, children }: { action: WizardAction; chil
         </ol>
       </div>
 
-      <form id="project-creator" ref={formRef} action={action} encType="multipart/form-data" onSubmit={submit} className="space-y-4">
-        {children}
+      <form id="project-creator" ref={formRef} action={action} encType="multipart/form-data" onSubmit={submit} className="space-y-4 p-5 sm:p-7">
+        <div className="mx-auto max-w-4xl">{children}</div>
         <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white/95 p-3 shadow-lg shadow-black/10 backdrop-blur">
           <button
             type="button"

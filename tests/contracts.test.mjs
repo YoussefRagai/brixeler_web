@@ -47,3 +47,11 @@ test("truncated Expo ticket responses cannot become delivered", () => {
   assert.match(sql, /new\.token_count - expected_receipts - new\.ticket_error_count/);
   assert.match(sql, /new\.ticket_error_count := new\.ticket_error_count \+ missing_tickets/);
 });
+
+test("developer resale renewals cannot take over agent-owned listings", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/20260826211237_developer_resale_source_guard.sql", import.meta.url), "utf8");
+  assert.match(sql, /new\.requested_by_role <> 'developer'/);
+  assert.match(sql, /property\.listed_by_agent_id/);
+  assert.match(sql, /Agent-submitted resales are read-only for developers/);
+  assert.match(sql, /before insert on public\.property_renewal_requests/);
+});

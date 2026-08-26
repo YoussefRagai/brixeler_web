@@ -290,14 +290,12 @@ export default async function DeveloperProjectsPage({
       ) : null}
 
       {showCreateWizard ? (
-        <section className="rounded-3xl border border-black/5 bg-white p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        <section className="mx-auto w-full max-w-6xl">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-4 px-1">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">New project</p>
-              <p className="text-base font-semibold text-neutral-900">Create a new launch</p>
-              <p className="text-sm text-neutral-600">
-                Use the same settings wizard to define name, description, and media.
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">New project</p>
+              <h2 className="mt-1 text-xl font-semibold text-neutral-900">Create a launch</h2>
+              <p className="mt-1 text-sm text-neutral-500">Start with the essentials, then add inventory after creation.</p>
             </div>
             <a
               href="/developer/projects"
@@ -306,15 +304,13 @@ export default async function DeveloperProjectsPage({
               Cancel
             </a>
           </div>
-          <div className="mt-4">
+          <div>
             <ProjectWizard action={upsertProjectAction}>
               <div data-wizard-panel="basics" className="space-y-4">
               {projects.length ? (
-                <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
-                  <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Reuse an existing setup</p>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Copy payment plans, amenities, CH fees, location, description, and types from a previous project.
-                  </p>
+                <details className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-neutral-700">Copy settings from an existing project</summary>
+                  <p className="mt-2 text-xs text-neutral-500">Copies commercial settings and amenities. You can edit everything before saving.</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {projects.slice(0, 6).map((project) => (
                       <a
@@ -330,7 +326,7 @@ export default async function DeveloperProjectsPage({
                       </a>
                     ))}
                   </div>
-                </div>
+                </details>
               ) : null}
               <Field label="Project name" name="name" placeholder="Marina Vista Residences" required defaultValue={templateProject?.name ? `${templateProject.name} Copy` : ""} />
               <Field
@@ -358,8 +354,8 @@ export default async function DeveloperProjectsPage({
                   {[0, 1, 2].map((index) => {
                     const plan = templatePlanDefaults[index];
                     return (
-                      <div key={`plan-${index}`} className="rounded-2xl border border-black/10 bg-white p-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-400">Plan {index + 1}</p>
+                      <details key={`plan-${index}`} open={index === 0} className="rounded-2xl border border-black/10 bg-white p-3">
+                        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Plan {index + 1}{index > 0 ? " · optional" : ""}</summary>
                         <div className="mt-3 grid gap-3 md:grid-cols-4">
                           <Field label="Title" name={`paymentPlanTitle_${index}`} placeholder="Original plan" defaultValue={plan?.title ?? ""} />
                           <Field label="Down payment %" name={`paymentPlanDown_${index}`} type="number" min="0" max="100" step="0.01" placeholder="10" defaultValue={plan?.down_payment_percent ?? ""} />
@@ -380,13 +376,13 @@ export default async function DeveloperProjectsPage({
                             ))}
                           </select>
                         </label>
-                      </div>
+                      </details>
                     );
                   })}
                 </div>
               </div>
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-amber-700">Limited-time offer</p>
+              <details className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Add a limited-time offer · optional</summary>
                 <p className="mt-1 text-xs text-amber-700/80">
                   Example: Ramadan offer or developer anniversary pricing that temporarily replaces the original plan.
                 </p>
@@ -410,7 +406,7 @@ export default async function DeveloperProjectsPage({
                     </select>
                   </label>
                 </div>
-              </div>
+              </details>
               </div>
               <div data-wizard-panel="launch" className="space-y-4">
               <Field
@@ -471,7 +467,7 @@ export default async function DeveloperProjectsPage({
                 />
               </div>
               </div>
-              <div data-wizard-panel="media" className="space-y-4">
+              <div data-wizard-panel="media" className="grid gap-4 md:grid-cols-2">
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project images</span>
                 <input
@@ -657,22 +653,6 @@ export default async function DeveloperProjectsPage({
               </div>
             </div>
           </header>
-
-          <section className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
-            {[
-              { label: "EOIs", value: "—" },
-              { label: "CILs", value: "—" },
-              { label: "Reservations", value: "—" },
-              { label: "Sales claims", value: "—" },
-              { label: "Sales (total)", value: "—" },
-              { label: "Sales (monthly)", value: "—" },
-            ].map((metric) => (
-              <div key={metric.label} className="rounded-2xl border border-black/5 bg-white p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">{metric.label}</p>
-                <p className="mt-2 text-lg font-semibold text-[#050505]">{metric.value}</p>
-              </div>
-            ))}
-          </section>
 
           <details className="rounded-2xl border border-black/5 bg-neutral-50/80 p-4">
             <summary className="cursor-pointer list-none rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black">
@@ -1072,12 +1052,12 @@ export default async function DeveloperProjectsPage({
                 overviewContent={
                   <div className="rounded-2xl border border-dashed border-black/10 bg-neutral-50/60 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Property types</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Unit inventory</p>
                       <a
                         href="#add-property-types"
                         className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
                       >
-                        Add property types
+                        Add unit type
                       </a>
                     </div>
                     {project.project_unit_types?.length ? (
@@ -1172,14 +1152,15 @@ export default async function DeveloperProjectsPage({
                         ))}
                       </div>
                     ) : (
-                      <p className="mt-2 text-sm text-neutral-500">No property types yet. Add the commercial ranges below.</p>
+                      <p className="mt-2 text-sm text-neutral-500">No unit types yet. Add the first commercial range when you are ready.</p>
                     )}
-                    <div id="add-property-types" className="mt-4 rounded-2xl border border-black/5 bg-white p-4">
-                      <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add property type</p>
-                      <div className="mt-3 space-y-3">
+                    <details id="add-property-types" className="mt-4 rounded-2xl border border-dashed border-black/10 bg-white p-4">
+                      <summary className="cursor-pointer text-sm font-semibold text-neutral-700">Add a unit type</summary>
+                      <p className="mt-1 text-xs text-neutral-500">Define one commercial range now. Detailed variants remain optional.</p>
+                      <div className="mt-4 space-y-3">
                         <UnitTypeForm projectId={project.id} paymentPlanSummary={project.payment_plans ?? null} />
                       </div>
-                    </div>
+                    </details>
                   </div>
                 }
                 requestContent={

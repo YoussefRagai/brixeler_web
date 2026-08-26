@@ -1,252 +1,131 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { ArrowUpRight, Building2, Plus, ShieldCheck, UserRound } from "lucide-react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import {
+  deleteListing,
   fetchDeveloperProjects,
   fetchDeveloperResales,
-  toggleListingVisibility,
-  deleteListing,
   requestListingRenewal,
+  toggleListingVisibility,
+  type DeveloperListing,
 } from "@/lib/developerQueries";
+
+type ResaleView = "agent" | "developer";
 
 export default async function DeveloperListingsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ success?: string; error?: string }>;
+  searchParams?: Promise<{ success?: string; error?: string; view?: string }>;
 }) {
   const session = await requireDeveloperSession();
   const feedback = (await searchParams) ?? {};
+  const activeView: ResaleView = feedback.view === "developer" ? "developer" : "agent";
   const [listings, projects, impersonation] = await Promise.all([
     fetchDeveloperResales(session.developerId),
     fetchDeveloperProjects(session.developerId),
     currentDeveloperImpersonation(),
   ]);
-  const listingsByProject = new Map<string, number>();
-  listings.forEach((listing) => {
-    if (!listing.project_id) return;
-    listingsByProject.set(listing.project_id, (listingsByProject.get(listing.project_id) ?? 0) + 1);
-  });
-  const unlinkedCount = listings.filter((listing) => !listing.project_id).length;
+  const agentListings = listings.filter((listing) => Boolean(listing.listed_by_agent_id));
+  const developerListings = listings.filter((listing) => !listing.listed_by_agent_id);
+  const visibleListings = activeView === "agent" ? agentListings : developerListings;
+  const projectNames = new Map(projects.map((project) => [project.id, project.name]));
 
   return (
     <DeveloperLayout
       title="Resales"
-      description="Add resale units to an existing project or spin up a new linked project for resale inventory."
+      description="Review agent resale activity and manage inventory created by your team."
       impersonation={impersonation}
     >
-      {feedback.success ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {feedback.success}
-        </div>
-      ) : null}
-      {feedback.error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          {feedback.error}
-        </div>
-      ) : null}
-      <section className="rounded-3xl border border-black/5 bg-white p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Resale workflow</p>
-            <h2 className="mt-2 text-2xl font-semibold text-[#050505]">Create resale inventory the right way</h2>
-            <p className="mt-2 max-w-2xl text-sm text-neutral-500">
-              Resale units should be attached to one of your existing projects whenever possible. If the project does
-              not exist yet, create it inline while submitting the resale unit.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white"
-              href="/developer/listings/new?saleType=resale"
-            >
-              Add resale
-            </Link>
-            <Link
-              className="rounded-full border border-black/10 px-5 py-2 text-sm font-semibold text-neutral-700 hover:border-black/30 hover:text-black"
-              href="/developer/listings/new?saleType=resale&createProject=1"
-            >
-              Add resale to a new project
-            </Link>
-          </div>
-        </div>
-      </section>
+      {feedback.success ? <Feedback tone="success">{feedback.success}</Feedback> : null}
+      {feedback.error ? <Feedback tone="error">{feedback.error}</Feedback> : null}
 
-      <section className="space-y-3">
-        <header className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project shortcuts</p>
-            <p className="text-base text-neutral-700">Jump straight into adding resale units to your launches</p>
-          </div>
-        </header>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {projects.map((project) => (
-            <article key={project.id} className="rounded-3xl border border-black/5 bg-white p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="flex items-center gap-2 text-sm font-semibold text-[#050505]">
-                    {project.name}
-                    {project.is_demo ? <DemoBadge /> : null}
-                  </p>
-                  <p className="mt-1 text-xs text-neutral-500">{project.location ?? "Location not set"}</p>
-                </div>
-                <span className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-600">
-                  {listingsByProject.get(project.id) ?? 0} resale
-                </span>
-              </div>
-              <p className="mt-3 line-clamp-2 text-sm text-neutral-500">
-                {project.description ?? "No project description yet."}
+      <section className="overflow-hidden rounded-3xl border border-black/5 bg-white">
+        <div className="flex flex-col gap-5 border-b border-black/5 p-5 sm:flex-row sm:items-center sm:justify-between lg:p-6">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-black p-3 text-white"><Building2 aria-hidden="true" size={20} /></div>
+            <div>
+              <h2 className="text-lg font-semibold text-[#050505]">Resale workspace</h2>
+              <p className="mt-1 max-w-xl text-sm text-neutral-500">
+                Agent submissions are view-only. Inventory added by your team stays fully manageable here.
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link
-                  className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white"
-                  href={`/developer/listings/new?saleType=resale&project=${project.id}`}
-                >
-                  Add resale to this project
-                </Link>
-                <Link
-                  className="rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-neutral-700 hover:border-black/30 hover:text-black"
-                  href={`/developer/projects?project=${project.id}`}
-                >
-                  View project
-                </Link>
-              </div>
-            </article>
-          ))}
-          <article className="rounded-3xl border border-dashed border-black/10 bg-white p-5">
-            <p className="text-sm font-semibold text-[#050505]">Need a new project first?</p>
-            <p className="mt-2 text-sm text-neutral-500">
-              If the resale belongs to a project that is not in your dashboard yet, create the project inline during
-              resale submission.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link
-                className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white"
-                href="/developer/listings/new?saleType=resale&createProject=1"
-              >
-                Create new project + resale
-              </Link>
             </div>
-          </article>
+          </div>
+          <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white transition hover:bg-neutral-800" href="/developer/listings/new?saleType=resale">
+            <Plus aria-hidden="true" size={17} /> Add developer resale
+          </Link>
         </div>
-      </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <SummaryCard label="Total resales" value={String(listings.length)} />
-        <SummaryCard label="Linked to projects" value={String(listings.filter((listing) => listing.project_id).length)} />
-        <SummaryCard label="Unlinked resales" value={String(unlinkedCount)} />
-      </section>
+        <nav aria-label="Resale source" className="flex gap-1 overflow-x-auto border-b border-black/5 bg-neutral-50/70 p-2">
+          <SourceTab active={activeView === "agent"} count={agentListings.length} href="/developer/listings?view=agent" icon={<UserRound aria-hidden="true" size={16} />} label="Agent submissions" />
+          <SourceTab active={activeView === "developer"} count={developerListings.length} href="/developer/listings?view=developer" icon={<Building2 aria-hidden="true" size={16} />} label="Developer inventory" />
+        </nav>
 
-      <div className="overflow-hidden rounded-3xl border border-black/5 bg-white">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-neutral-50 text-xs uppercase tracking-[0.3em] text-neutral-500">
-            <tr>
-              <th className="px-4 py-3">Listing</th>
-              <th className="px-4 py-3">Price</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Visibility</th>
-              <th className="px-4 py-3">Expires</th>
-              <th className="px-4 py-3">Renewal</th>
-              <th className="px-4 py-3">Inquiries</th>
-              <th className="px-4 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {listings.map((listing) => (
-              <tr key={listing.id} className="border-t border-black/5">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2 font-semibold text-[#050505]">
-                    {listing.name}
-                    {listing.is_demo ? <DemoBadge /> : null}
-                  </div>
-                  <div className="text-xs text-neutral-500">
-                    {listing.project_id
-                      ? `Linked project · ${projects.find((project) => project.id === listing.project_id)?.name ?? "Unknown project"}`
-                      : "No linked project"}
-                  </div>
-                  <div className="text-xs text-neutral-500">Updated {listing.updated_at ? new Date(listing.updated_at).toLocaleString() : '—'}</div>
-                </td>
-                <td className="px-4 py-3">EGP {listing.price.toLocaleString()}</td>
-                <td className="px-4 py-3 capitalize">{listing.status}</td>
-                <td className="px-4 py-3 capitalize">{listing.visibility}</td>
-                <td className="px-4 py-3">
-                  {listing.expires_at ? new Date(listing.expires_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
-                </td>
-                <td className="px-4 py-3">
-                  {listing.renewal_status === "awaiting_admin" ? (
-                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                      Pending admin
-                    </span>
-                  ) : listing.status !== "approved" ? (
-                    <span className="text-xs text-neutral-400">Awaiting approval</span>
-                  ) : listing.renewal_status === "active" ? (
-                    <span className="text-xs text-neutral-500">Active</span>
-                  ) : (
-                    <form action={requestRenewalAction}>
-                      <input type="hidden" name="listingId" value={listing.id} />
-                      <button className="rounded-full border border-black/10 px-3 py-1 text-xs" type="submit">
-                        Request renewal
-                      </button>
-                    </form>
-                  )}
-                </td>
-                <td className="px-4 py-3">{listing.inquiries}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Link className="rounded-full border border-black/10 px-3 py-1 text-xs" href={`/developer/listings/${listing.id}`}>Edit</Link>
-                    <form action={toggleVisibilityAction}>
-                      <input type="hidden" name="listingId" value={listing.id} />
-                      <input type="hidden" name="visibility" value={listing.visibility === 'public' ? 'hidden' : 'public'} />
-                      <button className="rounded-full border border-black/10 px-3 py-1 text-xs" type="submit">
-                        {listing.visibility === 'public' ? 'Hide' : 'Unhide'}
-                      </button>
-                    </form>
-                    <form action={deleteListingAction}>
-                      <input type="hidden" name="listingId" value={listing.id} />
-                      <ConfirmSubmitButton
-                        className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-600 disabled:opacity-50"
-                        confirmMessage="Delete this listing permanently? This cannot be undone."
-                        pendingLabel="Deleting…"
-                      >
-                        Delete
-                      </ConfirmSubmitButton>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!listings.length && (
-              <tr>
-                <td className="px-4 py-6 text-center text-sm text-neutral-500" colSpan={8}>
-                  No resale units yet. Use the actions above to add a resale to an existing project or create a new linked project.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 lg:px-6">
+          <div>
+            <p className="text-sm font-semibold text-neutral-900">{activeView === "agent" ? "Listed by app users" : "Created by your team"}</p>
+            <p className="mt-0.5 text-xs text-neutral-500">
+              {activeView === "agent" ? "These units remain owned and managed by the agent who submitted them." : "Edit visibility, renew, or remove these listings at any time."}
+            </p>
+          </div>
+          {activeView === "agent" ? <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"><ShieldCheck aria-hidden="true" size={14} /> Read-only</span> : null}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="border-y border-black/5 bg-neutral-50 text-[11px] uppercase tracking-[0.18em] text-neutral-500">
+              <tr><th className="px-6 py-3 font-medium">Unit</th><th className="px-4 py-3 font-medium">Price</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Inquiries</th><th className="px-6 py-3 text-right font-medium">{activeView === "agent" ? "Source" : "Actions"}</th></tr>
+            </thead>
+            <tbody>
+              {visibleListings.map((listing) => <ListingRow key={listing.id} listing={listing} projectName={listing.project_id ? projectNames.get(listing.project_id) : undefined} readOnly={activeView === "agent"} />)}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="divide-y divide-black/5 md:hidden">
+          {visibleListings.map((listing) => <ListingCard key={listing.id} listing={listing} projectName={listing.project_id ? projectNames.get(listing.project_id) : undefined} readOnly={activeView === "agent"} />)}
+        </div>
+
+        {!visibleListings.length ? (
+          <div className="border-t border-black/5 px-6 py-14 text-center">
+            <p className="text-sm font-semibold text-neutral-800">{activeView === "agent" ? "No agent resale submissions yet" : "No developer resale inventory yet"}</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-neutral-500">{activeView === "agent" ? "Units listed by app users under your projects will appear here automatically." : "Add a resale unit and connect it to one of your projects."}</p>
+            {activeView === "developer" ? <Link className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-black" href="/developer/listings/new?saleType=resale">Create your first resale <ArrowUpRight aria-hidden="true" size={16} /></Link> : null}
+          </div>
+        ) : null}
+      </section>
     </DeveloperLayout>
   );
 }
 
-function DemoBadge() {
-  return (
-    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">
-      Demo
-    </span>
-  );
+function SourceTab({ active, count, href, icon, label }: { active: boolean; count: number; href: string; icon: React.ReactNode; label: string }) {
+  return <Link aria-current={active ? "page" : undefined} className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${active ? "bg-white text-black shadow-sm ring-1 ring-black/5" : "text-neutral-500 hover:text-black"}`} href={href}>{icon}{label}<span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-black text-white" : "bg-black/5 text-neutral-600"}`}>{count}</span></Link>;
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
-  return (
-    <article className="rounded-3xl border border-black/5 bg-white p-5">
-      <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">{label}</p>
-      <p className="mt-3 text-2xl font-semibold text-[#050505]">{value}</p>
-    </article>
-  );
+function ListingRow({ listing, projectName, readOnly }: { listing: DeveloperListing; projectName?: string; readOnly: boolean }) {
+  return <tr className="border-b border-black/5 last:border-0"><td className="px-6 py-4"><div className="flex items-center gap-2 font-semibold text-[#050505]">{listing.name}{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName ?? "No linked project"} · Updated {formatDate(listing.updated_at)}</p></td><td className="px-4 py-4 font-medium text-neutral-800">EGP {listing.price.toLocaleString()}</td><td className="px-4 py-4"><StatusBadge listing={listing} /></td><td className="px-4 py-4 text-neutral-600">{listing.inquiries}</td><td className="px-6 py-4">{readOnly ? <div className="text-right text-xs font-medium text-neutral-500">App agent</div> : <ListingActions listing={listing} />}</td></tr>;
 }
+
+function ListingCard({ listing, projectName, readOnly }: { listing: DeveloperListing; projectName?: string; readOnly: boolean }) {
+  return <article className="p-5"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 font-semibold text-[#050505]">{listing.name}{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName ?? "No linked project"}</p></div><StatusBadge listing={listing} /></div><div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-xs text-neutral-500">Price</p><p className="font-semibold">EGP {listing.price.toLocaleString()}</p></div><div className="text-right"><p className="text-xs text-neutral-500">Inquiries</p><p className="font-semibold">{listing.inquiries}</p></div></div><div className="mt-4 border-t border-black/5 pt-4">{readOnly ? <p className="text-xs font-medium text-neutral-500">View-only · submitted by an app agent</p> : <ListingActions listing={listing} />}</div></article>;
+}
+
+function ListingActions({ listing }: { listing: DeveloperListing }) {
+  return <div className="flex flex-wrap justify-end gap-2"><Link className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" href={`/developer/listings/${listing.id}`}>Edit</Link><form action={toggleVisibilityAction}><input type="hidden" name="listingId" value={listing.id} /><input type="hidden" name="visibility" value={listing.visibility === "public" ? "hidden" : "public"} /><button className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" type="submit">{listing.visibility === "public" ? "Hide" : "Show"}</button></form>{listing.status === "approved" && listing.renewal_status !== "awaiting_admin" && listing.renewal_status !== "active" ? <form action={requestRenewalAction}><input type="hidden" name="listingId" value={listing.id} /><button className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" type="submit">Renew</button></form> : null}<form action={deleteListingAction}><input type="hidden" name="listingId" value={listing.id} /><ConfirmSubmitButton className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-50" confirmMessage="Delete this listing permanently? This cannot be undone." pendingLabel="Deleting…">Delete</ConfirmSubmitButton></form></div>;
+}
+
+function StatusBadge({ listing }: { listing: DeveloperListing }) {
+  const label = listing.renewal_status === "awaiting_admin" ? "Renewal pending" : listing.visibility === "hidden" ? "Hidden" : listing.status;
+  const tone = label === "approved" ? "bg-emerald-50 text-emerald-700" : label === "Hidden" ? "bg-neutral-100 text-neutral-600" : "bg-amber-50 text-amber-700";
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${tone}`}>{label}</span>;
+}
+
+function DemoBadge() { return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Demo</span>; }
+function Feedback({ children, tone }: { children: React.ReactNode; tone: "success" | "error" }) { return <div className={`rounded-2xl border px-4 py-3 text-sm ${tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{children}</div>; }
+function formatDate(value: string | null) { return value ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(value)) : "—"; }
 
 async function toggleVisibilityAction(formData: FormData) {
   "use server";
@@ -256,8 +135,8 @@ async function toggleVisibilityAction(formData: FormData) {
   if (!listingId) return;
   const { error } = await toggleListingVisibility(session.developerId, listingId, visibility);
   revalidatePath("/developer/listings");
-  if (error) redirect(`/developer/listings?error=${encodeURIComponent(error.message)}`);
-  redirect(`/developer/listings?success=${encodeURIComponent(visibility === "hidden" ? "Listing hidden from the mobile catalog." : "Listing restored to the mobile catalog.")}`);
+  if (error) redirect(`/developer/listings?view=developer&error=${encodeURIComponent(error.message)}`);
+  redirect(`/developer/listings?view=developer&success=${encodeURIComponent(visibility === "hidden" ? "Listing hidden from the mobile catalog." : "Listing restored to the mobile catalog.")}`);
 }
 
 async function deleteListingAction(formData: FormData) {
@@ -267,8 +146,8 @@ async function deleteListingAction(formData: FormData) {
   if (!listingId) return;
   const { error } = await deleteListing(session.developerId, listingId);
   revalidatePath("/developer/listings");
-  if (error) redirect(`/developer/listings?error=${encodeURIComponent(error.message)}`);
-  redirect("/developer/listings?success=Listing%20deleted.");
+  if (error) redirect(`/developer/listings?view=developer&error=${encodeURIComponent(error.message)}`);
+  redirect("/developer/listings?view=developer&success=Listing%20deleted.");
 }
 
 async function requestRenewalAction(formData: FormData) {
@@ -276,12 +155,8 @@ async function requestRenewalAction(formData: FormData) {
   const session = await requireDeveloperSession();
   const listingId = formData.get("listingId")?.toString();
   if (!listingId) return;
-  try {
-    await requestListingRenewal(listingId, session.userId);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to request renewal.";
-    redirect(`/developer/listings?error=${encodeURIComponent(message)}`);
-  }
+  try { await requestListingRenewal(listingId, session.userId, session.developerId); }
+  catch (error) { redirect(`/developer/listings?view=developer&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to request renewal.")}`); }
   revalidatePath("/developer/listings");
-  redirect("/developer/listings?success=Renewal%20request%20submitted.");
+  redirect("/developer/listings?view=developer&success=Renewal%20request%20submitted.");
 }

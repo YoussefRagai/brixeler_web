@@ -76,6 +76,8 @@ export type DeveloperListing = {
   renewal_status?: string | null;
   sale_type?: string | null;
   project_id?: string | null;
+  developer_id?: string | null;
+  listed_by_agent_id?: string | null;
   is_demo: boolean;
 };
 
@@ -85,7 +87,7 @@ export async function fetchDeveloperListings(developerId: string): Promise<Devel
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, approval_status, is_active, is_demo, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id",
+        "id, property_name, price, approval_status, is_active, is_demo, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id, developer_id, listed_by_agent_id",
       )
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
@@ -107,6 +109,8 @@ export async function fetchDeveloperListings(developerId: string): Promise<Devel
       renewal_status: row.renewal_status ?? null,
       sale_type: row.sale_type ?? null,
       project_id: row.project_id ?? null,
+      developer_id: row.developer_id ?? null,
+      listed_by_agent_id: row.listed_by_agent_id ?? null,
     }));
   } catch (error) {
     console.warn("fetchDeveloperListings fallback", error);
@@ -120,7 +124,7 @@ export async function fetchDeveloperResales(developerId: string): Promise<Develo
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, approval_status, is_active, is_demo, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id, developer_projects!inner(id, developer_id)",
+        "id, property_name, price, approval_status, is_active, is_demo, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id, developer_id, listed_by_agent_id, developer_projects!inner(id, developer_id)",
       )
       .eq("developer_projects.developer_id", id)
       .eq("sale_type", "resale")
@@ -143,6 +147,8 @@ export async function fetchDeveloperResales(developerId: string): Promise<Develo
       renewal_status: row.renewal_status ?? null,
       sale_type: row.sale_type ?? null,
       project_id: row.project_id ?? null,
+      developer_id: row.developer_id ?? null,
+      listed_by_agent_id: row.listed_by_agent_id ?? null,
     }));
   } catch (error) {
     console.warn("fetchDeveloperResales fallback", error);
@@ -159,6 +165,7 @@ export async function fetchDeveloperListing(listingId: string, developerId: stri
         "id, property_name, price, description, amenities, photos, specific_location, expires_at, renewal_status, property_type, sale_type, bedrooms, bathrooms, unit_area, down_payment_percentage, installment_years, monthly_installment, delivery_date, finishing_status, floor_plan_url, video_tour_url, project_id, approval_status, is_active, is_demo"
       )
       .eq("developer_id", id)
+      .is("listed_by_agent_id", null)
       .eq("id", listingId)
       .single();
     if (error) throw error;
@@ -275,6 +282,7 @@ export async function updateDeveloperListing(
       published_at: null,
     })
     .eq("developer_id", id)
+    .is("listed_by_agent_id", null)
     .eq("id", listingId);
   return { error };
 }
@@ -283,15 +291,12 @@ export async function toggleListingVisibility(developerId: string, listingId: st
   const id = assertDeveloperId(developerId);
   const { data: listing, error: lookupError } = await supabaseServer
     .from("properties")
-    .select("id, developer_id, developer_projects(developer_id)")
+    .select("id, developer_id, listed_by_agent_id")
     .eq("id", listingId)
     .maybeSingle();
   if (lookupError || !listing) return { error: lookupError ?? new Error("Listing not found.") };
-  const project = Array.isArray(listing.developer_projects)
-    ? listing.developer_projects[0]
-    : listing.developer_projects;
-  if (listing.developer_id !== id && project?.developer_id !== id) {
-    return { error: new Error("Listing does not belong to this developer.") };
+  if (listing.developer_id !== id || listing.listed_by_agent_id) {
+    return { error: new Error("Only developer-created inventory can be changed here.") };
   }
   const { error } = await supabaseServer
     .from("properties")
@@ -306,11 +311,29 @@ export async function deleteListing(developerId: string, listingId: string) {
     .from("properties")
     .delete()
     .eq("developer_id", id)
+    .is("listed_by_agent_id", null)
     .eq("id", listingId);
   return { error };
 }
 
-export async function requestListingRenewal(listingId: string, actorUserId: string | null) {
+export async function requestListingRenewal(
+  listingId: string,
+  actorUserId: string | null,
+  developerId?: string,
+) {
+  if (developerId) {
+    const id = assertDeveloperId(developerId);
+    const { data: listing, error: lookupError } = await supabaseServer
+      .from("properties")
+      .select("id")
+      .eq("id", listingId)
+      .eq("developer_id", id)
+      .is("listed_by_agent_id", null)
+      .maybeSingle();
+    if (lookupError || !listing) {
+      throw new Error("Only developer-created inventory can be renewed here.");
+    }
+  }
   const { error } = await supabaseServer.rpc("request_property_renewal", {
     p_property_id: listingId,
     p_actor_role: "developer",

@@ -355,6 +355,6 @@ async function requestRenewalFromEditAction(formData: FormData) {
   const session = await requireDeveloperSession();
   const listingId = formData.get("listingId")?.toString();
   if (!listingId) return;
-  await requestListingRenewal(listingId, session.userId);
+  await requestListingRenewal(listingId, session.userId, session.developerId);
   redirect("/developer/listings");
 }

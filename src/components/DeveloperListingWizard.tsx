@@ -1,0 +1,155 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Building2, Check, ImageIcon, Landmark, MapPin, Plus, WalletCards } from "lucide-react";
+
+type Project = { id: string; name: string; location?: string | null };
+type WizardAction = (formData: FormData) => void | Promise<void>;
+
+const steps = [
+  { label: "Project", icon: Building2 },
+  { label: "Unit", icon: Landmark },
+  { label: "Payment", icon: WalletCards },
+  { label: "Media", icon: ImageIcon },
+];
+
+const inputClass = "min-h-12 rounded-2xl border border-black/10 bg-neutral-50 px-4 text-sm outline-none transition focus:border-black/30 focus:bg-white focus:ring-4 focus:ring-black/[0.04]";
+
+export function DeveloperListingWizard({
+  action,
+  projects,
+  preselectedProjectId,
+  preselectedSaleType,
+  emphasizeCreateProject,
+}: {
+  action: WizardAction;
+  projects: Project[];
+  preselectedProjectId: string;
+  preselectedSaleType: string;
+  emphasizeCreateProject: boolean;
+}) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [step, setStep] = useState(0);
+  const [projectMode, setProjectMode] = useState<"existing" | "new">(emphasizeCreateProject || !projects.length ? "new" : "existing");
+  const [error, setError] = useState("");
+
+  function advance() {
+    const form = formRef.current;
+    if (!form) return;
+    const requiredByStep: string[][] = [
+      projectMode === "existing" ? ["projectId"] : ["createProjectName", "createProjectLocation"],
+      ["name", "price", "propertyType", "bedrooms", "bathrooms", "unitArea"],
+      ["downPayment", "installmentYears", "finishingStatus"],
+    ];
+    const missing = (requiredByStep[step] ?? []).find((name) => {
+      const field = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+      return !field?.value.trim();
+    });
+    if (missing) {
+      setError("Complete the highlighted step before continuing.");
+      const field = form.elements.namedItem(missing) as HTMLElement | null;
+      field?.focus();
+      return;
+    }
+    setError("");
+    setStep((current) => Math.min(current + 1, steps.length - 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function validateSubmission(event: React.FormEvent<HTMLFormElement>) {
+    const form = formRef.current;
+    if (!form) return;
+    const urls = (form.elements.namedItem("photoUrls") as HTMLTextAreaElement | null)?.value
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean).length ?? 0;
+    const files = (form.elements.namedItem("photoFiles") as HTMLInputElement | null)?.files?.length ?? 0;
+    if (urls + files >= 3) return;
+    event.preventDefault();
+    setStep(3);
+    setError("Add at least three property photos before submitting.");
+  }
+
+  return (
+    <form ref={formRef} action={action} onSubmit={validateSubmission} className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.05)]">
+      <input type="hidden" name="saleType" value={preselectedSaleType} />
+      <div className="border-b border-black/5 bg-neutral-50/70 px-4 py-3 sm:px-6">
+        <ol className="grid grid-cols-4 gap-1" aria-label="Listing progress">
+          {steps.map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <li key={item.label} className={`flex min-w-0 items-center justify-center gap-2 rounded-xl px-2 py-2 text-xs font-semibold sm:justify-start sm:px-3 ${index === step ? "bg-white text-black shadow-sm ring-1 ring-black/5" : index < step ? "text-emerald-700" : "text-neutral-400"}`}>
+                <span className={`grid size-7 shrink-0 place-items-center rounded-full ${index < step ? "bg-emerald-100" : index === step ? "bg-black text-white" : "bg-black/5"}`}>
+                  {index < step ? <Check size={14} /> : <Icon size={14} />}
+                </span>
+                <span className="hidden truncate sm:block">{item.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <div className="p-5 sm:p-7 lg:p-8">
+        <header className="mb-7">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">Step {step + 1} of {steps.length}</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-black">{stepTitle(step)}</h2>
+          <p className="mt-1 text-sm text-neutral-500">{stepDescription(step)}</p>
+        </header>
+
+        {error ? <p className="mb-5 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</p> : null}
+
+        <section hidden={step !== 0} className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => setProjectMode("existing")} className={`min-h-24 rounded-2xl border p-4 text-left transition ${projectMode === "existing" ? "border-black bg-black text-white" : "border-black/10 bg-neutral-50 hover:border-black/25"}`}>
+              <span className="flex items-center gap-2 text-sm font-semibold"><Building2 size={17} /> Existing project</span>
+              <span className={`mt-1 block text-xs ${projectMode === "existing" ? "text-white/65" : "text-neutral-500"}`}>Connect this unit to a project already in your workspace.</span>
+            </button>
+            <button type="button" onClick={() => setProjectMode("new")} className={`min-h-24 rounded-2xl border p-4 text-left transition ${projectMode === "new" ? "border-black bg-black text-white" : "border-black/10 bg-neutral-50 hover:border-black/25"}`}>
+              <span className="flex items-center gap-2 text-sm font-semibold"><Plus size={17} /> New project</span>
+              <span className={`mt-1 block text-xs ${projectMode === "new" ? "text-white/65" : "text-neutral-500"}`}>Create the project shell without leaving this flow.</span>
+            </button>
+          </div>
+          {projectMode === "existing" ? (
+            <Field label="Choose project"><select className={inputClass} name="projectId" defaultValue={preselectedProjectId}><option value="">Select a project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}{project.location ? ` · ${project.location}` : ""}</option>)}</select></Field>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <TextField label="Project name" name="createProjectName" placeholder="Palm Gardens Residences" />
+              <TextField label="Location" name="createProjectLocation" placeholder="New Cairo" icon={<MapPin size={16} />} />
+              <Field label="Short project description" className="sm:col-span-2"><textarea className={`${inputClass} min-h-24 py-3`} name="createProjectDescription" placeholder="A short description for agents browsing the project." /></Field>
+            </div>
+          )}
+        </section>
+
+        <section hidden={step !== 1} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2"><TextField label="Listing title" name="name" placeholder="Palm Gardens · Unit B12" /><TextField label="Area / location" name="area" placeholder="New Cairo · Golden Square" /></div>
+          <div className="grid gap-4 sm:grid-cols-2"><TextField label="Price (EGP)" name="price" type="number" min="100000" placeholder="8500000" /><SelectField label="Property type" name="propertyType" options={["apartment", "villa", "townhouse", "penthouse", "duplex"]} /></div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3"><TextField label="Bedrooms" name="bedrooms" type="number" min="0" step="1" placeholder="3" /><TextField label="Bathrooms" name="bathrooms" type="number" min="0" step="1" placeholder="2" /><TextField label="Area (m²)" name="unitArea" type="number" min="30" step="1" placeholder="180" className="col-span-2 sm:col-span-1" /></div>
+          <Field label="Unit description"><textarea className={`${inputClass} min-h-28 py-3`} name="description" placeholder="The details an agent needs to understand and pitch this unit." /></Field>
+        </section>
+
+        <section hidden={step !== 2} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3"><TextField label="Down payment (%)" name="downPayment" type="number" min="0" max="100" placeholder="10" /><TextField label="Installment years" name="installmentYears" type="number" min="1" step="1" placeholder="8" /><TextField label="Monthly installment" name="monthlyInstallment" type="number" min="0" placeholder="Optional" /></div>
+          <div className="grid gap-4 sm:grid-cols-2"><TextField label="Delivery date" name="deliveryDate" type="date" /><SelectField label="Finishing" name="finishingStatus" options={["finished", "semi_finished", "core_and_shell", "furnished"]} labels={{ finished: "Fully finished", semi_finished: "Semi finished", core_and_shell: "Core & shell", furnished: "Furnished" }} /></div>
+          <Field label="Amenities"><textarea className={`${inputClass} min-h-24 py-3`} name="amenities" placeholder="Clubhouse, pool, concierge — separated by commas" /></Field>
+        </section>
+
+        <section hidden={step !== 3} className="space-y-5">
+          <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4"><p className="text-sm font-semibold">Property photos</p><p className="mt-1 text-xs text-neutral-500">Upload or link at least three clear, real property images.</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><Field label="Upload photos"><input className={`${inputClass} py-3`} name="photoFiles" type="file" accept="image/*" multiple /></Field><Field label="Or paste image URLs"><textarea className={`${inputClass} min-h-20 py-3`} name="photoUrls" placeholder="Three or more comma-separated URLs" /></Field></div></div>
+          <div className="grid gap-4 sm:grid-cols-2"><TextField label="Brochure / floor plan URL" name="brochureUrl" placeholder="https://..." /><Field label="Or upload brochure"><input className={`${inputClass} py-3`} name="brochureFile" type="file" accept="application/pdf,image/*,.xlsx" /></Field><TextField label="Video tour URL" name="videoUrl" placeholder="https://youtu.be/..." /><Field label="Or upload video"><input className={`${inputClass} py-3`} name="videoFile" type="file" accept="video/*" /></Field></div>
+          <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><p className="font-semibold">Ready for review</p><p className="mt-1 text-xs text-emerald-700">Submitting creates a developer-owned resale. It remains pending until the Brixeler team approves it.</p></div>
+        </section>
+      </div>
+
+      <footer className="flex items-center justify-between border-t border-black/5 bg-neutral-50/60 px-5 py-4 sm:px-8">
+        <button type="button" onClick={() => setStep((current) => Math.max(current - 1, 0))} disabled={step === 0} className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-neutral-600 disabled:invisible"><ArrowLeft size={16} /> Back</button>
+        {step < steps.length - 1 ? <button type="button" onClick={advance} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white">Continue <ArrowRight size={16} /></button> : <button type="submit" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white">Submit for review <ArrowRight size={16} /></button>}
+      </footer>
+    </form>
+  );
+}
+
+function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) { return <label className={`flex flex-col gap-1.5 text-sm ${className}`}><span className="text-xs font-semibold text-neutral-600">{label}</span>{children}</label>; }
+function TextField({ label, className = "", icon, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; className?: string; icon?: React.ReactNode }) { return <Field label={label} className={className}><span className="relative flex">{icon ? <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400">{icon}</span> : null}<input className={`${inputClass} w-full ${icon ? "pl-11" : ""}`} {...props} /></span></Field>; }
+function SelectField({ label, options, labels = {}, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; options: string[]; labels?: Record<string, string> }) { return <Field label={label}><select className={inputClass} {...props}>{options.map((option) => <option key={option} value={option}>{labels[option] ?? option.replaceAll("_", " ")}</option>)}</select></Field>; }
+function stepTitle(step: number) { return ["Where does this resale belong?", "Describe the unit", "Set the commercial terms", "Add media and submit"][step]; }
+function stepDescription(step: number) { return ["Use an existing project or create a lightweight project record now.", "Keep the information focused on what agents need to sell it.", "Add the payment and delivery details shown in the mobile app.", "Strong media helps the Brixeler team approve and publish it faster."][step]; }

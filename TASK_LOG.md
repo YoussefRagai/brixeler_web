@@ -119,3 +119,11 @@ Append meaningful work after each task.
 - Commands run: `npm run lint`, `npm run build`, `npm run test:contracts`, `npm audit --audit-level=high`, and `git diff --check`.
 - Result: Shared shells now provide a desktop-only compact command-center rhythm; admin overview uses dense KPI/list bands, links recent deals directly to their records, and provides a two-column verification queue; developer overview combines metrics into a restrained snapshot and pairs inbox/resales with a compact project panel. All checks pass with zero high-severity vulnerabilities.
 - Risks/follow-ups: Build retains existing warnings when local dashboard session secrets are absent. Authenticated visual inspection was limited to the local login shell because no dashboard session was available in the browser harness.
+
+## 2026-08-27 - developer profile, resale, and inventory UX
+
+- Task: Simplify developer profile, resale, project, and unit creation while preserving the shared mobile/database workflows and making agent-origin resale units developer-visible but read-only.
+- Files touched: developer listing/profile/project pages and client flows, tenant query guards, contract tests, live-aligned Supabase migration, audit screenshots, and project memory.
+- Commands/tools run: signed-in production audit, local lint/contracts/build/dependency audit, live Supabase migration and trigger/advisor verification, Git diff checks, and responsive browser QA.
+- Result: Resales are separated by source; developer controls only appear for developer inventory; server mutations and renewal inserts reject agent-owned rows; profile and creation flows are compact and progressive; live/local migrations align through `20260826211237_developer_resale_source_guard`.
+- Risks/follow-ups: Local dashboard login cannot reuse production cookies, so final authenticated visual QA is performed against the deployed production build. Existing Supabase advisor notices remain unchanged and intentional except account-level leaked-password protection.
