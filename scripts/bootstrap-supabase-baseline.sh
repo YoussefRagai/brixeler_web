@@ -33,9 +33,22 @@ fi
 
 psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$baseline_file"
 
+# Post-baseline notification and Growth migrations schedule background work.
+# Production already had pg_cron enabled before migration tracking began, so
+# a fresh target must recreate that prerequisite explicitly.
+psql "$database_url" -X -v ON_ERROR_STOP=1 -c "create extension if not exists pg_cron;"
+
 versions=()
 while IFS= read -r version; do
   if [ -n "$version" ]; then
+    if ! [[ "$version" =~ ^[0-9]{14}$ ]]; then
+      echo "Invalid migration version in baseline manifest: $version" >&2
+      exit 66
+    fi
+    if ! compgen -G "$repo_dir/supabase/migrations/${version}_*.sql" >/dev/null; then
+      echo "Baseline manifest version has no matching migration file: $version" >&2
+      exit 66
+    fi
     versions+=("$version")
   fi
 done < "$versions_file"

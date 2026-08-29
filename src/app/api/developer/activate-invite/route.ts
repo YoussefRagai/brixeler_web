@@ -21,13 +21,13 @@ export async function POST(request: Request) {
 
   const { data: membership, error: membershipError } = await supabaseServer
     .from("developer_accounts")
-    .select("id, developer_id, developers(name)")
+    .select("id, developer_id, status, developers(name)")
     .eq("auth_user_id", user.id)
     .order("invitation_sent_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (membershipError || !membership?.id) {
+  if (membershipError || !membership?.id || membership.status !== "pending") {
     return NextResponse.json({ error: "No pending developer access was found for this account" }, { status: 404 });
   }
 
@@ -42,7 +42,10 @@ export async function POST(request: Request) {
       activated_at: new Date().toISOString(),
       revoked_at: null,
     })
-    .eq("id", membership.id);
+    .eq("id", membership.id)
+    .eq("status", "pending")
+    .select("id")
+    .single();
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message ?? "Unable to activate access" }, { status: 500 });

@@ -8,9 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "test:contracts": "node --experimental-strip-types --test tests/contracts.test.mjs",
+    "test:growth": "node --experimental-strip-types --test tests/growth-contracts.test.mjs",
+    "test:database": "./scripts/test-database-reliability.sh",
+    "types:database": "./scripts/generate-database-types.sh check",
     "security:deps": "npm audit --audit-level=high",
     "security:shannon": "./scripts/security/run-shannon.sh",
-    "security:all": "npm run security:deps && npm run lint && npm run build"
+    "security:all": "npm run security:deps && npm run lint && npm run test:contracts && npm run test:growth && npm run build",
+    "release:check": "npm run security:all"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",

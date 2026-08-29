@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { ArrowUpRight, Building2, Plus, ShieldCheck, UserRound } from "lucide-react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { DEVELOPER_LISTING_DRAFT_KEY } from "@/components/DeveloperListingWizard";
+import { LocalStorageCleanup } from "@/components/LocalStorageCleanup";
 import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
 import {
   deleteListing,
@@ -19,7 +21,7 @@ type ResaleView = "agent" | "developer";
 export default async function DeveloperListingsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ success?: string; error?: string; view?: string }>;
+  searchParams?: Promise<{ success?: string; error?: string; view?: string; clearDraft?: string }>;
 }) {
   const session = await requireDeveloperSession();
   const feedback = (await searchParams) ?? {};
@@ -40,6 +42,7 @@ export default async function DeveloperListingsPage({
       description="Review agent resale activity and manage inventory created by your team."
       impersonation={impersonation}
     >
+      {feedback.clearDraft === "developer_sale" || feedback.clearDraft === "resale" ? <LocalStorageCleanup storageKey={`${DEVELOPER_LISTING_DRAFT_KEY}:${session.developerId}:${feedback.clearDraft}`} /> : null}
       {feedback.success ? <Feedback tone="success">{feedback.success}</Feedback> : null}
       {feedback.error ? <Feedback tone="error">{feedback.error}</Feedback> : null}
 
@@ -90,10 +93,12 @@ export default async function DeveloperListingsPage({
         </div>
 
         {!visibleListings.length ? (
-          <div className="border-t border-black/5 px-6 py-14 text-center">
-            <p className="text-sm font-semibold text-neutral-800">{activeView === "agent" ? "No agent resale submissions yet" : "No developer resale inventory yet"}</p>
-            <p className="mx-auto mt-1 max-w-md text-sm text-neutral-500">{activeView === "agent" ? "Units listed by app users under your projects will appear here automatically." : "Add a resale unit and connect it to one of your projects."}</p>
-            {activeView === "developer" ? <Link className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-black" href="/developer/listings/new?saleType=resale">Create your first resale <ArrowUpRight aria-hidden="true" size={16} /></Link> : null}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-black/5 px-6 py-8">
+            <div>
+              <p className="text-sm font-semibold text-neutral-800">{activeView === "agent" ? "No agent submissions yet" : "No developer inventory yet"}</p>
+              <p className="mt-1 text-sm text-neutral-500">{activeView === "agent" ? "Agent-listed units will appear here when they choose one of your projects." : "Create a resale to start building your managed inventory."}</p>
+            </div>
+            {activeView === "developer" ? <Link className="inline-flex items-center gap-2 text-sm font-semibold text-black" href="/developer/listings/new?saleType=resale">Create resale <ArrowUpRight aria-hidden="true" size={16} /></Link> : null}
           </div>
         ) : null}
       </section>
@@ -106,11 +111,11 @@ function SourceTab({ active, count, href, icon, label }: { active: boolean; coun
 }
 
 function ListingRow({ listing, projectName, readOnly }: { listing: DeveloperListing; projectName?: string; readOnly: boolean }) {
-  return <tr className="border-b border-black/5 last:border-0"><td className="px-6 py-4"><div className="flex items-center gap-2 font-semibold text-[#050505]">{listing.name}{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName ?? "No linked project"} · Updated {formatDate(listing.updated_at)}</p></td><td className="px-4 py-4 font-medium text-neutral-800">EGP {listing.price.toLocaleString()}</td><td className="px-4 py-4"><StatusBadge listing={listing} /></td><td className="px-4 py-4 text-neutral-600">{listing.inquiries}</td><td className="px-6 py-4">{readOnly ? <div className="text-right text-xs font-medium text-neutral-500">App agent</div> : <ListingActions listing={listing} />}</td></tr>;
+  return <tr className="border-b border-black/5 last:border-0"><td className="px-6 py-4"><div className="flex items-center gap-2 font-semibold text-[#050505]"><span className="min-w-0 truncate">{listing.name}</span>{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName && listing.project_id ? <Link className="font-medium text-neutral-700 underline-offset-2 hover:text-black hover:underline" href={`/developer/projects?project=${listing.project_id}`}>{projectName}</Link> : "No linked project"} · Updated {formatDate(listing.updated_at)}{listing.expires_at ? ` · Expires ${formatDate(listing.expires_at)}` : ""}</p></td><td className="px-4 py-4 font-medium text-neutral-800">EGP {listing.price.toLocaleString()}</td><td className="px-4 py-4"><StatusBadge listing={listing} /></td><td className="px-4 py-4 text-neutral-600">{listing.inquiries}</td><td className="px-6 py-4">{readOnly ? <div className="text-right text-xs font-medium text-neutral-500">App agent · view-only</div> : <ListingActions listing={listing} />}</td></tr>;
 }
 
 function ListingCard({ listing, projectName, readOnly }: { listing: DeveloperListing; projectName?: string; readOnly: boolean }) {
-  return <article className="p-5"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 font-semibold text-[#050505]">{listing.name}{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName ?? "No linked project"}</p></div><StatusBadge listing={listing} /></div><div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-xs text-neutral-500">Price</p><p className="font-semibold">EGP {listing.price.toLocaleString()}</p></div><div className="text-right"><p className="text-xs text-neutral-500">Inquiries</p><p className="font-semibold">{listing.inquiries}</p></div></div><div className="mt-4 border-t border-black/5 pt-4">{readOnly ? <p className="text-xs font-medium text-neutral-500">View-only · submitted by an app agent</p> : <ListingActions listing={listing} />}</div></article>;
+  return <article className="p-5"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2 font-semibold text-[#050505]"><span className="truncate">{listing.name}</span>{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName && listing.project_id ? <Link className="font-medium text-neutral-700 underline-offset-2 hover:text-black hover:underline" href={`/developer/projects?project=${listing.project_id}`}>{projectName}</Link> : "No linked project"}</p><p className="mt-1 text-xs text-neutral-400">Updated {formatDate(listing.updated_at)}{listing.expires_at ? ` · Expires ${formatDate(listing.expires_at)}` : ""}</p></div><StatusBadge listing={listing} /></div><div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-xs text-neutral-500">Price</p><p className="font-semibold">EGP {listing.price.toLocaleString()}</p></div><div className="text-right"><p className="text-xs text-neutral-500">Inquiries</p><p className="font-semibold">{listing.inquiries}</p></div></div><div className="mt-4 border-t border-black/5 pt-4">{readOnly ? <p className="text-xs font-medium text-neutral-500">App agent submission · view-only</p> : <ListingActions listing={listing} />}</div></article>;
 }
 
 function ListingActions({ listing }: { listing: DeveloperListing }) {
@@ -124,7 +129,7 @@ function StatusBadge({ listing }: { listing: DeveloperListing }) {
 }
 
 function DemoBadge() { return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Demo</span>; }
-function Feedback({ children, tone }: { children: React.ReactNode; tone: "success" | "error" }) { return <div className={`rounded-2xl border px-4 py-3 text-sm ${tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{children}</div>; }
+function Feedback({ children, tone }: { children: React.ReactNode; tone: "success" | "error" }) { return <div role={tone === "error" ? "alert" : "status"} aria-live={tone === "error" ? "assertive" : "polite"} className={`rounded-2xl border px-4 py-3 text-sm ${tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{children}</div>; }
 function formatDate(value: string | null) { return value ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(value)) : "—"; }
 
 async function toggleVisibilityAction(formData: FormData) {

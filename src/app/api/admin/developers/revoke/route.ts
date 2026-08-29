@@ -38,13 +38,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  await supabaseServer
+  const { error: revokeError } = await supabaseServer
     .from("developer_accounts")
     .update({
       status: "revoked",
       revoked_at: new Date().toISOString(),
     })
     .eq("id", devAccount.id);
+  if (revokeError) {
+    return NextResponse.json({ error: revokeError.message ?? "Unable to revoke developer access" }, { status: 500 });
+  }
 
   await logAdminActivity({
     adminId: admin.adminId,

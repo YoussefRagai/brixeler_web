@@ -22,7 +22,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing requestId" }, { status: 400 });
   }
 
-  await reviewRenewalRequest(body.requestId, true, admin.adminId, "Approved via admin console");
+  try {
+    await reviewRenewalRequest(body.requestId, true, admin.adminId, "Approved via admin console");
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to approve renewal" }, { status: 500 });
+  }
   await logAdminActivity({
     adminId: admin.adminId,
     action: "renewal.approve",

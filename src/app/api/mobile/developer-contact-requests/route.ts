@@ -86,32 +86,25 @@ export async function POST(request: Request) {
     email ||
     "Brixeler agent";
 
-  const { data: contactRequest, error: insertError } = await supabaseServer.from("developer_contact_requests").insert({
-    developer_id: developerId,
-    project_id: projectId,
-    property_id: propertyId,
-    requester_user_id: session.user.id,
-    request_type: requestType,
-    request_body: message,
-    requester_display_name: displayName,
-    requester_email: email,
-    requester_phone: profile.phone ?? null,
-    requester_total_deals: Number(profile.total_deals ?? 0),
-    developer_name_snapshot: developerRelation?.name ?? "Developer",
-    project_name_snapshot: project.name ?? "Project",
-    property_name_snapshot: propertyNameSnapshot,
-  }).select("id").single();
-
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message ?? "Unable to send contact request right now." }, { status: 500 });
-  }
-
-  await supabaseServer.from("developer_notifications").insert({
-    developer_id: developerId,
-    contact_request_id: contactRequest.id,
-    title: `${requestType === "meeting" ? "Meeting" : "Call"} request from ${displayName}`,
-    message: `${project.name ?? "Project"}: ${message}`,
+  const { data: contactRequestId, error: insertError } = await supabaseServer.rpc("create_developer_contact_request_with_notification", {
+    p_developer_id: developerId,
+    p_project_id: projectId,
+    p_property_id: propertyId,
+    p_requester_user_id: session.user.id,
+    p_request_type: requestType,
+    p_request_body: message,
+    p_requester_display_name: displayName,
+    p_requester_email: email,
+    p_requester_phone: profile.phone ?? null,
+    p_requester_total_deals: Number(profile.total_deals ?? 0),
+    p_developer_name_snapshot: developerRelation?.name ?? "Developer",
+    p_project_name_snapshot: project.name ?? "Project",
+    p_property_name_snapshot: propertyNameSnapshot,
   });
+
+  if (insertError || !contactRequestId) {
+    return NextResponse.json({ error: insertError?.message ?? "Unable to send contact request right now." }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: inviteError.message ?? "Unable to send invite" }, { status: 500 });
   }
 
-  await supabaseServer
+  const { error: updateError } = await supabaseServer
     .from("developer_accounts")
     .update({
       status: "pending",
@@ -61,6 +61,9 @@ export async function POST(request: Request) {
       invited_by_admin_id: admin.adminId,
     })
     .eq("id", member.id);
+  if (updateError) {
+    return NextResponse.json({ error: updateError.message ?? "Invite sent, but account status could not be updated" }, { status: 500 });
+  }
 
   await logAdminActivity({
     adminId: admin.adminId,

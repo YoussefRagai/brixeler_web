@@ -4,7 +4,8 @@ import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { DeveloperProjectRequestTabs } from "@/components/DeveloperProjectRequestTabs";
 import { ProjectImportPanel } from "@/components/ProjectImportPanel";
-import { ProjectWizard } from "@/components/ProjectWizard";
+import { PROJECT_WIZARD_DRAFT_KEY, ProjectWizard } from "@/components/ProjectWizard";
+import { LocalStorageCleanup } from "@/components/LocalStorageCleanup";
 import { VariantOutdoorFields } from "@/components/VariantOutdoorFields";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
@@ -23,7 +24,7 @@ import {
   upsertProjectUnitType,
   upsertProjectUnitVariant,
 } from "@/lib/developerQueries";
-import { STORAGE_BUCKETS, isFile, uploadFileToBucket } from "@/lib/storageServer";
+import { STORAGE_BUCKETS, isFile, removeUploadedStorageObjects, uploadFileToBucket } from "@/lib/storageServer";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
@@ -197,6 +198,9 @@ export default async function DeveloperProjectsPage({
     template?: string | string[];
     status?: string | string[];
     error?: string | string[];
+    draft?: string | string[];
+    section?: string | string[];
+    settings?: string | string[];
   }>;
 }) {
   const session = await requireDeveloperSession();
@@ -235,6 +239,9 @@ export default async function DeveloperProjectsPage({
       : null;
   const pageError =
     typeof resolvedSearchParams?.error === "string" ? decodeURIComponent(resolvedSearchParams.error) : null;
+  const clearProjectDraft = resolvedSearchParams?.draft === "clear";
+  const workspaceSection = resolvedSearchParams?.section === "leads" ? "requests" : "overview";
+  const showProjectSettings = resolvedSearchParams?.settings === "1";
   const templateProject =
     showCreateWizard && templateProjectId
       ? projects.find((project) => project.id === templateProjectId)
@@ -283,8 +290,9 @@ export default async function DeveloperProjectsPage({
       description="Keep launch briefs, media, and talking points up to date for agents."
       impersonation={impersonation}
     >
+      {clearProjectDraft ? <LocalStorageCleanup storageKey={`${PROJECT_WIZARD_DRAFT_KEY}:${session.developerId}`} /> : null}
       {pageError ? (
-        <div className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div role="alert" aria-live="assertive" className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {pageError}
         </div>
       ) : null}
@@ -305,7 +313,7 @@ export default async function DeveloperProjectsPage({
             </a>
           </div>
           <div>
-            <ProjectWizard action={upsertProjectAction}>
+            <ProjectWizard action={upsertProjectAction} developerId={session.developerId}>
               <div data-wizard-panel="basics" className="space-y-4">
               {projects.length ? (
                 <details className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
@@ -609,52 +617,52 @@ export default async function DeveloperProjectsPage({
 
       {!showCreateWizard && setupStep !== "types" && selectedProjectId ? (
         <section className="space-y-4">
-          <header className="rounded-3xl border border-black/5 bg-white p-6">
-            <div className="flex flex-wrap items-start justify-between gap-6">
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project overview</p>
-                <h2 className="mt-2 text-2xl font-semibold text-[#050505]">
+          <header id="project-overview" className="scroll-mt-24 rounded-3xl border border-black/5 bg-white p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs uppercase tracking-[0.25em] text-neutral-500">Project workspace</p>
+                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${selectedProject?.approval_status === "approved" ? "bg-emerald-100 text-emerald-800" : selectedProject?.approval_status === "rejected" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>
+                    {selectedProject?.approval_status === "approved" ? "Live in mobile" : selectedProject?.approval_status === "rejected" ? "Changes requested" : "Pending review"}
+                  </span>
+                </div>
+                <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-[#050505]">
                   {selectedProject?.name ?? "Project analytics"}
                 </h2>
-                <p className="mt-2 max-w-xl text-sm text-neutral-500">
+                <p className="mt-1 line-clamp-2 max-w-3xl text-sm text-neutral-500">
                   {selectedProject?.description ?? "Live telemetry for the selected project."}
                 </p>
+                {selectedProject?.rejection_reason ? <p className="mt-2 text-xs text-rose-700">Reviewer note: {selectedProject.rejection_reason}</p> : null}
               </div>
-              <div className="flex flex-col items-end gap-3">
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-black/10 bg-neutral-50">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-neutral-50">
                   {profile?.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={profile.logo_url}
                       alt={`${profile?.name ?? "Developer"} logo`}
-                      className="h-16 w-16 object-contain"
+                      className="h-10 w-10 object-contain"
                     />
                   ) : (
-                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-400">Logo</span>
+                    <span className="text-[10px] uppercase tracking-[0.2em] text-neutral-400">Logo</span>
                   )}
                 </div>
-                {!showCreateWizard && setupStep !== "types" ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <a
-                      href={INVENTORY_TEMPLATE_PATH}
-                      download
-                      className="rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
-                    >
-                      Download import template
-                    </a>
-                    {selectedProjectId ? (
-                      <ProjectImportPanel
-                        projectId={selectedProjectId}
-                        onImportAction={importTypeWithVariantsAction}
-                      />
-                    ) : null}
-                  </div>
-                ) : null}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <a href={INVENTORY_TEMPLATE_PATH} download className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black">Download template</a>
+                  <ProjectImportPanel projectId={selectedProjectId} onImportAction={importTypeWithVariantsAction} />
+                </div>
               </div>
             </div>
+            <nav aria-label="Project sections" className="mt-4 flex gap-1 overflow-x-auto border-t border-black/5 pt-3 text-xs font-semibold">
+              <a className="shrink-0 rounded-full bg-black px-3 py-1.5 text-white" href="#project-overview">Overview</a>
+              <a className="shrink-0 rounded-full px-3 py-1.5 text-neutral-600 hover:bg-black/5 hover:text-black" href={`/developer/projects?project=${selectedProjectId}&section=inventory#project-inventory`}>Inventory</a>
+              <a className="shrink-0 rounded-full px-3 py-1.5 text-neutral-600 hover:bg-black/5 hover:text-black" href="#project-commercial">Commercial</a>
+              <a className="shrink-0 rounded-full px-3 py-1.5 text-neutral-600 hover:bg-black/5 hover:text-black" href={`/developer/projects?project=${selectedProjectId}&section=leads#project-leads`}>Leads</a>
+              <a className="shrink-0 rounded-full px-3 py-1.5 text-neutral-600 hover:bg-black/5 hover:text-black" href={`/developer/projects?project=${selectedProjectId}&settings=1#project-settings`}>Settings</a>
+            </nav>
           </header>
 
-          <details className="rounded-2xl border border-black/5 bg-neutral-50/80 p-4">
+          <details id="project-settings" open={showProjectSettings} className="scroll-mt-24 rounded-2xl border border-black/5 bg-neutral-50/80 p-4">
             <summary className="cursor-pointer list-none rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black">
               Project settings
             </summary>
@@ -955,7 +963,7 @@ export default async function DeveloperProjectsPage({
 
       {!showCreateWizard && setupStep !== "types" ? (
         <section className="space-y-3">
-        <header className="flex items-center justify-between">
+        {!selectedProjectId ? <header className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">
               {selectedStatus ? `${getLaunchStatusLabel(selectedStatus)} projects` : "Projects"}
@@ -966,7 +974,7 @@ export default async function DeveloperProjectsPage({
                 : "Visible inside the agent workspace"}
             </p>
           </div>
-        </header>
+        </header> : null}
         <div className={projectGridClass}>
           {visibleProjects.map((project) => {
             const projectRequests = requestsByProject[project.id] ?? [];
@@ -974,12 +982,7 @@ export default async function DeveloperProjectsPage({
             <article key={project.id} className="rounded-2xl border border-black/5 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="flex items-center gap-2 text-sm font-semibold text-[#050505]">{project.name}{project.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">DEMO</span> : null}</p>
-                  <p className="text-sm text-neutral-500">{project.description ?? "No description yet."}</p>
-                  <p className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${project.approval_status === "approved" ? "bg-emerald-100 text-emerald-800" : project.approval_status === "rejected" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>
-                    {project.approval_status === "approved" ? "Live in mobile" : project.approval_status === "rejected" ? "Changes requested" : "Pending review"}
-                  </p>
-                  {project.rejection_reason ? <p className="mt-2 text-xs text-rose-700">Reviewer note: {project.rejection_reason}</p> : null}
+                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Project record{project.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold tracking-wider text-amber-800">Demo</span> : null}</p>
                 </div>
                 <form action={deleteProjectAction}>
                   <input type="hidden" name="projectId" value={project.id} />
@@ -988,6 +991,7 @@ export default async function DeveloperProjectsPage({
                   </ConfirmSubmitButton>
                 </form>
               </div>
+              <div>
               {(() => {
                 const heroMedia = (project.hero_media as ProjectMedia | null) ?? null;
                 const imageCount = Array.isArray(heroMedia?.images) ? heroMedia?.images.length : 0;
@@ -1032,8 +1036,11 @@ export default async function DeveloperProjectsPage({
                   </form>
                 ))}
               </div>
-              {asStructuredPlans(project.payment_plan_templates).length ? (
-                <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3">
+              </div>
+              <details id={selectedProjectId === project.id ? "project-commercial" : undefined} className="scroll-mt-24 mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3" open>
+                <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Commercial</summary>
+                {asStructuredPlans(project.payment_plan_templates).length ? (
+                  <>
                   <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Payment plans</p>
                   <div className="mt-2 space-y-1 text-xs text-neutral-600">
                     {asStructuredPlans(project.payment_plan_templates).slice(0, 3).map((plan, index) => (
@@ -1045,10 +1052,15 @@ export default async function DeveloperProjectsPage({
                       </p>
                     ))}
                   </div>
-                </div>
-              ) : null}
+                  </>
+                ) : (
+                  <p className="mt-2 text-xs text-neutral-500">No payment plans added yet. Open Settings to add the commercial terms agents should use.</p>
+                )}
+              </details>
               <DeveloperProjectRequestTabs
                 requestCount={projectRequests.length}
+                sectionIdSuffix={selectedProjectId ? undefined : project.id}
+                initialTab={workspaceSection}
                 overviewContent={
                   <div className="rounded-2xl border border-dashed border-black/10 bg-neutral-50/60 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1095,10 +1107,11 @@ export default async function DeveloperProjectsPage({
                                 </div>
                               </div>
                               <form action={deleteUnitTypeAction}>
+                                <input type="hidden" name="projectId" value={project.id} />
                                 <input type="hidden" name="unitTypeId" value={unit.id} />
-                                <button className="text-xs text-red-500 hover:underline" type="submit">
+                                <ConfirmSubmitButton className="text-xs text-red-500 hover:underline disabled:opacity-50" confirmMessage="Delete this unit type and all of its variants? This cannot be undone." pendingLabel="Deleting…">
                                   Delete
-                                </button>
+                                </ConfirmSubmitButton>
                               </form>
                             </div>
                             {unit.project_unit_variants?.length ? (
@@ -1638,9 +1651,9 @@ function VariantForm({
         <form action={deleteVariantAction} className="mt-2 flex justify-end">
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="variantId" value={variant.id} />
-          <button className="text-xs text-red-500 hover:underline" type="submit">
+          <ConfirmSubmitButton className="text-xs text-red-500 hover:underline disabled:opacity-50" confirmMessage="Delete this variant permanently? This cannot be undone." pendingLabel="Deleting…">
             Delete variant
-          </button>
+          </ConfirmSubmitButton>
         </form>
       ) : null}
     </>
@@ -1778,6 +1791,9 @@ async function upsertProjectAction(formData: FormData) {
 
   const existingProjects = id ? await fetchDeveloperProjects(session.developerId) : [];
   const existingProject = id ? existingProjects.find((project) => project.id === id) : undefined;
+  if (id && !existingProject) {
+    redirect(`/developer/projects?error=${encodeURIComponent("Project not found or access denied.")}`);
+  }
   const existingHeroMedia =
     existingProject?.hero_media && typeof existingProject.hero_media === "object"
       ? { ...(existingProject.hero_media as ProjectMedia) }
@@ -1785,72 +1801,83 @@ async function upsertProjectAction(formData: FormData) {
   const heroMedia: ProjectMedia = { ...existingHeroMedia };
   let heroMediaUpdated = false;
   let inventoryUrl = existingProject?.inventory_url ?? null;
+  let voiceNoteUrls: string[] | undefined;
+  let videoUrls: string[] | undefined;
+  const uploadedObjects: Array<{ bucket: string; url: string }> = [];
+  const uploadTracked = async (options: Parameters<typeof uploadFileToBucket>[0]) => {
+    const url = await uploadFileToBucket(options);
+    uploadedObjects.push({ bucket: options.bucket, url });
+    return url;
+  };
 
-  if (imageFiles.length) {
-    const imageUrls = await Promise.all(
-      imageFiles.map((file) =>
-        uploadFileToBucket({
+  try {
+    if (imageFiles.length) {
+      const imageUrls = [];
+      for (const file of imageFiles) {
+        imageUrls.push(await uploadTracked({
           bucket: STORAGE_BUCKETS.projectImages,
           pathPrefix: `${projectBasePath}/images`,
           file,
-        }),
-      ),
-    );
-    heroMedia.images = imageUrls;
-    heroMedia.heroImageUrl = imageUrls[0];
-    heroMediaUpdated = true;
-  }
+        }));
+      }
+      heroMedia.images = imageUrls;
+      heroMedia.heroImageUrl = imageUrls[0];
+      heroMediaUpdated = true;
+    }
 
-  if (isFile(brochureFile)) {
-    const brochureUrl = await uploadFileToBucket({
-      bucket: STORAGE_BUCKETS.projectBrochures,
-      pathPrefix: `${projectBasePath}/brochure`,
-      file: brochureFile,
-    });
-    heroMedia.brochureUrl = brochureUrl;
-    heroMediaUpdated = true;
-  }
+    if (isFile(brochureFile)) {
+      const brochureUrl = await uploadTracked({
+        bucket: STORAGE_BUCKETS.projectBrochures,
+        pathPrefix: `${projectBasePath}/brochure`,
+        file: brochureFile,
+      });
+      heroMedia.brochureUrl = brochureUrl;
+      heroMediaUpdated = true;
+    }
 
-  if (isFile(masterplanFile)) {
-    const masterplanUrl = await uploadFileToBucket({
-      bucket: STORAGE_BUCKETS.projectBrochures,
-      pathPrefix: `${projectBasePath}/masterplan`,
-      file: masterplanFile,
-    });
-    heroMedia.masterplanUrl = masterplanUrl;
-    heroMediaUpdated = true;
-  }
+    if (isFile(masterplanFile)) {
+      const masterplanUrl = await uploadTracked({
+        bucket: STORAGE_BUCKETS.projectBrochures,
+        pathPrefix: `${projectBasePath}/masterplan`,
+        file: masterplanFile,
+      });
+      heroMedia.masterplanUrl = masterplanUrl;
+      heroMediaUpdated = true;
+    }
 
-  const voiceNoteUrls = voiceFiles.length
-    ? await Promise.all(
-        voiceFiles.map((file) =>
-          uploadFileToBucket({
+    if (voiceFiles.length) {
+      voiceNoteUrls = [];
+      for (const file of voiceFiles) {
+        voiceNoteUrls.push(await uploadTracked({
             bucket: STORAGE_BUCKETS.projectVoiceNotes,
             pathPrefix: `${projectBasePath}/voice-notes`,
             file,
-          }),
-        ),
-      )
-    : undefined;
+        }));
+      }
+    }
 
-  const videoUrls = videoFiles.length
-    ? await Promise.all(
-        videoFiles.map((file) =>
-          uploadFileToBucket({
+    if (videoFiles.length) {
+      videoUrls = [];
+      for (const file of videoFiles) {
+        videoUrls.push(await uploadTracked({
             bucket: STORAGE_BUCKETS.projectVideos,
             pathPrefix: `${projectBasePath}/videos`,
             file,
-          }),
-        ),
-      )
-    : undefined;
+        }));
+      }
+    }
 
-  if (isFile(inventoryFile)) {
-    inventoryUrl = await uploadFileToBucket({
-      bucket: STORAGE_BUCKETS.projectBrochures,
-      pathPrefix: `${projectBasePath}/inventory`,
-      file: inventoryFile,
-    });
+    if (isFile(inventoryFile)) {
+      inventoryUrl = await uploadTracked({
+        bucket: STORAGE_BUCKETS.projectBrochures,
+        pathPrefix: `${projectBasePath}/inventory`,
+        file: inventoryFile,
+      });
+    }
+  } catch (error) {
+    await removeUploadedStorageObjects(uploadedObjects);
+    const target = id ? `/developer/projects?project=${id}` : "/developer/projects?create=1";
+    redirect(`${target}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to upload project media.")}`);
   }
 
   const { data, error } = await upsertDeveloperProject(session.developerId, {
@@ -1877,13 +1904,24 @@ async function upsertProjectAction(formData: FormData) {
     amenities: amenities.length ? amenities : undefined,
   });
   if (!error && data?.id) {
-    await upsertProjectCommissionRule({
+    const commissionResult = await upsertProjectCommissionRule({
       developerId: session.developerId,
       projectId: data.id,
       commissionRateRaw,
       platformShareRaw,
     });
-    redirect(`/developer/projects?project=${data.id}&step=types`);
+    if (commissionResult?.error) {
+      redirect(`/developer/projects?project=${data.id}&error=${encodeURIComponent("Project saved, but the commission rule could not be saved. Please retry.")}`);
+    }
+    redirect(`/developer/projects?project=${data.id}&step=types&draft=clear`);
+  }
+  if (error) {
+    await removeUploadedStorageObjects(uploadedObjects);
+    redirect(`/developer/projects?${id ? `project=${id}&` : "create=1&"}error=${encodeURIComponent(error.message)}`);
+  }
+  if (!data?.id) {
+    await removeUploadedStorageObjects(uploadedObjects);
+    redirect(`/developer/projects?${id ? `project=${id}&` : "create=1&"}error=${encodeURIComponent("Project could not be saved.")}`);
   }
   revalidatePath("/developer/projects");
 }
@@ -1893,7 +1931,8 @@ async function deleteProjectAction(formData: FormData) {
   const session = await requireDeveloperSession();
   const projectId = formData.get("projectId")?.toString();
   if (!projectId) return;
-  await deleteDeveloperProject(session.developerId, projectId);
+  const { error } = await deleteDeveloperProject(session.developerId, projectId);
+  if (error) redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error.message)}`);
   revalidatePath("/developer/projects");
 }
 
@@ -1903,11 +1942,16 @@ async function moveProjectStatusAction(formData: FormData) {
   const projectId = formData.get("projectId")?.toString();
   const status = normalizeLaunchStatus(formData.get("status")?.toString());
   if (!projectId) return;
-  await supabaseServer
+  const { data, error } = await supabaseServer
     .from("developer_projects")
     .update({ launch_status: status, approval_status: "pending", rejection_reason: null, reviewed_by: null, reviewed_at: null })
     .eq("developer_id", session.developerId)
-    .eq("id", projectId);
+    .eq("id", projectId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error?.message ?? "Project not found or access denied.")}`);
+  }
   revalidatePath("/developer/projects");
   redirect(`/developer/projects?status=${status}&project=${projectId}`);
 }
@@ -1919,7 +1963,8 @@ async function updateContactRequestStatusAction(formData: FormData) {
   const value = formData.get("status")?.toString();
   const status = value === "contacted" || value === "closed" ? value : value === "open" ? value : null;
   if (!requestId || !status) return;
-  await updateDeveloperContactRequestStatus(session.developerId, requestId, status);
+  const { error } = await updateDeveloperContactRequestStatus(session.developerId, requestId, status);
+  if (error) redirect(`/developer/projects?error=${encodeURIComponent(error.message)}`);
   revalidatePath("/developer/projects");
 }
 
@@ -1931,22 +1976,23 @@ async function upsertProjectCommissionRule(input: {
 }) {
   const commissionRateRaw = input.commissionRateRaw?.trim() ?? "";
   const platformShareRaw = input.platformShareRaw?.trim() ?? "";
-  if (!commissionRateRaw && !platformShareRaw) return;
+  if (!commissionRateRaw && !platformShareRaw) return { error: null };
 
   const commissionRate = Number(commissionRateRaw);
   if (!Number.isFinite(commissionRate) || commissionRate <= 0) {
-    return;
+    return { error: new Error("Enter a valid commission rate.") };
   }
   const platformShare = platformShareRaw.length ? Number(platformShareRaw) : null;
 
-  const { data: existing } = await supabaseServer
+  const { data: existing, error: lookupError } = await supabaseServer
     .from("developer_commission_rules")
     .select("id")
     .eq("developer_id", input.developerId)
     .eq("property_id", input.projectId)
     .maybeSingle();
+  if (lookupError) return { error: lookupError };
 
-  await supabaseServer.from("developer_commission_rules").upsert(
+  const { error } = await supabaseServer.from("developer_commission_rules").upsert(
     {
       id: existing?.id,
       developer_id: input.developerId,
@@ -1956,6 +2002,7 @@ async function upsertProjectCommissionRule(input: {
     },
     { onConflict: "id" },
   );
+  return { error };
 }
 
 async function upsertProjectUnitTypeAction(formData: FormData) {
@@ -1972,7 +2019,7 @@ async function upsertProjectUnitTypeAction(formData: FormData) {
     return;
   }
   if (minPrice == null || minPrice <= 0) {
-    redirect(`/developer/projects?project=${projectId}`);
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent("Enter a valid minimum price before saving this unit type.")}`);
   }
 
   const finishingStatus = formData.get("unitFinishing")?.toString().trim() || undefined;
@@ -1993,23 +2040,29 @@ async function upsertProjectUnitTypeAction(formData: FormData) {
     });
   }
 
-  const { data, error } = await upsertProjectUnitType(session.developerId, projectId, {
-    id: unitTypeId,
-    category: unitCategory,
-    label,
-    minPrice,
-    maxPrice,
-    unitAreaMin,
-    unitAreaMax,
-    landAreaMin,
-    landAreaMax,
-    finishingStatus,
-    description,
-    heroImageUrl,
-  });
+  let result;
+  try {
+    result = await upsertProjectUnitType(session.developerId, projectId, {
+      id: unitTypeId,
+      category: unitCategory,
+      label,
+      minPrice,
+      maxPrice,
+      unitAreaMin,
+      unitAreaMax,
+      landAreaMin,
+      landAreaMax,
+      finishingStatus,
+      description,
+      heroImageUrl,
+    });
+  } catch (error) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to save this unit type.")}`);
+  }
+  const { data, error } = result;
   if (error) {
     revalidatePath("/developer/projects");
-    return;
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error.message)}`);
   }
   if (!unitTypeId && data?.id) {
     redirect(`/developer/projects?project=${projectId}`);
@@ -2020,10 +2073,20 @@ async function upsertProjectUnitTypeAction(formData: FormData) {
 async function deleteUnitTypeAction(formData: FormData) {
   "use server";
   const session = await requireDeveloperSession();
+  const projectId = formData.get("projectId")?.toString();
   const unitTypeId = formData.get("unitTypeId")?.toString();
-  if (!unitTypeId) return;
-  await deleteProjectUnitType(session.developerId, unitTypeId);
+  if (!projectId || !unitTypeId) return;
+  let result;
+  try {
+    result = await deleteProjectUnitType(session.developerId, unitTypeId);
+  } catch (error) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to delete this unit type.")}`);
+  }
+  if (result?.error) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(result.error.message)}`);
+  }
   revalidatePath("/developer/projects");
+  redirect(`/developer/projects?project=${projectId}`);
 }
 
 async function upsertProjectUnitVariantAction(formData: FormData) {
@@ -2038,6 +2101,7 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
   const minPriceValue = formData.get("variantMinPrice")?.toString();
   const minPrice = minPriceValue ? Number(minPriceValue) : NaN;
   if (!projectId || !unitTypeId || Number.isNaN(minPrice) || minPrice <= 0) {
+    if (projectId) redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent("Enter a valid minimum price before saving this variant.")}`);
     return;
   }
 
@@ -2068,27 +2132,35 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
     .filter(Boolean);
   const description = formData.get("variantDescription")?.toString() || undefined;
 
-  await upsertProjectUnitVariant(session.developerId, unitTypeId, {
-    id: variantId,
-    category: variantCategory,
-    label: variantType,
-    minPrice,
-    maxPrice,
-    bedrooms,
-    bathrooms,
-    hasGarden,
-    gardenAreaSqm,
-    hasRoof,
-    roofAreaSqm,
-    finishingStatus,
-    deliveryDate,
-    unitAreaMin: areaMin,
-    unitAreaMax: areaMax,
-    landAreaMin,
-    landAreaMax,
-    layoutOptions,
-    description,
-  });
+  let result;
+  try {
+    result = await upsertProjectUnitVariant(session.developerId, unitTypeId, {
+      id: variantId,
+      category: variantCategory,
+      label: variantType,
+      minPrice,
+      maxPrice,
+      bedrooms,
+      bathrooms,
+      hasGarden,
+      gardenAreaSqm,
+      hasRoof,
+      roofAreaSqm,
+      finishingStatus,
+      deliveryDate,
+      unitAreaMin: areaMin,
+      unitAreaMax: areaMax,
+      landAreaMin,
+      landAreaMax,
+      layoutOptions,
+      description,
+    });
+  } catch (error) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to save this variant.")}`);
+  }
+  if (result?.error) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(result.error.message)}`);
+  }
   redirect(`/developer/projects?project=${projectId}&unitType=${unitTypeId}&variants=1`);
 }
 
@@ -2098,7 +2170,16 @@ async function deleteVariantAction(formData: FormData) {
   const projectId = formData.get("projectId")?.toString();
   const variantId = formData.get("variantId")?.toString();
   if (!projectId || !variantId) return;
-  await deleteProjectUnitVariant(session.developerId, variantId);
+  let result;
+  try {
+    result = await deleteProjectUnitVariant(session.developerId, variantId);
+  } catch (error) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to delete this variant.")}`);
+  }
+  if (result?.error) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(result.error.message)}`);
+  }
+  revalidatePath("/developer/projects");
   redirect(`/developer/projects?project=${projectId}`);
 }
 

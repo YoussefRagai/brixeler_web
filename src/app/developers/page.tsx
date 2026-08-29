@@ -136,7 +136,6 @@ async function inviteDeveloperMember(formData: FormData) {
   if (!admin?.adminId) return;
   const isSuperAdmin = admin.roles.includes("super_admin");
   const allowedDeveloperIds = isSuperAdmin ? [] : admin.developerIds ?? [];
-  if (!isSuperAdmin && !allowedDeveloperIds.length) return;
   const existingDeveloperId = formData.get("existingDeveloperId")?.toString() || "";
   const developerNameInput = formData.get("developerName")?.toString().trim() || "";
   const contactEmail = formData.get("contactEmail")?.toString().trim() || null;

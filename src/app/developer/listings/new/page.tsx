@@ -29,10 +29,11 @@ export default async function NewListingPage({
       description="A focused, guided flow for inventory managed by your team."
       impersonation={impersonation}
     >
-      {errorMessage ? <div className="mx-auto max-w-5xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{errorMessage}</div> : null}
+      {errorMessage ? <div role="alert" aria-live="assertive" className="mx-auto max-w-5xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{errorMessage}</div> : null}
       <DeveloperListingWizard
         action={createListingAction}
         projects={projects}
+        developerId={session.developerId}
         preselectedProjectId={preselectedProjectId}
         preselectedSaleType={preselectedSaleType}
         emphasizeCreateProject={emphasizeCreateProject}
@@ -88,5 +89,5 @@ async function createListingAction(formData: FormData) {
     deliveryDate, finishingStatus, amenities, brochureUrl: media.brochureUrl, videoUrl: media.videoUrl,
   });
   if (error) redirect(`/developer/listings/new?${returnQuery}&error=${encodeURIComponent(error.message)}`);
-  redirect(saleType === "resale" ? "/developer/listings?view=developer&success=Resale%20submitted%20for%20review." : "/developer/listings?success=Listing%20submitted%20for%20review.");
+  redirect(saleType === "resale" ? "/developer/listings?view=developer&clearDraft=resale&success=Resale%20submitted%20for%20review." : "/developer/listings?clearDraft=developer_sale&success=Listing%20submitted%20for%20review.");
 }

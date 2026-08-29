@@ -127,3 +127,51 @@ Append meaningful work after each task.
 - Commands/tools run: signed-in production audit, local lint/contracts/build/dependency audit, live Supabase migration and trigger/advisor verification, Git diff checks, and responsive browser QA.
 - Result: Resales are separated by source; developer controls only appear for developer inventory; server mutations and renewal inserts reject agent-owned rows; listing create/update rejects cross-developer project IDs; profile and creation flows are compact and progressive; live/local migrations align through `20260826211237_developer_resale_source_guard`.
 - Risks/follow-ups: Local dashboard login cannot reuse production cookies, so final authenticated visual QA is performed against the deployed production build. Existing Supabase advisor notices remain unchanged and intentional except account-level leaked-password protection.
+
+## 2026-08-27 - external-council dashboard audit
+
+- Task: Perform a fresh-eyes security, UX, and visual audit of the signed-in production developer dashboard without changing product behavior.
+- Files touched: `TASK_LOG.md`; fresh audit captures are stored under `output/external-council-audit-2026-08-27/`.
+- Commands/tools run: three-member External Council attempt, signed-in production journey inspection, live response-header check, targeted authorization/storage/session review, `npm run lint`, `npm run test:contracts`, `npm run security:deps`, and `npm run build`.
+- Result: Tenant and resale-source mutation boundaries remain intact, upload size/type validation is present, all seven contract tests pass, the production build passes, and npm reports zero vulnerabilities. Confirmed follow-ups are missing global response-security headers, misleading project-wizard persistence copy, unconfirmed unit-type/variant deletion, and excessive duplication/density in the project workspace.
+- Risks/follow-ups: External Council produced one opinion from Ollama Cloud; Antigravity was denied file access and local Qwen timed out. The surviving council's upload and mobile-navigation claims were rejected after source verification. Accessibility evidence is limited to source/accessibility-tree and visual review; no screen-reader session was run.
+
+## 2026-08-27 - developer dashboard audit remediation
+
+- Task: Implement every confirmed security, usability, accessibility, and visual follow-up from the fresh-eyes developer-dashboard audit.
+- Files touched: `next.config.ts`; developer profile, resale, project, and listing pages; project/listing/profile/tab/confirmation components; `src/components/LocalStorageCleanup.tsx`; contract tests; and project memory.
+- Commands/tools run: GPT-5.6 Luna xhigh implementation, security-boundary investigation, and patch review; `npm run lint`; `npm run build`; `npm run test:contracts`; `npm run security:deps`; `git diff --check`; local production response-header checks; and authenticated desktop/mobile browser QA using live-backed developer data.
+- Result: Global hardening headers and a bounded upload-compatible Server Action limit are configured; profile/resale/project flows are compact and accessible; developer drafts are tenant-scoped, storage-safe, and cleared after confirmed success; agent resales remain visibly read-only; project sections navigate reliably; destructive inventory actions require confirmation and surface failures. Lint/build pass, all nine contract tests pass, npm reports zero vulnerabilities, and authenticated browser QA produced no console errors or warnings.
+- Risks/follow-ups: CSP is intentionally deferred until nonce and external-origin compatibility can be validated. HSTS omits `includeSubDomains` while `developer.brixeler.com` remains unresolved. The 110 MB Server Action ceiling matches the existing 100 MB upload contract plus multipart overhead, but upstream proxy limits were not changed. No destructive action or upload was executed against production during QA.
+
+## 2026-08-27 - cross-surface reliability audit
+
+- Task: Identify current dashboard/mobile bugs and design mechanisms that prevent runtime, authorization, and shared-contract regressions.
+- Files touched: project memory only; mobile findings are recorded in `brixeler-mobile/TASK_LOG.md`.
+- Commands/tools run: three GPT-5.6 Luna max read-only audits, a three-member External Council attempt, targeted source verification, `npm run lint`, `npm run test:contracts`, and `npm run build`.
+- Result: Confirmed that settings Server Actions lack their page's super-admin enforcement, revoked developer memberships can be reactivated without a pending-state check, project uploads precede ownership validation, several multi-step mutations ignore failures or report partial success, and network failures can strand claim controls. Lint, all nine source-contract tests, and the production build pass.
+- Risks/follow-ups: Existing contract tests mostly assert source text and are not executable authorization/database behavior tests. External Council returned no usable opinion; only locally verified Luna findings were accepted. No application fix, database mutation, commit, or deployment was performed.
+
+## 2026-08-27 - cross-surface reliability remediation
+
+- Task: Implement the confirmed dashboard/mobile reliability recommendations and make regressions harder to ship.
+- Files touched: dashboard authorization and mutation routes, developer project/storage operations, support/contact transactional paths, claim controls, global error handling, release scripts/CI, contract tests, `supabase/migrations/20260827223000_reliability_transactions.sql`, database test/type-generation scripts, and companion mobile reliability code.
+- Commands run: `npm run release:check`, `npm run lint`, `npm run test:contracts`, `npm run build`, `npm audit --audit-level=high`, `bash -n scripts/generate-database-types.sh scripts/test-database-reliability.sh`, and `git diff --check`.
+- Result: Settings now fail closed to super admins; revoked invites cannot be reactivated; tenant ownership is checked before uploads; abandoned uploads are compensated; mutation/network failures are visible and controls recover; support/contact workflows use atomic RPCs; branded crash recovery and sanitized operational logging are installed; all 12 dashboard contracts and the production build pass with zero high-severity dependency findings.
+- Risks/follow-ups: The new migration is prepared locally but was not applied live. Executable database contracts and generated Supabase types require an isolated migration-built `BRIXELER_DATABASE_URL`; the linked type-generation API rejected the current Supabase account for insufficient privileges. Remote error collection still requires choosing/configuring a monitoring provider. No commit or deployment was performed.
+
+## 2026-08-29 - Growth Studio implementation
+
+- Task: Replace the ambitious Growth placeholders with operational, non-technical tooling for gifts, rewards, tiers, badges, reusable audiences, campaigns, managed content, approval, scheduling, versions, evaluation, and fulfillment.
+- Files touched: Growth pages/components and APIs; gift/reward routes; analytics/navigation; `src/lib/growthContracts.ts`; `supabase/migrations/20260829120000_growth_shared_data_model.sql`; Growth contracts; and companion mobile gift/profile/content integrations.
+- Commands run: `npm run release:check`, `git diff --check`, companion mobile `npm run release:check`, and targeted TypeScript/lint/build/contract checks throughout integration.
+- Result: Admins have guided builders, named audience previews, bilingual mobile previews, lifecycle scheduling, independent approvals, immutable history/restore, evaluation, claims fulfillment, and removable draft demo data. Database boundaries deny unapproved/inactive/out-of-audience resources; creator self-approval and privileged-function public execution are blocked. Fresh previews are payload-bound, conflict-aware, and required before launch; tier progress and analytics share exact status contracts with mobile. The full web release gate passes with zero high-severity dependency findings, 12 platform contracts, 11 Growth contracts, lint, TypeScript, and production build.
+- Risks/follow-ups: Local builds warn only because signing secrets are intentionally absent. Production database push is blocked because the currently authenticated Supabase account returns HTTP 403 for login-role credentials; do not deploy the web UI before the schema.
+
+## 2026-08-29 - deterministic database verification
+
+- Task: Execute the baseline cutover and all pending reliability/Growth migrations against a disposable local Supabase database, then close every database lint error.
+- Files touched: baseline migration manifest, baseline bootstrap guard, Growth badge award function, additive commission lookup repair, platform contract tests, and project memory.
+- Commands run: Supabase CLI 2.116.0 upgrade; disposable `supabase db start/reset`; baseline bootstrap; `supabase db push`; reliability and Growth SQL suites; `supabase db lint --level error`; both web/mobile release gates; migration ledger comparison; and `git diff --check`.
+- Result: A clean Supabase database reproduces through all 34 local migrations. Both SQL suites pass transactionally, database lint reports zero errors, the ledger aligns locally, web passes 13 platform and 11 Growth contracts plus build/lint/audit, and mobile passes Doctor 21/21 plus its complete release gate. The bootstrap now validates 14-digit manifest entries and matching files and recreates the pre-tracking `pg_cron` prerequisite.
+- Risks/follow-ups: The linked production project rejects login-role credential access with HTTP 403 for the current Supabase account, so no production migration or web deployment was performed. Obtain owner-level database access or a database password, apply pending migrations first, then deploy the web commit. No mobile build or OTA update was created.

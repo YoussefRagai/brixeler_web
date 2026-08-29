@@ -78,45 +78,49 @@ export function DealsClaimsTable({ claims, isSuperAdmin = false }: { claims: Sal
   const setStatus = async (id: string, status: string) => {
     setPendingId(id);
     setErrorMessage(null);
-    const response = await fetch(`/api/sales-claims/${id}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({ error: "Unable to update status." }));
-      setErrorMessage(payload.error ?? "Unable to update status.");
+    try {
+      const response = await fetch(`/api/sales-claims/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "Unable to update status." }));
+        setErrorMessage(payload.error ?? "Unable to update status.");
+        return;
+      }
+      startTransition(() => router.refresh());
+    } catch {
+      setErrorMessage("Network error. Check your connection and try again.");
+    } finally {
       setPendingId(null);
-      return;
     }
-    startTransition(() => {
-      setPendingId(null);
-      router.refresh();
-    });
   };
 
   const submitFeedback = async () => {
     if (!feedbackId || !feedbackMode || !feedbackText.trim()) return;
     setPendingId(feedbackId);
     setErrorMessage(null);
-    const response = await fetch(`/api/sales-claims/${feedbackId}/feedback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: feedbackMode, reason: feedbackText.trim() }),
-    });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({ error: "Unable to submit feedback." }));
-      setErrorMessage(payload.error ?? "Unable to submit feedback.");
+    try {
+      const response = await fetch(`/api/sales-claims/${feedbackId}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: feedbackMode, reason: feedbackText.trim() }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "Unable to submit feedback." }));
+        setErrorMessage(payload.error ?? "Unable to submit feedback.");
+        return;
+      }
+      setFeedbackId(null);
+      setFeedbackMode(null);
+      setFeedbackText("");
+      startTransition(() => router.refresh());
+    } catch {
+      setErrorMessage("Network error. Check your connection and try again.");
+    } finally {
       setPendingId(null);
-      return;
     }
-    setFeedbackId(null);
-    setFeedbackMode(null);
-    setFeedbackText("");
-    startTransition(() => {
-      setPendingId(null);
-      router.refresh();
-    });
   };
 
   return (

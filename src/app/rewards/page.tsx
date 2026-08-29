@@ -1,12 +1,21 @@
-import { AdminLayout } from "@/components/AdminLayout";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { AdminLayout } from "@/components/AdminLayout";
+import { BadgeCatalogForm } from "@/components/BadgeCatalogForm";
+import { GrowthApprovalControls } from "@/components/GrowthApprovalControls";
+import { GrowthVersionHistory } from "@/components/GrowthVersionHistory";
+import { RewardBadgeCatalog } from "@/components/RewardBadgeCatalog";
+import type { RewardAudienceOption } from "@/components/RewardAudienceBuilder";
+import { RewardTierLadder } from "@/components/RewardTierLadder";
+import { RewardsRuleBuilder, type RewardAgentOption, type RewardRuleOption } from "@/components/RewardsRuleBuilder";
+import { TierCatalogForm } from "@/components/TierCatalogForm";
 import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { RewardsRuleBuilder } from "@/components/RewardsRuleBuilder";
+import { ArrowUp, BadgeCheck, Layers3, Sparkles } from "lucide-react";
 
 type TierRow = {
   id: string;
   name: string;
+  name_ar?: string | null;
   level: number | null;
   icon_url: string | null;
   description: string | null;
@@ -14,6 +23,8 @@ type TierRow = {
   benefit_value: number | null;
   benefit_description: string | null;
   is_active: boolean | null;
+  approval_status?: string | null;
+  version?: number | null;
 };
 
 type BadgeRow = {
@@ -24,7 +35,12 @@ type BadgeRow = {
   description: string | null;
   badge_type: string | null;
   expires_in_days: number | null;
+  benefit_type?: string | null;
+  benefit_value?: number | null;
+  benefit_description?: string | null;
   is_active: boolean | null;
+  approval_status?: string | null;
+  version?: number | null;
 };
 
 type BadgeAssignmentRow = {
@@ -44,45 +60,104 @@ type TierAssignmentRow = {
   users_profile: { display_name: string | null; phone?: string | null }[] | null;
 };
 
-const formatIdentifier = (value?: string | null) => {
+type PreviewAgentRow = {
+  id: string;
+  display_name: string | null;
+  first_name_en: string | null;
+  last_name_en: string | null;
+  first_name_ar: string | null;
+  last_name_ar: string | null;
+  verification_status: string | null;
+};
+
+const formatDate = (value?: string | null) => {
   if (!value) return "—";
-  if (value.length <= 12) return value;
-  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
+const displayName = (profile?: { display_name: string | null }[] | null, fallback = "Agent") =>
+  profile?.[0]?.display_name || fallback;
+
+const statusLabel = (rule: RewardRuleOption) => {
+  const status = rule.lifecycle_state ?? rule.lifecycle_status ?? rule.status;
+  if (status) return status.charAt(0).toUpperCase() + status.slice(1);
+  return rule.is_active === false ? "Paused" : "Active";
+};
+
+const statusClasses = (status: string) => {
+  if (status === "Active") return "border-[#c9d795] bg-[#f1f5d9] text-[#4c5d11]";
+  if (status === "Scheduled") return "border-[#c8c2e9] bg-[#f2f1fb] text-[#4d477f]";
+  if (status === "Paused") return "border-[#f2c2aa] bg-[#fff3ec] text-[#8d482c]";
+  return "border-black/10 bg-neutral-100 text-neutral-500";
 };
 
 export default async function RewardsPage() {
   const ui = await buildAdminUi(["marketing_admin"]);
-  const { data: tiers } = await supabaseServer
-    .from("tiers")
-    .select("id, name, level, icon_url, description, benefit_type, benefit_value, benefit_description, is_active")
-    .order("level", { ascending: true });
-  const { data: badges } = await supabaseServer
-    .from("badges")
-    .select("id, name, name_ar, icon_url, description, badge_type, expires_in_days, is_active")
-    .order("display_order", { ascending: true });
-  const { data: rules } = await supabaseServer
-    .from("admin_rules")
-    .select(
-      "id, target_type, target_id, metric, time_window, operator, value_min, value_max, value_single, is_active, created_at",
-    )
-    .order("created_at", { ascending: false });
-  const { data: badgeAssignments } = await supabaseServer
-    .from("agent_badges")
-    .select("agent_id, badge_id, unlocked_at, expires_at, badges(name, name_ar), users_profile(display_name, phone)")
-    .order("unlocked_at", { ascending: false })
-    .limit(20);
-  const { data: tierAssignments } = await supabaseServer
-    .from("user_tiers")
-    .select("user_id, tier_id, awarded_at, tiers(name, level), users_profile(display_name, phone)")
-    .order("awarded_at", { ascending: false })
-    .limit(20);
-  const badgeRows = (badgeAssignments ?? []) as BadgeAssignmentRow[];
-  const tierRows = (tierAssignments ?? []) as TierAssignmentRow[];
+  const [{ data: tiers }, { data: badges }, { data: rules }, { data: badgeAssignments }, { data: tierAssignments }, { data: previewAgents }, { data: audiences }] = await Promise.all([
+    supabaseServer
+      .from("tiers")
+      .select("id, name, level, icon_url, description, benefit_type, benefit_value, benefit_description, is_active, approval_status, version")
+      .order("level", { ascending: true }),
+    supabaseServer
+      .from("badges")
+      .select("id, name, name_ar, icon_url, description, badge_type, expires_in_days, benefit_type, benefit_value, benefit_description, is_active, approval_status, version")
+      .order("display_order", { ascending: true }),
+    supabaseServer
+      .from("admin_rules")
+      .select("id, target_type, target_id, metric, time_window, operator, value_min, value_max, value_single, is_active, lifecycle_state, start_at, end_at, approval_status, version, created_at")
+      .order("created_at", { ascending: false }),
+    supabaseServer
+      .from("agent_badges")
+      .select("agent_id, badge_id, unlocked_at, expires_at, badges(name, name_ar), users_profile(display_name, phone)")
+      .order("unlocked_at", { ascending: false })
+      .limit(20),
+    supabaseServer
+      .from("user_tiers")
+      .select("user_id, tier_id, awarded_at, tiers(name, level), users_profile(display_name, phone)")
+      .order("awarded_at", { ascending: false })
+      .limit(20),
+    supabaseServer
+      .from("users_profile")
+      .select("id, display_name, first_name_en, last_name_en, first_name_ar, last_name_ar, verification_status")
+      .order("created_at", { ascending: false })
+      .limit(60),
+    supabaseServer
+      .from("growth_audiences")
+      .select("id, name, description, metadata")
+      .eq("lifecycle_state", "active")
+      .order("name", { ascending: true }),
+  ]);
+
+  const tierRows = (tiers ?? []) as TierRow[];
+  const badgeRows = (badges ?? []) as BadgeRow[];
+  const ruleRows = (rules ?? []) as RewardRuleOption[];
+  const badgeRowsActivity = (badgeAssignments ?? []) as BadgeAssignmentRow[];
+  const tierRowsActivity = (tierAssignments ?? []) as TierAssignmentRow[];
+  const previewAgentRows = (previewAgents ?? []) as PreviewAgentRow[];
+  const rewardAudiences: RewardAudienceOption[] = (audiences ?? []).map((audience) => ({
+    id: audience.id,
+    name: audience.name,
+    description: audience.description,
+    estimatedCount: typeof audience.metadata?.estimated_count === "number" ? audience.metadata.estimated_count : null,
+  }));
+  const previewAgentOptions: RewardAgentOption[] = previewAgentRows.map((agent) => ({
+    id: agent.id,
+    displayName: agent.display_name || [agent.first_name_en, agent.last_name_en].filter(Boolean).join(" ") || null,
+    nameAr: [agent.first_name_ar, agent.last_name_ar].filter(Boolean).join(" ") || null,
+    verificationStatus: agent.verification_status,
+  }));
+
+  const tierLookup = new Map(tierRows.map((tier) => [tier.id, tier]));
+  const badgeLookup = new Map(badgeRows.map((badge) => [badge.id, badge]));
+  const activeRuleCount = ruleRows.filter((rule) => rule.is_active !== false && statusLabel(rule) !== "Archived").length;
 
   return (
     <AdminLayout
       title="Tiers & Badges"
-      description="Create incentives, assign tiers, and configure instant qualification rules."
+      description="Turn agent progress into visible momentum with safe, understandable rewards."
       navItems={ui.navItems}
       meta={ui.meta}
     >
@@ -90,333 +165,77 @@ export default async function RewardsPage() {
         <AdminAccessDenied />
       ) : (
         <>
-          <section className="rounded-3xl border border-black/5 bg-gradient-to-br from-white via-white to-black/5 px-5 py-6 shadow-xl shadow-black/5 sm:px-8 sm:py-7">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.4em] text-neutral-400">Rewards studio</p>
-                <h2 className="text-3xl font-semibold text-[#050505]">Tiers & badges control room</h2>
-                <p className="mt-2 text-sm text-neutral-500">
-                  Build tiers, craft badges, then push rules when you are ready. Keep the activity feed lightweight.
-                </p>
+          <section className="relative overflow-hidden rounded-[1.7rem] border border-black/10 bg-[#11120f] px-5 py-6 text-white shadow-[0_20px_50px_rgba(5,5,5,0.12)] sm:px-8 sm:py-8" aria-labelledby="rewards-hero-title">
+            <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full border-[38px] border-[#dff579]/10" aria-hidden="true" />
+            <div className="pointer-events-none absolute bottom-[-5rem] right-[22%] h-40 w-40 rotate-12 border border-[#dff579]/20" aria-hidden="true" />
+            <div className="relative flex flex-wrap items-start justify-between gap-6">
+              <div className="max-w-3xl">
+                <div className="flex items-center gap-2 text-[#dff579]"><Sparkles aria-hidden="true" size={16} /><p className="text-[10px] font-semibold uppercase tracking-[0.3em]">Growth studio / reward design</p></div>
+                <h2 id="rewards-hero-title" className="mt-3 max-w-2xl text-3xl font-semibold leading-[1.05] tracking-[-0.04em] sm:text-5xl">Make good work impossible to miss.</h2>
+                <p className="mt-4 max-w-2xl text-sm leading-6 text-white/65 sm:text-base">Build a tier journey or a badge moment in plain language. Preview the people affected, check the mobile experience, and choose exactly when it should run.</p>
               </div>
-              <form action="/api/admin/rewards/apply" method="post">
-                <button className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/15 hover:bg-black/90">
-                  Apply rules now
+              <form action="/api/admin/rewards/apply" method="post" className="relative shrink-0">
+                <button className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#dff579] px-5 py-2.5 text-sm font-semibold text-[#11120f] shadow-[0_8px_20px_rgba(223,245,121,0.2)] transition-transform hover:-translate-y-0.5" title="Re-evaluate currently active reward rules">
+                  <span className="h-2 w-2 rounded-full bg-[#4c5d11]" aria-hidden="true" />
+                  Run active rules
                 </button>
+                <p className="mt-2 text-right text-[10px] text-white/40">Re-checks active rules only</p>
               </form>
             </div>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <div className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs text-neutral-500">
-                {tiers?.length ?? 0} tiers
-              </div>
-              <div className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs text-neutral-500">
-                {badges?.length ?? 0} badges
-              </div>
-              <div className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs text-neutral-500">
-                {rules?.length ?? 0} active rules
-              </div>
+            <div className="relative mt-8 grid gap-2 sm:grid-cols-4">
+              <HeroStat label="Tier levels" value={tierRows.length} detail="ordered in the ladder" />
+              <HeroStat label="Badges" value={badgeRows.length} detail="moments to celebrate" />
+              <HeroStat label="Active rules" value={activeRuleCount} detail="currently evaluating" />
+              <HeroStat label="Recent awards" value={badgeRowsActivity.length + tierRowsActivity.length} detail="last 20 of each feed" />
             </div>
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[1.15fr_1fr]">
-            <div className="space-y-4">
-              <div className="rounded-3xl border border-black/5 bg-white px-6 py-4 shadow-xl shadow-black/5">
-                <h3 className="text-lg font-semibold text-[#050505]">Build rules</h3>
-                <p className="text-sm text-neutral-500">Preview who qualifies before you activate.</p>
-              </div>
-              <RewardsRuleBuilder tiers={(tiers ?? []) as TierRow[]} badges={(badges ?? []) as BadgeRow[]} />
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(260px,0.34fr)]" aria-labelledby="studio-guide-title">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#66722f]">One guided workflow</p>
+              <h2 id="studio-guide-title" className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#111]">From idea to impact preview</h2>
             </div>
-
-            <div className="space-y-6">
-              <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
-                <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Create tier</summary>
-                <p className="mt-2 text-sm text-neutral-500">Higher levels override lower ones. Promotion only.</p>
-                <form
-                  action="/api/admin/rewards/tiers"
-                  method="post"
-                  encType="multipart/form-data"
-                  className="mt-6 space-y-4 text-sm text-neutral-600"
-                >
-                  <div>
-                    <label className="text-xs text-neutral-500">Tier name</label>
-                    <input
-                      name="name"
-                      required
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Level</label>
-                    <input
-                      name="level"
-                      type="number"
-                      min="1"
-                      required
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Description</label>
-                    <textarea
-                      name="description"
-                      rows={3}
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Benefit type</label>
-                    <select
-                      name="benefitType"
-                      defaultValue="none"
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    >
-                      <option value="none">None</option>
-                      <option value="commission_boost">Commission boost</option>
-                      <option value="priority_support">Priority support</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Benefit value</label>
-                    <input
-                      name="benefitValue"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.25"
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Benefit description</label>
-                    <textarea
-                      name="benefitDescription"
-                      rows={2}
-                      placeholder="Adds +0.25% on top of the project commission."
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Icon</label>
-                    <input name="icon" type="file" accept="image/*" required className="mt-2 w-full text-sm" />
-                  </div>
-                  <button className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-black/10 hover:bg-black/90">
-                    Save tier
-                  </button>
-                </form>
-              </details>
-
-              <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
-                <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Create badge</summary>
-                <p className="mt-2 text-sm text-neutral-500">Badges can be permanent or expiring.</p>
-                <form
-                  action="/api/admin/rewards/badges"
-                  method="post"
-                  encType="multipart/form-data"
-                  className="mt-6 space-y-4 text-sm text-neutral-600"
-                >
-                  <div>
-                    <label className="text-xs text-neutral-500">Badge name</label>
-                    <input
-                      name="name"
-                      required
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Badge name (Arabic)</label>
-                    <input
-                      name="name_ar"
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Badge type</label>
-                    <select
-                      name="badge_type"
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    >
-                      <option value="special">Special</option>
-                      <option value="deal_milestone">Deal milestone</option>
-                      <option value="earnings">Earnings</option>
-                      <option value="referrals">Referrals</option>
-                      <option value="speed">Speed</option>
-                      <option value="contributions">Contributions</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Expires in days (optional)</label>
-                    <input
-                      name="expires_in_days"
-                      type="number"
-                      min="1"
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Description</label>
-                    <textarea
-                      name="description"
-                      rows={3}
-                      className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[#050505]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-neutral-500">Icon</label>
-                    <input name="icon" type="file" accept="image/*" required className="mt-2 w-full text-sm" />
-                  </div>
-                  <button className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-black/10 hover:bg-black/90">
-                    Save badge
-                  </button>
-                </form>
-              </details>
-            </div>
+            <div className="rounded-2xl border border-black/10 bg-[#f7f7f2] px-4 py-3 text-xs leading-5 text-neutral-600">A draft never awards anything. Use the final step to see named recipients, overlap warnings, and the bilingual mobile state before activation.</div>
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-2">
-            <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
-              <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Catalog</summary>
-              <div className="mt-6 space-y-6 text-sm text-neutral-600">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-neutral-400">Active tiers</p>
-                  <div className="mt-3 space-y-3">
-                    {(tiers ?? []).map((tier) => (
-                      <div key={tier.id} className="flex items-center gap-3 rounded-2xl border border-black/5 bg-black/5 px-4 py-3">
-                        {tier.icon_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={tier.icon_url} alt={tier.name} className="h-10 w-10 rounded-full object-cover" />
-                        ) : (
-                          <div className="h-10 w-10 rounded-full bg-neutral-200" />
-                        )}
-                        <div className="flex-1">
-                          <p className="font-semibold text-[#050505]">
-                            Level {tier.level ?? "—"} · {tier.name}
-                          </p>
-                          <p className="text-xs text-neutral-500">{tier.description ?? "No description"}</p>
-                          {tier.benefit_type && tier.benefit_type !== "none" ? (
-                            <p className="mt-1 text-xs text-neutral-500">
-                              {tier.benefit_type === "commission_boost"
-                                ? `Commission boost: +${tier.benefit_value ?? 0}%`
-                                : tier.benefit_description ?? tier.benefit_type}
-                            </p>
-                          ) : null}
-                        </div>
-                        <span className="rounded-full border border-black/10 px-3 py-1 text-xs">
-                          {tier.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                    ))}
-                    {!tiers?.length && <p className="text-sm text-neutral-400">No tiers created yet.</p>}
-                  </div>
-                </div>
+          <RewardsRuleBuilder tiers={tierRows} badges={badgeRows} agents={previewAgentOptions} rules={ruleRows} audiences={rewardAudiences} />
 
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-neutral-400">Badges</p>
-                  <div className="mt-3 space-y-3">
-                    {(badges ?? []).map((badge) => (
-                      <div key={badge.id} className="flex items-center gap-3 rounded-2xl border border-black/5 bg-black/5 px-4 py-3">
-                        {badge.icon_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={badge.icon_url} alt={badge.name} className="h-10 w-10 rounded-full object-cover" />
-                        ) : (
-                          <div className="h-10 w-10 rounded-full bg-neutral-200" />
-                        )}
-                        <div className="flex-1">
-                          <p className="font-semibold text-[#050505]">
-                            {badge.name}
-                            {badge.name_ar ? (
-                              <span className="ml-2 text-xs font-normal text-neutral-500">· {badge.name_ar}</span>
-                            ) : null}
-                          </p>
-                          <p className="text-xs text-neutral-500">{badge.description ?? "No description"}</p>
-                        </div>
-                        <span className="rounded-full border border-black/10 px-3 py-1 text-xs">
-                          {badge.expires_in_days ? `${badge.expires_in_days}d` : "Permanent"}
-                        </span>
-                      </div>
-                    ))}
-                    {!badges?.length && <p className="text-sm text-neutral-400">No badges created yet.</p>}
-                  </div>
-                </div>
-              </div>
+          <section className="grid gap-5 xl:grid-cols-2" aria-label="Reward catalog setup">
+            <details open className="rounded-[1.6rem] border border-black/10 bg-white p-5 shadow-[0_16px_40px_rgba(5,5,5,0.05)] sm:p-6">
+              <summary className="cursor-pointer list-none"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#66722f]">Catalog / tiers</p><h2 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[#111]">Add a level to the ladder</h2><p className="mt-1 text-sm text-neutral-500">Give agents a clear next step and a benefit they can understand.</p></div><span className="rounded-full border border-black/10 bg-[#f7f7f2] px-3 py-1.5 text-[11px] font-semibold text-neutral-600">Level {tierRows.length + 1} suggested</span></div></summary>
+              <div className="mt-5"><TierCatalogForm existingLevels={tierRows.map((tier) => tier.level).filter((level): level is number => level !== null)} /></div>
             </details>
-
-            <details className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
-              <summary className="cursor-pointer text-lg font-semibold text-[#050505]">Active rules</summary>
-              <div className="mt-4 space-y-3 text-sm text-neutral-600">
-                {(rules ?? []).map((rule) => (
-                  <div key={rule.id} className="flex items-center justify-between gap-4 rounded-2xl border border-black/5 bg-black/5 px-4 py-3">
-                    <div>
-                      <p className="font-semibold text-[#050505]">
-                        {rule.target_type} · {rule.metric} · {rule.operator}{" "}
-                        {rule.operator === "between" ? `${rule.value_min}–${rule.value_max}` : rule.value_single}
-                      </p>
-                      <p className="text-xs text-neutral-500">Window: {rule.time_window ?? "all_time"}</p>
-                    </div>
-                    <span className="rounded-full border border-black/10 px-3 py-1 text-xs">
-                      {rule.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-                ))}
-                {!rules?.length && <p className="text-sm text-neutral-400">No rules created yet.</p>}
-              </div>
+            <details open className="rounded-[1.6rem] border border-black/10 bg-white p-5 shadow-[0_16px_40px_rgba(5,5,5,0.05)] sm:p-6">
+              <summary className="cursor-pointer list-none"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#4d477f]">Catalog / badges</p><h2 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[#111]">Create a recognition moment</h2><p className="mt-1 text-sm text-neutral-500">Explain the story, visibility, expiry, and what happens next.</p></div><span className="rounded-full border border-[#c8c2e9] bg-[#f2f1fb] px-3 py-1.5 text-[11px] font-semibold text-[#4d477f]">Bilingual ready</span></div></summary>
+              <div className="mt-5"><BadgeCatalogForm /></div>
             </details>
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-2">
-            <div className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
-              <h3 className="text-lg font-semibold text-[#050505]">Recent badge assignments</h3>
-              <div className="mt-4 space-y-3 text-sm text-neutral-600">
-                {badgeRows.map((row) => (
-                  <div
-                    key={`${row.agent_id}-${row.badge_id}-${row.unlocked_at}`}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-black/5 px-4 py-3"
-                  >
-                    <div>
-                      <p className="font-semibold text-[#050505]">
-                        {row.users_profile?.[0]?.display_name ?? formatIdentifier(row.agent_id)}
-                      </p>
-                      <p className="text-xs text-neutral-500">
-                        {row.badges?.[0]?.name ?? "Badge"}
-                        {row.badges?.[0]?.name_ar ? ` · ${row.badges[0].name_ar}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-xs text-neutral-500">
-                      {row.unlocked_at ? new Date(row.unlocked_at).toLocaleDateString() : "—"}
-                    </div>
-                  </div>
-                ))}
-                {!badgeAssignments?.length && <p className="text-sm text-neutral-400">No badge activity yet.</p>}
-              </div>
-            </div>
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]" aria-label="Reward libraries and activity">
+            <RewardTierLadder tiers={tierRows} recentMovements={tierRowsActivity.slice(0, 4).map((row) => ({ name: displayName(row.users_profile), to: row.tiers?.[0]?.name }))} canApprove={ui.roles.includes("super_admin")} />
+            <RewardBadgeCatalog badges={badgeRows} canApprove={ui.roles.includes("super_admin")} />
+          </section>
 
-            <div className="rounded-3xl border border-black/5 bg-white px-5 py-5 shadow-xl shadow-black/5 sm:px-6 sm:py-6">
-              <h3 className="text-lg font-semibold text-[#050505]">Recent tier promotions</h3>
-              <div className="mt-4 space-y-3 text-sm text-neutral-600">
-                {tierRows.map((row) => (
-                  <div
-                    key={`${row.user_id}-${row.tier_id}-${row.awarded_at}`}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-black/5 px-4 py-3"
-                  >
-                    <div>
-                      <p className="font-semibold text-[#050505]">
-                        {row.users_profile?.[0]?.display_name ?? formatIdentifier(row.user_id)}
-                      </p>
-                      <p className="text-xs text-neutral-500">
-                        Tier {row.tiers?.[0]?.level ?? "—"} · {row.tiers?.[0]?.name ?? "—"}
-                      </p>
-                    </div>
-                    <div className="text-xs text-neutral-500">
-                      {row.awarded_at ? new Date(row.awarded_at).toLocaleDateString() : "—"}
-                    </div>
-                  </div>
-                ))}
-                {!tierAssignments?.length && <p className="text-sm text-neutral-400">No tier activity yet.</p>}
-              </div>
-            </div>
+          <section className="grid gap-5 xl:grid-cols-2" aria-label="Reward activity and saved rules">
+            <section className="rounded-[1.6rem] border border-black/10 bg-white p-5 shadow-[0_16px_40px_rgba(5,5,5,0.05)] sm:p-6" aria-labelledby="reward-rules-title">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#66722f]">Guardrails</p><h2 id="reward-rules-title" className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[#111]">Saved qualification rules</h2><p className="mt-1 text-sm text-neutral-500">See what is live, waiting, paused, or kept for history.</p></div><span className="rounded-full border border-black/10 bg-[#f7f7f2] px-3 py-1.5 text-[11px] font-semibold text-neutral-600">{ruleRows.length} total</span></div>
+              <div className="mt-5 space-y-2.5">{ruleRows.slice(0, 8).map((rule) => { const target = rule.target_type === "tier" ? tierLookup.get(rule.target_id || "") : badgeLookup.get(rule.target_id || ""); const status = statusLabel(rule); const value = rule.operator === "between" ? `${rule.value_min ?? "—"}–${rule.value_max ?? "—"}` : `${rule.value_single ?? "—"}`; return <article key={rule.id} className="flex items-start gap-3 rounded-2xl border border-black/10 bg-[#fafaf8] px-3.5 py-3"><div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${rule.target_type === "tier" ? "bg-[#f1f5d9] text-[#4c5d11]" : "bg-[#f2f1fb] text-[#4d477f]"}`}>{rule.target_type === "tier" ? <Layers3 aria-hidden="true" size={15} /> : <BadgeCheck aria-hidden="true" size={15} />}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-[#111]">{target ? `${rule.target_type === "tier" && "level" in target && target.level ? `Level ${target.level} · ` : ""}${target.name}` : "Reward rule"}</p><p className="mt-1 truncate text-[11px] text-neutral-500">{rule.metric?.replaceAll("_", " ")} · {rule.operator} {value} · {rule.time_window?.replaceAll("_", " ")}</p><GrowthApprovalControls entityType="admin_rule" entityId={rule.id} status={rule.approval_status ?? "not_required"} canApprove={ui.roles.includes("super_admin")} /></div><div className="flex shrink-0 flex-col items-end gap-2"><span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${statusClasses(status)}`}>{status}</span><GrowthVersionHistory entityType="admin_rule" entityId={rule.id} currentVersion={rule.version ?? 1} /></div></article>; })}{!ruleRows.length ? <EmptyMessage title="No rules yet" body="Use the guided builder above to attach a goal to a tier or badge." /> : null}</div>
+            </section>
+            <section className="rounded-[1.6rem] border border-black/10 bg-white p-5 shadow-[0_16px_40px_rgba(5,5,5,0.05)] sm:p-6" aria-labelledby="reward-activity-title">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#4d477f]">Signals</p><h2 id="reward-activity-title" className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[#111]">Recent reward moments</h2><p className="mt-1 text-sm text-neutral-500">Named activity keeps the programme human and reviewable.</p></div><span className="rounded-full border border-[#c8c2e9] bg-[#f2f1fb] px-3 py-1.5 text-[11px] font-semibold text-[#4d477f]">Live feed</span></div>
+              <div className="mt-5 space-y-2.5">{[...badgeRowsActivity.map((row) => ({ key: `badge-${row.agent_id}-${row.badge_id}-${row.unlocked_at}`, name: displayName(row.users_profile), reward: row.badges?.[0]?.name || "Badge", detail: row.badges?.[0]?.name_ar, date: row.unlocked_at, tone: "badge" })), ...tierRowsActivity.map((row) => ({ key: `tier-${row.user_id}-${row.tier_id}-${row.awarded_at}`, name: displayName(row.users_profile), reward: row.tiers?.[0]?.name || "Tier", detail: row.tiers?.[0]?.level ? `Level ${row.tiers[0].level}` : null, date: row.awarded_at, tone: "tier" }))].slice(0, 10).map((item) => <div key={item.key} className="flex items-center gap-3 rounded-2xl border border-black/10 bg-[#fafaf8] px-3.5 py-3"><div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${item.tone === "tier" ? "bg-[#f1f5d9] text-[#4c5d11]" : "bg-[#f2f1fb] text-[#4d477f]"}`}>{item.tone === "tier" ? <ArrowUp aria-hidden="true" size={15} /> : <BadgeCheck aria-hidden="true" size={15} />}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-[#111]">{item.name}</p><p className="truncate text-[11px] text-neutral-500">{item.reward}{item.detail ? ` · ${item.detail}` : ""}</p></div><time className="shrink-0 text-[10px] text-neutral-400" dateTime={item.date || undefined}>{formatDate(item.date)}</time></div>)}{!badgeRowsActivity.length && !tierRowsActivity.length ? <EmptyMessage title="No activity yet" body="The feed will show an agent name and the reward moment after the first qualification." /> : null}</div>
+            </section>
           </section>
         </>
       )}
     </AdminLayout>
   );
+}
+
+function HeroStat({ label, value, detail }: { label: string; value: number; detail: string }) {
+  return <div className="rounded-2xl border border-white/10 bg-white/5 px-3.5 py-3"><p className="text-[10px] uppercase tracking-[0.16em] text-white/45">{label}</p><p className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-[#dff579]">{value}</p><p className="mt-0.5 text-[10px] text-white/45">{detail}</p></div>;
+}
+
+function EmptyMessage({ title, body }: { title: string; body: string }) {
+  return <div className="rounded-2xl border border-dashed border-black/15 bg-neutral-50 px-4 py-7 text-center"><p className="text-sm font-semibold text-[#111]">{title}</p><p className="mt-1 text-xs leading-4 text-neutral-500">{body}</p></div>;
 }

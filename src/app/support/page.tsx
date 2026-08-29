@@ -124,15 +124,13 @@ async function replyToTicketAction(formData: FormData) {
   const ticketId = formData.get("ticketId")?.toString();
   const message = formData.get("message")?.toString().trim() ?? "";
   if (!ticketId || !message) redirect("/support?error=Write%20a%20reply.");
-  const { data: ticket } = await supabaseServer.from("support_tickets").select("agent_id, first_response_at").eq("id", ticketId).single();
-  if (!ticket) redirect("/support?error=Ticket%20not%20found.");
-  const { error } = await supabaseServer.from("support_ticket_messages").insert({ ticket_id: ticketId, author_type: "admin", author_id: admin.adminId, message });
+  const { error } = await supabaseServer.rpc("admin_reply_to_support_ticket", {
+    p_ticket_id: ticketId,
+    p_admin_id: admin.adminId,
+    p_message: message,
+  });
   if (error) redirect(`/support?ticket=${ticketId}&error=${encodeURIComponent(error.message)}`);
-  await Promise.all([
-    supabaseServer.from("support_tickets").update({ status: "waiting_agent", assigned_to: admin.adminId, first_response_at: ticket.first_response_at ?? new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", ticketId),
-    supabaseServer.from("notifications").insert({ agent_id: ticket.agent_id, type: "admin_message", title: "Support replied", message: message.slice(0, 240), related_entity_type: "support_ticket", related_entity_id: ticketId, action_url: "/support" }),
-    logAdminActivity({ adminId: admin.adminId, action: "support_ticket_replied", resourceType: "support_ticket", resourceId: ticketId }),
-  ]);
+  await logAdminActivity({ adminId: admin.adminId, action: "support_ticket_replied", resourceType: "support_ticket", resourceId: ticketId });
   revalidatePath("/support");
   redirect(`/support?ticket=${ticketId}&success=Reply%20sent.`);
 }
@@ -155,7 +153,8 @@ async function assignTicketAction(formData: FormData) {
   if (!admin) redirect("/support?error=Access%20denied.");
   const ticketId = formData.get("ticketId")?.toString();
   if (!ticketId) return;
-  await supabaseServer.from("support_tickets").update({ assigned_to: admin.adminId, status: "in_progress", updated_at: new Date().toISOString() }).eq("id", ticketId);
+  const { error } = await supabaseServer.from("support_tickets").update({ assigned_to: admin.adminId, status: "in_progress", updated_at: new Date().toISOString() }).eq("id", ticketId);
+  if (error) redirect(`/support?ticket=${ticketId}&error=${encodeURIComponent(error.message)}`);
   revalidatePath("/support");
   redirect(`/support?ticket=${ticketId}`);
 }

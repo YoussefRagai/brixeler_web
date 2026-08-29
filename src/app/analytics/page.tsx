@@ -3,6 +3,7 @@ import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { PrintButton } from "@/components/PrintButton";
+import { summarizeGiftGrowthMetrics } from "@/lib/growthAnalytics";
 
 const formatCurrency = (value: number) =>
   value.toLocaleString("en-EG", {
@@ -22,7 +23,51 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
     .order("submitted_at", { ascending: false });
   if (dateFrom) dealsQuery = dealsQuery.gte("submitted_at", new Date(`${dateFrom}T00:00:00`).toISOString());
   if (dateTo) dealsQuery = dealsQuery.lte("submitted_at", new Date(`${dateTo}T23:59:59`).toISOString());
-  const [{ data: deals }, { count: approvedListings }, { count: pendingListings }, { data: profiles }] =
+  const eligibilityQuery = supabaseServer
+    .from("gift_eligibilities")
+    .select("status, eligible_at")
+    .in("status", ["eligible", "claimed"]);
+  const claimsQuery = supabaseServer
+    .from("gift_claims")
+    .select("status, claimed_at, updated_at")
+    .in("status", ["pending", "approved", "fulfilled"]);
+  const badgesQuery = supabaseServer
+    .from("agent_badges")
+    .select("unlocked_at");
+  const tiersQuery = supabaseServer
+    .from("user_tiers")
+    .select("awarded_at");
+  const notificationsQuery = supabaseServer
+    .from("notifications")
+    .select("is_read, created_at")
+    .eq("type", "admin_message");
+  if (dateFrom) {
+    const from = new Date(`${dateFrom}T00:00:00`).toISOString();
+    eligibilityQuery.gte("eligible_at", from);
+    claimsQuery.gte("claimed_at", from);
+    badgesQuery.gte("unlocked_at", from);
+    tiersQuery.gte("awarded_at", from);
+    notificationsQuery.gte("created_at", from);
+  }
+  if (dateTo) {
+    const to = new Date(`${dateTo}T23:59:59`).toISOString();
+    eligibilityQuery.lte("eligible_at", to);
+    claimsQuery.lte("claimed_at", to);
+    badgesQuery.lte("unlocked_at", to);
+    tiersQuery.lte("awarded_at", to);
+    notificationsQuery.lte("created_at", to);
+  }
+  const [
+    { data: deals },
+    { count: approvedListings },
+    { count: pendingListings },
+    { data: profiles },
+    { data: giftEligibilities },
+    { data: giftClaims },
+    { data: badgeAwards },
+    { data: tierAwards },
+    { data: growthNotifications },
+  ] =
     await Promise.all([
       dealsQuery,
       supabaseServer
@@ -34,6 +79,11 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
         .select("*", { count: "exact", head: true })
         .eq("approval_status", "pending"),
       supabaseServer.from("users_profile").select("total_referrals, verified_referrals, referrals_with_first_deal"),
+      eligibilityQuery,
+      claimsQuery,
+      badgesQuery,
+      tiersQuery,
+      notificationsQuery,
     ]);
 
   const dealRows = deals ?? [];
@@ -54,6 +104,13 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
     },
     { total: 0, verified: 0, converted: 0 },
   );
+
+  const { eligibleCount, claimedCount, approvedCount, fulfilledCount, claimRate, fulfillmentRate } = summarizeGiftGrowthMetrics(
+    giftEligibilities ?? [],
+    giftClaims ?? [],
+  );
+  const notificationRows = growthNotifications ?? [];
+  const readNotifications = notificationRows.filter((notification) => notification.is_read).length;
 
   return {
     cards: [
@@ -98,6 +155,21 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
         : 0,
       referralConversionRate: referralTotals.verified
         ? Math.round((referralTotals.converted / referralTotals.verified) * 100)
+        : 0,
+    },
+    growth: {
+      eligible: eligibleCount,
+      claimed: claimedCount,
+      approved: approvedCount,
+      fulfilled: fulfilledCount,
+      badgesAwarded: (badgeAwards ?? []).length,
+      tierMoves: (tierAwards ?? []).length,
+      notificationsSent: notificationRows.length,
+      notificationsRead: readNotifications,
+      claimRate,
+      fulfillmentRate,
+      notificationReadRate: notificationRows.length
+        ? Math.round((readNotifications / notificationRows.length) * 100)
         : 0,
     },
   };
@@ -195,9 +267,63 @@ export default async function AnalyticsPage({ searchParams }: { searchParams?: P
               </div>
             </div>
           </section>
+
+          <section className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm" aria-labelledby="growth-funnel-title">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Growth impact</p>
+                <h2 id="growth-funnel-title" className="mt-1 text-xl font-semibold text-neutral-950">Rewards and communication funnel</h2>
+                <p className="mt-1 text-sm text-neutral-500">The same date range is applied to eligibility, claims, awards, and admin messages.</p>
+              </div>
+              <a href="/gifts/claims" className="min-h-11 rounded-full border border-black/10 px-4 py-2 text-sm font-semibold leading-7 text-neutral-700 hover:border-black/30 hover:text-black">Review fulfillment</a>
+            </div>
+            {analytics ? (
+              <>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    ["Eligible", analytics.growth.eligible],
+                    ["Claimed", analytics.growth.claimed],
+                    ["Approved", analytics.growth.approved],
+                    ["Fulfilled", analytics.growth.fulfilled],
+                  ].map(([label, value]) => (
+                    <article key={String(label)} className="rounded-2xl border border-black/5 bg-neutral-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">{label}</p>
+                      <p className="dashboard-number mt-2 text-3xl font-semibold text-neutral-950">{Number(value).toLocaleString("en-EG")}</p>
+                    </article>
+                  ))}
+                </div>
+                <div className="mt-6 grid gap-5 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-black/5 p-4">
+                    <p className="text-sm font-semibold text-neutral-900">Conversion</p>
+                    <div className="mt-4 space-y-4">
+                      <RateBar label="Eligible → claimed" value={analytics.growth.claimRate} />
+                      <RateBar label="Claimed → fulfilled" value={analytics.growth.fulfillmentRate} />
+                      <RateBar label="Admin messages read" value={analytics.growth.notificationReadRate} />
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <GrowthCount label="Badges awarded" value={analytics.growth.badgesAwarded} />
+                    <GrowthCount label="Tier movements" value={analytics.growth.tierMoves} />
+                    <GrowthCount label="Messages sent" value={analytics.growth.notificationsSent} />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="mt-6 text-sm text-neutral-500">Growth analytics are unavailable until the live database is configured.</p>
+            )}
+          </section>
         </>
       )}
     </AdminLayout>
+  );
+}
+
+function GrowthCount({ label, value }: { label: string; value: number }) {
+  return (
+    <article className="rounded-2xl border border-black/5 bg-neutral-50 p-4">
+      <p className="dashboard-number text-2xl font-semibold text-neutral-950">{value.toLocaleString("en-EG")}</p>
+      <p className="mt-1 text-xs text-neutral-600">{label}</p>
+    </article>
   );
 }
 

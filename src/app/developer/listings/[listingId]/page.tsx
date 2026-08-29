@@ -346,7 +346,8 @@ async function deleteListingFromEditAction(formData: FormData) {
   const session = await requireDeveloperSession();
   const listingId = formData.get("listingId")?.toString();
   if (!listingId) return;
-  await deleteListing(session.developerId, listingId);
+  const { error } = await deleteListing(session.developerId, listingId);
+  if (error) redirect(`/developer/listings/${listingId}?error=${encodeURIComponent(error.message)}`);
   redirect("/developer/listings");
 }
 
@@ -355,6 +356,10 @@ async function requestRenewalFromEditAction(formData: FormData) {
   const session = await requireDeveloperSession();
   const listingId = formData.get("listingId")?.toString();
   if (!listingId) return;
-  await requestListingRenewal(listingId, session.userId, session.developerId);
+  try {
+    await requestListingRenewal(listingId, session.userId, session.developerId);
+  } catch (error) {
+    redirect(`/developer/listings/${listingId}?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to request renewal.")}`);
+  }
   redirect("/developer/listings");
 }

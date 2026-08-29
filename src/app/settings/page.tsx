@@ -2,7 +2,7 @@ import { AdminLayout } from "@/components/AdminLayout";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { buildAdminUi } from "@/lib/adminUi";
-import { requireAdminContext } from "@/lib/adminAuth";
+import { requireAdminRole } from "@/lib/adminAuth";
 import { logAdminActivity } from "@/lib/adminQueries";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
@@ -39,6 +39,12 @@ type DemoBatch = {
   removed_at: string | null;
 };
 
+async function requireSettingsAdmin() {
+  const admin = await requireAdminRole(["super_admin"]);
+  if (!admin) redirect("/settings?error=Access%20denied.");
+  return admin;
+}
+
 async function getSettingsData(): Promise<{ tiers: ReferralTier[]; badges: Badge[]; demoBatches: DemoBatch[] }> {
   const [{ data: tiers }, { data: badges }, { data: demoBatches }] = await Promise.all([
     supabaseServer
@@ -64,7 +70,7 @@ async function getSettingsData(): Promise<{ tiers: ReferralTier[]; badges: Badge
 
 async function upsertTier(formData: FormData) {
   "use server";
-  const admin = await requireAdminContext();
+  const admin = await requireSettingsAdmin();
   const tierId = formData.get("tierId")?.toString() || undefined;
   const tierName = formData.get("tierName")?.toString() ?? "";
   const minReferrals = parseInt(formData.get("minReferrals")?.toString() ?? "0", 10);
@@ -77,7 +83,7 @@ async function upsertTier(formData: FormData) {
 
   if (!tierName.trim()) return;
 
-  await supabaseServer.from("referral_bonus_rules").upsert({
+  const { error } = await supabaseServer.from("referral_bonus_rules").upsert({
     id: tierId,
     tier_name: tierName.trim(),
     min_referrals: Number.isNaN(minReferrals) ? 0 : minReferrals,
@@ -87,6 +93,7 @@ async function upsertTier(formData: FormData) {
     requires_first_deal: requiresFirstDeal,
     behavior_requirement: behaviorRequirement,
   });
+  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
   await logAdminActivity({
     adminId: admin.adminId,
     action: tierId ? "settings.update_tier" : "settings.create_tier",
@@ -100,10 +107,11 @@ async function upsertTier(formData: FormData) {
 
 async function deleteTier(formData: FormData) {
   "use server";
-  const admin = await requireAdminContext();
+  const admin = await requireSettingsAdmin();
   const tierId = formData.get("tierId")?.toString();
   if (!tierId) return;
-  await supabaseServer.from("referral_bonus_rules").delete().eq("id", tierId);
+  const { error } = await supabaseServer.from("referral_bonus_rules").delete().eq("id", tierId);
+  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
   await logAdminActivity({
     adminId: admin.adminId,
     action: "settings.delete_tier",
@@ -115,7 +123,7 @@ async function deleteTier(formData: FormData) {
 
 async function upsertBadge(formData: FormData) {
   "use server";
-  const admin = await requireAdminContext();
+  const admin = await requireSettingsAdmin();
   const badgeId = formData.get("badgeId")?.toString() || undefined;
   const badgeName = formData.get("badgeName")?.toString() ?? "";
   const badgeType = formData.get("badgeType")?.toString() ?? "deal_milestone";
@@ -128,7 +136,7 @@ async function upsertBadge(formData: FormData) {
 
   if (!badgeName.trim()) return;
 
-  await supabaseServer.from("badges").upsert({
+  const { error } = await supabaseServer.from("badges").upsert({
     id: badgeId,
     name: badgeName.trim(),
     badge_type: badgeType,
@@ -138,6 +146,7 @@ async function upsertBadge(formData: FormData) {
     display_order: Number.isNaN(displayOrder) ? null : displayOrder,
     is_active: isActive,
   });
+  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
   await logAdminActivity({
     adminId: admin.adminId,
     action: badgeId ? "settings.update_badge" : "settings.create_badge",
@@ -150,10 +159,11 @@ async function upsertBadge(formData: FormData) {
 
 async function deleteBadge(formData: FormData) {
   "use server";
-  const admin = await requireAdminContext();
+  const admin = await requireSettingsAdmin();
   const badgeId = formData.get("badgeId")?.toString();
   if (!badgeId) return;
-  await supabaseServer.from("badges").delete().eq("id", badgeId);
+  const { error } = await supabaseServer.from("badges").delete().eq("id", badgeId);
+  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
   await logAdminActivity({
     adminId: admin.adminId,
     action: "settings.delete_badge",
@@ -165,7 +175,7 @@ async function deleteBadge(formData: FormData) {
 
 async function removeDemoBatch(formData: FormData) {
   "use server";
-  const admin = await requireAdminContext();
+  const admin = await requireSettingsAdmin();
   const batchKey = formData.get("batchKey")?.toString();
   if (!batchKey) return;
   const { error } = await supabaseServer.rpc("cleanup_demo_batch", { p_batch: batchKey });

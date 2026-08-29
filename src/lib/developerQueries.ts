@@ -269,7 +269,7 @@ export async function updateDeveloperListing(
     payload.monthlyInstallment && payload.monthlyInstallment > 0
       ? payload.monthlyInstallment
       : Math.round(payload.price / Math.max(payload.installmentYears, 1) / 12);
-  const { error } = await supabaseServer
+  const { data, error } = await supabaseServer
     .from("properties")
     .update({
       price: payload.price,
@@ -299,8 +299,10 @@ export async function updateDeveloperListing(
     })
     .eq("developer_id", id)
     .is("listed_by_agent_id", null)
-    .eq("id", listingId);
-  return { error };
+    .eq("id", listingId)
+    .select("id")
+    .maybeSingle();
+  return { error: error ?? (!data ? new Error("Listing not found or access denied.") : null) };
 }
 
 export async function toggleListingVisibility(developerId: string, listingId: string, visibility: string) {
@@ -323,13 +325,15 @@ export async function toggleListingVisibility(developerId: string, listingId: st
 
 export async function deleteListing(developerId: string, listingId: string) {
   const id = assertDeveloperId(developerId);
-  const { error } = await supabaseServer
+  const { data, error } = await supabaseServer
     .from("properties")
     .delete()
     .eq("developer_id", id)
     .is("listed_by_agent_id", null)
-    .eq("id", listingId);
-  return { error };
+    .eq("id", listingId)
+    .select("id")
+    .maybeSingle();
+  return { error: error ?? (!data ? new Error("Listing not found or access denied.") : null) };
 }
 
 export async function requestListingRenewal(
@@ -551,12 +555,14 @@ export async function upsertDeveloperProject(
 
 export async function deleteDeveloperProject(developerId: string, projectId: string) {
   const id = assertDeveloperId(developerId);
-  const { error } = await supabaseServer
+  const { data, error } = await supabaseServer
     .from("developer_projects")
     .delete()
     .eq("developer_id", id)
-    .eq("id", projectId);
-  return { error };
+    .eq("id", projectId)
+    .select("id")
+    .maybeSingle();
+  return { error: error ?? (!data ? new Error("Project not found or access denied.") : null) };
 }
 
 export async function upsertProjectUnitType(
@@ -776,34 +782,12 @@ export async function updateDeveloperContactRequestStatus(
   status: DeveloperContactRequest["status"],
 ) {
   const id = assertDeveloperId(developerId);
-  const { data: request, error: lookupError } = await supabaseServer
-    .from("developer_contact_requests")
-    .select("id, developer_id, requester_user_id, project_name_snapshot")
-    .eq("id", requestId)
-    .maybeSingle();
-  if (lookupError || !request || request.developer_id !== id) {
-    return { error: lookupError ?? new Error("Contact request not found.") };
-  }
-  const { error } = await supabaseServer
-    .from("developer_contact_requests")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", requestId)
-    .eq("developer_id", id);
-  if (error) return { error };
-  const { error: notificationError } = await supabaseServer.from("notifications").insert({
-    agent_id: request.requester_user_id,
-    type: "admin_message",
-    title: "Developer request updated",
-    message: `Your ${request.project_name_snapshot} request is now ${status}.`,
-    action_url: "/properties",
-    related_entity_type: "developer_contact_request",
-    related_entity_id: request.id,
+  const { error } = await supabaseServer.rpc("update_developer_contact_request_with_notification", {
+    p_developer_id: id,
+    p_request_id: requestId,
+    p_status: status,
   });
-  if (notificationError) {
-    console.error("Failed to notify agent about developer request status", notificationError);
-    return { error: notificationError };
-  }
-  return { error: null };
+  return { error };
 }
 
 export async function deleteProjectUnitVariant(developerId: string, variantId: string) {

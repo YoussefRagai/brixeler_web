@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { ArrowLeft, ArrowRight, Building2, Check, ImageIcon, Landmark, MapPin, Plus, WalletCards } from "lucide-react";
 
 type Project = { id: string; name: string; location?: string | null };
@@ -14,16 +15,53 @@ const steps = [
 ];
 
 const inputClass = "min-h-12 rounded-2xl border border-black/10 bg-neutral-50 px-4 text-sm outline-none transition focus:border-black/30 focus:bg-white focus:ring-4 focus:ring-black/[0.04]";
+export const DEVELOPER_LISTING_DRAFT_KEY = "brixeler-developer-listing-draft-v1";
+
+type DraftControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+type DraftValue = { value: string; checked?: boolean };
+
+function getDraftControls(form: HTMLFormElement) {
+  const seen = new Map<string, number>();
+  return Array.from(form.elements)
+    .filter((control): control is DraftControl => {
+      if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return false;
+      if (!control.name || (control instanceof HTMLInputElement && ["file", "submit", "button", "reset"].includes(control.type))) return false;
+      return true;
+    })
+    .map((control) => {
+      const index = seen.get(control.name) ?? 0;
+      seen.set(control.name, index + 1);
+      return { control, key: `${control.name}:${index}` };
+    });
+}
+
+function readDraft(key: string) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function removeDraft(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Browser storage can be unavailable; clearing remains best effort.
+  }
+}
 
 export function DeveloperListingWizard({
   action,
   projects,
+  developerId,
   preselectedProjectId,
   preselectedSaleType,
   emphasizeCreateProject,
 }: {
   action: WizardAction;
   projects: Project[];
+  developerId: string;
   preselectedProjectId: string;
   preselectedSaleType: string;
   emphasizeCreateProject: boolean;
@@ -32,6 +70,68 @@ export function DeveloperListingWizard({
   const [step, setStep] = useState(0);
   const [projectMode, setProjectMode] = useState<"existing" | "new">(emphasizeCreateProject || !projects.length ? "new" : "existing");
   const [error, setError] = useState("");
+  const [draftRestored, setDraftRestored] = useState(false);
+  const draftKey = `${DEVELOPER_LISTING_DRAFT_KEY}:${developerId}:${preselectedSaleType}`;
+
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const rawDraft = readDraft(draftKey);
+    if (!rawDraft) return;
+    try {
+      const draft = JSON.parse(rawDraft) as Record<string, DraftValue>;
+      const savedProjectMode = draft.__projectMode?.value === "existing" || draft.__projectMode?.value === "new"
+        ? draft.__projectMode.value
+        : null;
+      const restore = window.setTimeout(() => {
+        if (savedProjectMode) setProjectMode(savedProjectMode);
+        window.requestAnimationFrame(() => {
+          let restored = false;
+          for (const { control, key } of getDraftControls(form)) {
+            const saved = draft[key];
+            if (!saved) continue;
+            if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
+              control.checked = Boolean(saved.checked);
+            } else {
+              control.value = saved.value;
+            }
+            restored = true;
+          }
+          setDraftRestored(restored);
+        });
+      }, 0);
+      return () => window.clearTimeout(restore);
+    } catch {
+      removeDraft(draftKey);
+    }
+  }, [draftKey]);
+
+  const persistDraft = () => {
+    const form = formRef.current;
+    if (!form) return;
+    const draft: Record<string, DraftValue> = {};
+    for (const { control, key } of getDraftControls(form)) {
+      draft[key] = {
+        value: control.value,
+        ...(control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")
+          ? { checked: control.checked }
+          : {}),
+      };
+    }
+    draft.__projectMode = { value: projectMode };
+    try {
+      window.localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch {
+      // Browser storage can be unavailable or full; the form remains usable.
+    }
+  };
+
+  const clearDraft = () => {
+    removeDraft(draftKey);
+    formRef.current?.reset();
+    setDraftRestored(false);
+    setError("");
+  };
 
   function advance() {
     const form = formRef.current;
@@ -68,19 +168,24 @@ export function DeveloperListingWizard({
     event.preventDefault();
     setStep(3);
     setError("Add at least three property photos before submitting.");
+    window.requestAnimationFrame(() => (form.elements.namedItem("photoFiles") as HTMLElement | null)?.focus());
   }
 
   return (
-    <form ref={formRef} action={action} onSubmit={validateSubmission} className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.05)]">
+    <form ref={formRef} action={action} onSubmit={(event) => { persistDraft(); validateSubmission(event); }} onInput={persistDraft} onChange={persistDraft} aria-describedby={error ? "listing-wizard-error" : undefined} className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.05)]">
       <input type="hidden" name="saleType" value={preselectedSaleType} />
       <div className="border-b border-black/5 bg-neutral-50/70 px-4 py-3 sm:px-6">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-neutral-500">Details are saved in this browser only. Uploads are never saved.</p>
+          {draftRestored ? <button type="button" onClick={clearDraft} className="shrink-0 text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-black">Clear saved details</button> : null}
+        </div>
         <ol className="grid grid-cols-4 gap-1" aria-label="Listing progress">
           {steps.map((item, index) => {
             const Icon = item.icon;
             return (
-              <li key={item.label} className={`flex min-w-0 items-center justify-center gap-2 rounded-xl px-2 py-2 text-xs font-semibold sm:justify-start sm:px-3 ${index === step ? "bg-white text-black shadow-sm ring-1 ring-black/5" : index < step ? "text-emerald-700" : "text-neutral-400"}`}>
+              <li key={item.label} aria-current={index === step ? "step" : undefined} className={`flex min-w-0 items-center justify-center gap-2 rounded-xl px-2 py-2 text-xs font-semibold sm:justify-start sm:px-3 ${index === step ? "bg-white text-black shadow-sm ring-1 ring-black/5" : index < step ? "text-emerald-700" : "text-neutral-400"}`}>
                 <span className={`grid size-7 shrink-0 place-items-center rounded-full ${index < step ? "bg-emerald-100" : index === step ? "bg-black text-white" : "bg-black/5"}`}>
-                  {index < step ? <Check size={14} /> : <Icon size={14} />}
+                  {index < step ? <Check aria-hidden="true" size={14} /> : <Icon aria-hidden="true" size={14} />}
                 </span>
                 <span className="hidden truncate sm:block">{item.label}</span>
               </li>
@@ -96,7 +201,7 @@ export function DeveloperListingWizard({
           <p className="mt-1 text-sm text-neutral-500">{stepDescription(step)}</p>
         </header>
 
-        {error ? <p className="mb-5 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</p> : null}
+        {error ? <p id="listing-wizard-error" role="alert" aria-live="assertive" className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</p> : null}
 
         <section hidden={step !== 0} className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -142,10 +247,15 @@ export function DeveloperListingWizard({
 
       <footer className="flex items-center justify-between border-t border-black/5 bg-neutral-50/60 px-5 py-4 sm:px-8">
         <button type="button" onClick={() => setStep((current) => Math.max(current - 1, 0))} disabled={step === 0} className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-neutral-600 disabled:invisible"><ArrowLeft size={16} /> Back</button>
-        {step < steps.length - 1 ? <button type="button" onClick={advance} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white">Continue <ArrowRight size={16} /></button> : <button type="submit" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white">Submit for review <ArrowRight size={16} /></button>}
+        {step < steps.length - 1 ? <button type="button" onClick={advance} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white">Continue <ArrowRight aria-hidden="true" size={16} /></button> : <ListingSubmitButton />}
       </footer>
     </form>
   );
+}
+
+function ListingSubmitButton() {
+  const { pending } = useFormStatus();
+  return <button type="submit" disabled={pending} aria-busy={pending} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60">{pending ? "Submitting…" : "Submit for review"} <ArrowRight aria-hidden="true" size={16} /></button>;
 }
 
 function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) { return <label className={`flex flex-col gap-1.5 text-sm ${className}`}><span className="text-xs font-semibold text-neutral-600">{label}</span>{children}</label>; }

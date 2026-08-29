@@ -29,6 +29,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Contract tests
+        run: npm run test:contracts
+
       - name: Build
         run: npm run build
 

@@ -92,6 +92,21 @@ export function storageObjectPath(bucket: string, value: string | null | undefin
   return value.replace(/^\/+/, "") || null;
 }
 
+export async function removeUploadedStorageObjects(items: Array<{ bucket: string; url: string }>) {
+  const grouped = new Map<string, string[]>();
+  for (const item of items) {
+    const path = storageObjectPath(item.bucket, item.url);
+    if (!path) continue;
+    grouped.set(item.bucket, [...(grouped.get(item.bucket) ?? []), path]);
+  }
+  const failures: Error[] = [];
+  for (const [bucket, paths] of grouped) {
+    const { error } = await storageServer.storage.from(bucket).remove(paths);
+    if (error) failures.push(error);
+  }
+  return { error: failures[0] ?? null };
+}
+
 export async function createSignedStorageUrl(
   bucket: string,
   value: string | null | undefined,

@@ -9,7 +9,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { error } = await supabaseServer.rpc("evaluate_gift_rules_for_all");
+  const { error } = await supabaseServer.rpc("run_growth_evaluation", {
+    p_scope: "gifts",
+    p_dry_run: false,
+    p_requested_by_admin: admin.adminId,
+  });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

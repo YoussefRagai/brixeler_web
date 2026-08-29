@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useFormStatus } from "react-dom";
 import { MobilePreviewButton } from "@/components/MobilePreviewButton";
 
 type WizardAction = (formData: FormData) => void | Promise<void>;
@@ -13,21 +14,122 @@ const steps = [
   { id: "amenities", label: "Amenities", hint: "Shared features" },
 ] as const;
 
-export function ProjectWizard({ action, children }: { action: WizardAction; children: ReactNode }) {
+export const PROJECT_WIZARD_DRAFT_KEY = "brixeler-project-wizard-draft-v1";
+
+type DraftControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+type DraftValue = { value: string; checked?: boolean };
+
+function getDraftControls(form: HTMLFormElement) {
+  const seen = new Map<string, number>();
+  return Array.from(form.elements)
+    .filter((control): control is DraftControl => {
+      if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLTextAreaElement)) return false;
+      if (!control.name || (control instanceof HTMLInputElement && ["file", "submit", "button", "reset"].includes(control.type))) return false;
+      return true;
+    })
+    .map((control) => {
+      const index = seen.get(control.name) ?? 0;
+      seen.set(control.name, index + 1);
+      return { control, key: `${control.name}:${index}` };
+    });
+}
+
+function readLocalValue(key: string) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalValue(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Browser storage is optional; the wizard remains fully usable without it.
+  }
+}
+
+function removeLocalValue(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Browser storage can be unavailable; clearing remains best effort.
+  }
+}
+
+export function ProjectWizard({ action, children, developerId }: { action: WizardAction; children: ReactNode; developerId: string }) {
   const [activeStep, setActiveStep] = useState(0);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [error, setError] = useState("");
   const formRef = useRef<HTMLFormElement | null>(null);
+  const draftKey = `${PROJECT_WIZARD_DRAFT_KEY}:${developerId}`;
 
   useEffect(() => {
-    const savedStep = Number(window.localStorage.getItem("brixeler-project-wizard-step"));
+    const savedStep = Number(readLocalValue(`${draftKey}:step`));
     if (!Number.isInteger(savedStep) || savedStep < 0 || savedStep >= steps.length) return;
     const restore = window.setTimeout(() => setActiveStep(savedStep), 0);
     return () => window.clearTimeout(restore);
-  }, []);
+  }, [draftKey]);
+
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const rawDraft = readLocalValue(draftKey);
+    if (!rawDraft) return;
+    try {
+      const draft = JSON.parse(rawDraft) as Record<string, DraftValue>;
+      let restored = false;
+      for (const { control, key } of getDraftControls(form)) {
+        const saved = draft[key];
+        if (!saved) continue;
+        if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
+          control.checked = Boolean(saved.checked);
+        } else {
+          control.value = saved.value;
+        }
+        restored = true;
+      }
+      const restore = window.setTimeout(() => setDraftRestored(restored), 0);
+      return () => window.clearTimeout(restore);
+    } catch {
+      removeLocalValue(draftKey);
+    }
+  }, [draftKey]);
+
+  const persistDraft = () => {
+    const form = formRef.current;
+    if (!form) return;
+    const draft: Record<string, DraftValue> = {};
+    for (const { control, key } of getDraftControls(form)) {
+      draft[key] = {
+        value: control.value,
+        ...(control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")
+          ? { checked: control.checked }
+          : {}),
+      };
+    }
+    try {
+      window.localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch {
+      // Browser storage can be unavailable or full; the form remains usable.
+    }
+  };
+
+  const clearDraft = () => {
+    removeLocalValue(draftKey);
+    removeLocalValue(`${draftKey}:step`);
+    formRef.current?.reset();
+    setDraftRestored(false);
+    setActiveStep(0);
+    setError("");
+  };
 
   const changeStep = (nextStep: number) => {
+    persistDraft();
     const boundedStep = Math.max(0, Math.min(nextStep, steps.length - 1));
     setActiveStep(boundedStep);
-    window.localStorage.setItem("brixeler-project-wizard-step", String(boundedStep));
+    writeLocalValue(`${draftKey}:step`, String(boundedStep));
     window.requestAnimationFrame(() => {
       document.querySelector(`[data-wizard-panel="${steps[boundedStep].id}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" });
     });
@@ -38,18 +140,28 @@ export function ProjectWizard({ action, children }: { action: WizardAction; chil
     const controls = Array.from(activePanel?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea") ?? []);
     const invalidControl = controls.find((control) => !control.checkValidity());
     if (invalidControl) {
+      setError("Fix the highlighted field before continuing.");
+      invalidControl.focus();
       invalidControl.reportValidity();
       return;
     }
+    setError("");
     changeStep(activeStep + 1);
   };
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    if (!formRef.current?.reportValidity()) {
+    persistDraft();
+    const form = formRef.current;
+    if (!form) return;
+    const invalidControl = getDraftControls(form).find(({ control }) => !control.checkValidity())?.control;
+    if (invalidControl) {
       event.preventDefault();
+      setError("Fix the highlighted field before creating the project.");
+      invalidControl.focus();
+      invalidControl.reportValidity();
       return;
     }
-    window.localStorage.removeItem("brixeler-project-wizard-step");
+    removeLocalValue(`${draftKey}:step`);
   };
 
   return (
@@ -58,9 +170,12 @@ export function ProjectWizard({ action, children }: { action: WizardAction; chil
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500">Setup progress</p>
-            <p className="mt-1 text-xs text-neutral-500">Progress is saved in this browser.</p>
+            <p className="mt-1 text-xs text-neutral-500">Details are saved in this browser only. Uploads are never saved.</p>
           </div>
-          <span className="dashboard-number shrink-0 text-sm font-semibold text-neutral-900">{activeStep + 1} / {steps.length}</span>
+          <div className="flex items-center gap-3">
+            {draftRestored ? <button type="button" onClick={clearDraft} className="text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-black">Clear saved details</button> : null}
+            <span className="dashboard-number shrink-0 text-sm font-semibold text-neutral-900">{activeStep + 1} / {steps.length}</span>
+          </div>
         </div>
         <ol className="mt-3 grid grid-cols-5 gap-1" aria-label="Project setup steps">
           {steps.map((step, index) => {
@@ -90,7 +205,8 @@ export function ProjectWizard({ action, children }: { action: WizardAction; chil
         </ol>
       </div>
 
-      <form id="project-creator" ref={formRef} action={action} encType="multipart/form-data" onSubmit={submit} className="space-y-4 p-5 sm:p-7">
+      {error ? <p id="project-wizard-error" role="alert" aria-live="assertive" className="mx-5 mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 sm:mx-7">{error}</p> : null}
+      <form id="project-creator" ref={formRef} action={action} onSubmit={submit} onInput={persistDraft} onChange={persistDraft} aria-describedby={error ? "project-wizard-error" : undefined} className="space-y-4 p-5 sm:p-7">
         <div className="mx-auto max-w-4xl">{children}</div>
         <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white/95 p-3 shadow-lg shadow-black/10 backdrop-blur">
           <button
@@ -109,13 +225,20 @@ export function ProjectWizard({ action, children }: { action: WizardAction; chil
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <MobilePreviewButton formId="project-creator" titleField="name" bodyField="description" typeField="launchStatus" />
-              <button type="submit" className="min-h-11 rounded-full bg-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800">
-                Create project
-              </button>
+              <ProjectSubmitButton />
             </div>
           )}
         </div>
       </form>
     </div>
+  );
+}
+
+function ProjectSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} aria-busy={pending} className="min-h-11 rounded-full bg-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-60">
+      {pending ? "Creating…" : "Create project"}
+    </button>
   );
 }
