@@ -11,28 +11,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body: { requestId?: string } = {};
+  let body: { requestId?: string; reason?: string } = {};
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (!body.requestId) {
+  const requestId = body.requestId?.trim();
+  const reason = body.reason?.trim();
+  if (!requestId) {
     return NextResponse.json({ error: "Missing requestId" }, { status: 400 });
+  }
+  if (!reason || reason.length < 5) {
+    return NextResponse.json({ error: "A rejection reason of at least 5 characters is required" }, { status: 400 });
+  }
+  if (reason.length > 2000) {
+    return NextResponse.json({ error: "Rejection reason is too long" }, { status: 400 });
   }
 
   try {
-    await reviewRenewalRequest(body.requestId, false, admin.adminId, "Rejected via admin console");
+    const result = await reviewRenewalRequest(requestId, false, admin.adminId, reason);
+    await logAdminActivity({
+      adminId: admin.adminId,
+      action: "renewal.reject",
+      resourceType: "property_renewal_requests",
+      resourceId: requestId,
+      metadata: { reason },
+    });
+    return NextResponse.json({ success: true, request: result });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to reject renewal" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to reject renewal" }, { status: 409 });
   }
-  await logAdminActivity({
-    adminId: admin.adminId,
-    action: "renewal.reject",
-    resourceType: "property_renewal_requests",
-    resourceId: body.requestId,
-  });
-
-  return NextResponse.json({ success: true });
 }

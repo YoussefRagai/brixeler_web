@@ -3,35 +3,6 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { getAdminContextFromRequest } from "@/lib/adminAuth";
 import { hasAdminRole } from "@/lib/adminRoles";
 
-type ReferralRule = {
-  tier_name: string;
-  min_referrals: number;
-  max_referrals: number | null;
-  bonus_percentage: number;
-  behavior_requirement: "none" | "verified" | "first_deal";
-};
-
-function resolveTier(
-  rules: ReferralRule[],
-  metrics: { total_referrals: number; verified_referrals: number; referrals_with_first_deal: number },
-) {
-  if (!rules.length) return { name: "—", bonus: 0 };
-  const sorted = [...rules].sort((a, b) => b.min_referrals - a.min_referrals);
-  for (const rule of sorted) {
-    const value =
-      rule.behavior_requirement === "verified"
-        ? metrics.verified_referrals
-        : rule.behavior_requirement === "first_deal"
-        ? metrics.referrals_with_first_deal
-        : metrics.total_referrals;
-    const withinMax = rule.max_referrals == null || value <= rule.max_referrals;
-    if (value >= rule.min_referrals && withinMax) {
-      return { name: rule.tier_name, bonus: rule.bonus_percentage };
-    }
-  }
-  return { name: "Tier 0", bonus: 0 };
-}
-
 export async function POST(request: Request) {
   const admin = await getAdminContextFromRequest(request);
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,12 +20,12 @@ export async function POST(request: Request) {
   const agentId = body.agentId;
   if (!agentId) return NextResponse.json({ error: "Missing agentId" }, { status: 400 });
 
-  const [{ data: profile }, { data: deals }, { data: tickets }, { data: connections }, { data: badgeRows }, { data: rules }, { data: notes }] =
+  const [{ data: profile }, { data: deals }, { data: tickets }, { data: connections }, { data: badgeRows }, { data: growthTier }, { data: notes }] =
     await Promise.all([
       supabaseServer
         .from("users_profile")
         .select(
-          "id, display_name, phone, profile_picture_url, language_preference, notification_preferences, profile_visibility, account_status, total_deals, successful_deals, total_earnings, total_referrals, verified_referrals, referrals_with_first_deal",
+          "id, display_name, phone, profile_picture_url, language_preference, notification_preferences, profile_visibility, account_status, account_lifecycle_state, verification_documents_url, verification_review_version, total_deals, successful_deals, total_earnings, total_referrals, verified_referrals, referrals_with_first_deal",
         )
         .eq("id", agentId)
         .maybeSingle(),
@@ -82,9 +53,10 @@ export async function POST(request: Request) {
         .eq("agent_id", agentId)
         .order("unlocked_at", { ascending: false }),
       supabaseServer
-        .from("referral_bonus_rules")
-        .select("tier_name, min_referrals, max_referrals, bonus_percentage, behavior_requirement")
-        .eq("is_active", true),
+        .from("user_tiers")
+        .select("tier_id, awarded_at, tiers(name, level, benefit_type, benefit_value)")
+        .eq("user_id", agentId)
+        .maybeSingle(),
       supabaseServer
         .from("admin_agent_notes")
         .select("id, note, created_at, created_by, is_demo")
@@ -93,12 +65,15 @@ export async function POST(request: Request) {
         .limit(20),
     ]);
 
-  const metrics = {
-    total_referrals: profile?.total_referrals ?? 0,
-    verified_referrals: profile?.verified_referrals ?? 0,
-    referrals_with_first_deal: profile?.referrals_with_first_deal ?? 0,
-  };
-  const tier = resolveTier((rules ?? []) as ReferralRule[], metrics);
+  const tierRecord = Array.isArray(growthTier?.tiers) ? growthTier?.tiers[0] : growthTier?.tiers;
+  const tier = tierRecord
+    ? {
+        name: tierRecord.name ?? "Unassigned",
+        level: tierRecord.level ?? null,
+        benefit_type: tierRecord.benefit_type ?? null,
+        benefit_value: tierRecord.benefit_value ?? null,
+      }
+    : { name: "Unassigned", level: null, benefit_type: null, benefit_value: null };
 
   return NextResponse.json({
     profile,

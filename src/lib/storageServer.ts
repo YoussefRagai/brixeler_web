@@ -161,6 +161,14 @@ export async function uploadFileToBucket(params: {
   const { bucket, pathPrefix, file } = params;
   const rule = uploadRules[bucket];
   if (!rule) throw new Error("Uploads are not enabled for this storage bucket.");
+  if (
+    pathPrefix.length > 400 ||
+    !/^[a-zA-Z0-9][a-zA-Z0-9/_-]*$/.test(pathPrefix) ||
+    pathPrefix.includes("..") ||
+    pathPrefix.includes("//")
+  ) {
+    throw new Error("Upload path is invalid.");
+  }
   if (file.size <= 0 || file.size > rule.maxBytes) {
     throw new Error(`File is too large. Maximum allowed size is ${Math.floor(rule.maxBytes / (1024 * 1024))} MB.`);
   }
@@ -168,12 +176,12 @@ export async function uploadFileToBucket(params: {
     throw new Error("File type is not allowed for this upload.");
   }
   const filename = sanitizeFilename(file.name || "upload");
-  const path = `${pathPrefix}/${Date.now()}-${filename}`;
+  const path = `${pathPrefix}/${crypto.randomUUID()}-${filename}`;
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const { data, error } = await storageServer.storage.from(bucket).upload(path, buffer, {
     contentType: file.type || undefined,
-    upsert: true,
+    upsert: false,
   });
   if (error || !data) {
     throw new Error(error?.message ?? "Upload failed");

@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
   const response = NextResponse.redirect(new URL("/developer", developerPortalUrl));
   setDeveloperSession(response.cookies, {
     developerId: grant.developer_id,
+    accountId: account.id,
     developerName: grant.developer_name ?? null,
     userId: grant.impersonated_user_id,
     issuedAt: Date.now(),

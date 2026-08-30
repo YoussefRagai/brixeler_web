@@ -12,6 +12,8 @@ type Props = {
   bodyArField?: string;
   actionField?: string;
   label?: string;
+  initialDraft?: Partial<PreviewDraft>;
+  imageUrl?: string | null;
 };
 
 type PreviewDraft = {
@@ -23,6 +25,17 @@ type PreviewDraft = {
   destination: string;
 };
 
+const DEFAULT_DRAFT: PreviewDraft = {
+  title: "Preview",
+  body: "Your update will appear here.",
+  titleAr: "",
+  bodyAr: "",
+  type: "Announcement",
+  destination: "Home",
+};
+
+const formatPreviewValue = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+
 export function MobilePreviewButton({
   formId,
   titleField,
@@ -32,17 +45,12 @@ export function MobilePreviewButton({
   bodyArField,
   actionField,
   label = "Preview in mobile",
+  initialDraft,
+  imageUrl,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [locale, setLocale] = useState<"en" | "ar">("en");
-  const [draft, setDraft] = useState<PreviewDraft>({
-    title: "Preview",
-    body: "Your update will appear here.",
-    titleAr: "",
-    bodyAr: "",
-    type: "Announcement",
-    destination: "Home",
-  });
+  const [draft, setDraft] = useState<PreviewDraft>({ ...DEFAULT_DRAFT, ...initialDraft });
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
@@ -53,14 +61,16 @@ export function MobilePreviewButton({
       return (form?.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null)?.value.trim() ?? "";
     };
     setDraft({
-      title: read(titleField) || "Preview",
-      body: read(bodyField) || "Your update will appear here.",
-      titleAr: read(titleArField),
-      bodyAr: read(bodyArField),
-      type: typeField ? read(typeField).replaceAll("_", " ") || "Announcement" : "Announcement",
-      destination: actionField ? read(actionField) || "/" : "Home",
+      ...DEFAULT_DRAFT,
+      ...initialDraft,
+      title: read(titleField) || initialDraft?.title || DEFAULT_DRAFT.title,
+      body: read(bodyField) || initialDraft?.body || DEFAULT_DRAFT.body,
+      titleAr: read(titleArField) || initialDraft?.titleAr || "",
+      bodyAr: read(bodyArField) || initialDraft?.bodyAr || "",
+      type: typeField ? formatPreviewValue(read(typeField)) || initialDraft?.type || DEFAULT_DRAFT.type : initialDraft?.type || DEFAULT_DRAFT.type,
+      destination: actionField ? read(actionField) || initialDraft?.destination || DEFAULT_DRAFT.destination : initialDraft?.destination || DEFAULT_DRAFT.destination,
     });
-  }, [actionField, bodyArField, bodyField, formId, titleArField, titleField, typeField]);
+  }, [actionField, bodyArField, bodyField, formId, initialDraft, titleArField, titleField, typeField]);
 
   useEffect(() => {
     if (!open) return;
@@ -121,6 +131,10 @@ export function MobilePreviewButton({
             </div>
             <div className="mx-auto mt-4 max-w-[280px] rounded-[2rem] border-[7px] border-neutral-900 bg-white p-3 shadow-xl">
               <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-neutral-800" aria-hidden="true" />
+              {imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imageUrl} alt="" className="mb-3 aspect-[16/9] w-full rounded-xl object-cover" />
+              ) : null}
               <div dir={useArabic ? "rtl" : "ltr"} className={useArabic ? "text-right" : "text-left"}>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400">{draft.type}</p>
                 <h3 className="mt-2 break-words text-xl font-semibold text-neutral-950">{visibleTitle}</h3>

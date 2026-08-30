@@ -3,8 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowLeft, ArrowRight, Building2, Check, ImageIcon, Landmark, MapPin, Plus, WalletCards } from "lucide-react";
+import { MobilePreviewButton } from "@/components/MobilePreviewButton";
+import { DeveloperMediaField } from "@/components/DeveloperMediaField";
 
-type Project = { id: string; name: string; location?: string | null };
+type ProjectPhase = { id: string; name: string; phase_order: number; archived_at?: string | null; lifecycle_state?: string | null };
+type Project = { id: string; name: string; location?: string | null; phases?: ProjectPhase[] };
+type ExistingListing = { name: string; price: number; unit_area?: number | null; project_id?: string | null; phase_id?: string | null };
 type WizardAction = (formData: FormData) => void | Promise<void>;
 
 const steps = [
@@ -58,6 +62,7 @@ export function DeveloperListingWizard({
   preselectedProjectId,
   preselectedSaleType,
   emphasizeCreateProject,
+  existingListings = [],
 }: {
   action: WizardAction;
   projects: Project[];
@@ -65,12 +70,21 @@ export function DeveloperListingWizard({
   preselectedProjectId: string;
   preselectedSaleType: string;
   emphasizeCreateProject: boolean;
+  existingListings?: ExistingListing[];
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [step, setStep] = useState(0);
   const [projectMode, setProjectMode] = useState<"existing" | "new">(emphasizeCreateProject || !projects.length ? "new" : "existing");
+  const [selectedProjectId, setSelectedProjectId] = useState(preselectedProjectId);
+  const [selectedPhaseId, setSelectedPhaseId] = useState(() => {
+    const project = projects.find((candidate) => candidate.id === preselectedProjectId);
+    return [...(project?.phases ?? [])]
+      .filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived")
+      .sort((a, b) => a.phase_order - b.phase_order)[0]?.id ?? "";
+  });
   const [error, setError] = useState("");
   const [draftRestored, setDraftRestored] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState(false);
   const draftKey = `${DEVELOPER_LISTING_DRAFT_KEY}:${developerId}:${preselectedSaleType}`;
 
   useEffect(() => {
@@ -85,9 +99,9 @@ export function DeveloperListingWizard({
         : null;
       const restore = window.setTimeout(() => {
         if (savedProjectMode) setProjectMode(savedProjectMode);
-        window.requestAnimationFrame(() => {
-          let restored = false;
-          for (const { control, key } of getDraftControls(form)) {
+          window.requestAnimationFrame(() => {
+            let restored = false;
+            for (const { control, key } of getDraftControls(form)) {
             const saved = draft[key];
             if (!saved) continue;
             if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
@@ -95,16 +109,25 @@ export function DeveloperListingWizard({
             } else {
               control.value = saved.value;
             }
-            restored = true;
-          }
-          setDraftRestored(restored);
-        });
+              restored = true;
+            }
+            const restoredProjectId = (form.elements.namedItem("projectId") as HTMLSelectElement | null)?.value ?? "";
+            const restoredProject = projects.find((project) => project.id === restoredProjectId);
+            const restoredPhaseId = (form.elements.namedItem("phaseId") as HTMLSelectElement | null)?.value ?? "";
+            const restoredPhaseIsActive = restoredProject?.phases?.some((phase) => phase.id === restoredPhaseId && !phase.archived_at && phase.lifecycle_state !== "archived");
+            const fallbackPhaseId = [...(restoredProject?.phases ?? [])]
+              .filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived")
+              .sort((a, b) => a.phase_order - b.phase_order)[0]?.id ?? "";
+            setSelectedProjectId(restoredProjectId);
+            setSelectedPhaseId(restoredPhaseIsActive ? restoredPhaseId : fallbackPhaseId);
+            setDraftRestored(restored);
+          });
       }, 0);
       return () => window.clearTimeout(restore);
     } catch {
       removeDraft(draftKey);
     }
-  }, [draftKey]);
+  }, [draftKey, projects]);
 
   const persistDraft = () => {
     const form = formRef.current;
@@ -129,16 +152,52 @@ export function DeveloperListingWizard({
   const clearDraft = () => {
     removeDraft(draftKey);
     formRef.current?.reset();
+    setSelectedProjectId(preselectedProjectId);
+    const project = projects.find((candidate) => candidate.id === preselectedProjectId);
+    setSelectedPhaseId(
+      [...(project?.phases ?? [])]
+        .filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived")
+        .sort((a, b) => a.phase_order - b.phase_order)[0]?.id ?? "",
+    );
     setDraftRestored(false);
     setError("");
+    setDuplicateWarning(false);
+  };
+
+  const checkDuplicate = () => {
+    if (projectMode !== "existing") {
+      setDuplicateWarning(false);
+      return;
+    }
+    const form = formRef.current;
+    const name = (form?.elements.namedItem("name") as HTMLInputElement | null)?.value.trim() ?? "";
+    const projectId = (form?.elements.namedItem("projectId") as HTMLSelectElement | null)?.value ?? "";
+    const phaseId = (form?.elements.namedItem("phaseId") as HTMLSelectElement | null)?.value ?? "";
+    const price = Number((form?.elements.namedItem("price") as HTMLInputElement | null)?.value ?? NaN);
+    const unitArea = Number((form?.elements.namedItem("unitArea") as HTMLInputElement | null)?.value ?? NaN);
+    const normalizedName = name.toLocaleLowerCase().replace(/\s+/g, " ");
+    setDuplicateWarning(Boolean(normalizedName && projectId && phaseId && Number.isFinite(price) && Number.isFinite(unitArea) && existingListings.some((listing) => listing.project_id === projectId && listing.phase_id === phaseId && listing.price === price && listing.unit_area === unitArea && listing.name.trim().toLocaleLowerCase().replace(/\s+/g, " ") === normalizedName)));
+  };
+
+  const handleInput = () => {
+    persistDraft();
+    checkDuplicate();
   };
 
   function advance() {
     const form = formRef.current;
     if (!form) return;
+    const activePanel = form.querySelector<HTMLElement>(`section:not([hidden])`);
+    const invalidControl = Array.from(activePanel?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea") ?? []).find((control) => !control.checkValidity());
+    if (invalidControl) {
+      setError("Fix the highlighted field before continuing.");
+      invalidControl.focus();
+      invalidControl.reportValidity();
+      return;
+    }
     const requiredByStep: string[][] = [
-      projectMode === "existing" ? ["projectId"] : ["createProjectName", "createProjectLocation"],
-      ["name", "price", "propertyType", "bedrooms", "bathrooms", "unitArea"],
+      projectMode === "existing" ? ["projectId", "phaseId"] : ["createProjectName", "createProjectLocation"],
+      ["name", "price", "propertyType", "bedrooms", "bathrooms", "unitArea", "description"],
       ["downPayment", "installmentYears", "finishingStatus"],
     ];
     const missing = (requiredByStep[step] ?? []).find((name) => {
@@ -159,6 +218,14 @@ export function DeveloperListingWizard({
   function validateSubmission(event: React.FormEvent<HTMLFormElement>) {
     const form = formRef.current;
     if (!form) return;
+    const invalidControl = Array.from(form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea")).find((control) => !control.checkValidity());
+    if (invalidControl) {
+      event.preventDefault();
+      setError("Fix the highlighted field before submitting for review.");
+      invalidControl.focus();
+      invalidControl.reportValidity();
+      return;
+    }
     const urls = (form.elements.namedItem("photoUrls") as HTMLTextAreaElement | null)?.value
       .split(",")
       .map((value) => value.trim())
@@ -172,7 +239,7 @@ export function DeveloperListingWizard({
   }
 
   return (
-    <form ref={formRef} action={action} onSubmit={(event) => { persistDraft(); validateSubmission(event); }} onInput={persistDraft} onChange={persistDraft} aria-describedby={error ? "listing-wizard-error" : undefined} className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.05)]">
+    <form id="developer-listing-creator" ref={formRef} action={action} onSubmit={(event) => { persistDraft(); validateSubmission(event); }} onInput={handleInput} onChange={handleInput} aria-describedby={error ? "listing-wizard-error" : duplicateWarning ? "listing-wizard-duplicate" : undefined} className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.05)]">
       <input type="hidden" name="saleType" value={preselectedSaleType} />
       <div className="border-b border-black/5 bg-neutral-50/70 px-4 py-3 sm:px-6">
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -202,6 +269,7 @@ export function DeveloperListingWizard({
         </header>
 
         {error ? <p id="listing-wizard-error" role="alert" aria-live="assertive" className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</p> : null}
+        {duplicateWarning ? <p id="listing-wizard-duplicate" role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">A matching developer resale already exists for this project, price, and area. Review the existing record before submitting another.</p> : null}
 
         <section hidden={step !== 0} className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -215,7 +283,27 @@ export function DeveloperListingWizard({
             </button>
           </div>
           {projectMode === "existing" ? (
-            <Field label="Choose project"><select className={inputClass} name="projectId" defaultValue={preselectedProjectId}><option value="">Select a project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}{project.location ? ` · ${project.location}` : ""}</option>)}</select></Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Choose project"><select className={inputClass} name="projectId" value={selectedProjectId} disabled={projectMode !== "existing"} onChange={(event) => {
+                const nextProjectId = event.target.value;
+                const nextProject = projects.find((project) => project.id === nextProjectId);
+                const nextPhaseId = [...(nextProject?.phases ?? [])]
+                  .filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived")
+                  .sort((a, b) => a.phase_order - b.phase_order)[0]?.id ?? "";
+                setSelectedProjectId(nextProjectId);
+                setSelectedPhaseId(nextPhaseId);
+                handleInput();
+              }}><option value="">Select a project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}{project.location ? ` · ${project.location}` : ""}</option>)}</select></Field>
+              {(() => {
+                const selectedProject = projects.find((project) => project.id === selectedProjectId);
+                const phases = [...(selectedProject?.phases ?? [])]
+                  .filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived")
+                  .sort((a, b) => a.phase_order - b.phase_order);
+                return phases.length ? (
+                  <Field label="Release phase"><select className={inputClass} name="phaseId" value={selectedPhaseId} onChange={(event) => { setSelectedPhaseId(event.target.value); handleInput(); }} required disabled={projectMode !== "existing"}><option value="">Choose a release phase</option>{phases.map((phase) => <option key={phase.id} value={phase.id}>{phase.phase_order}. {phase.name}</option>)}</select></Field>
+                ) : <p className="self-end rounded-2xl border border-dashed border-black/15 bg-neutral-50 p-3 text-xs text-neutral-500">This project has no active phase. Add one in the project portal before linking inventory.</p>;
+              })()}
+            </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField label="Project name" name="createProjectName" placeholder="Palm Gardens Residences" />
@@ -226,10 +314,10 @@ export function DeveloperListingWizard({
         </section>
 
         <section hidden={step !== 1} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2"><TextField label="Listing title" name="name" placeholder="Palm Gardens · Unit B12" /><TextField label="Area / location" name="area" placeholder="New Cairo · Golden Square" /></div>
-          <div className="grid gap-4 sm:grid-cols-2"><TextField label="Price (EGP)" name="price" type="number" min="100000" placeholder="8500000" /><SelectField label="Property type" name="propertyType" options={["apartment", "villa", "townhouse", "penthouse", "duplex"]} /></div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3"><TextField label="Bedrooms" name="bedrooms" type="number" min="0" step="1" placeholder="3" /><TextField label="Bathrooms" name="bathrooms" type="number" min="0" step="1" placeholder="2" /><TextField label="Area (m²)" name="unitArea" type="number" min="30" step="1" placeholder="180" className="col-span-2 sm:col-span-1" /></div>
-          <Field label="Unit description"><textarea className={`${inputClass} min-h-28 py-3`} name="description" placeholder="The details an agent needs to understand and pitch this unit." /></Field>
+          <div className="grid gap-4 sm:grid-cols-2"><TextField label="Listing title" name="name" placeholder="Palm Gardens · Unit B12" required /><TextField label="Area / location" name="area" placeholder="New Cairo · Golden Square" /></div>
+          <div className="grid gap-4 sm:grid-cols-2"><TextField label="Price (EGP)" name="price" type="number" min="100000" placeholder="8500000" required /><SelectField label="Property type" name="propertyType" options={["apartment", "villa", "townhouse", "penthouse", "duplex"]} required /></div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3"><TextField label="Bedrooms" name="bedrooms" type="number" min="0" step="1" placeholder="3" required /><TextField label="Bathrooms" name="bathrooms" type="number" min="0" step="1" placeholder="2" required /><TextField label="Area (m²)" name="unitArea" type="number" min="10" step="1" placeholder="180" className="col-span-2 sm:col-span-1" required /></div>
+          <Field label="Unit description"><textarea className={`${inputClass} min-h-28 py-3`} name="description" placeholder="The details an agent needs to understand and pitch this unit." required /></Field>
         </section>
 
         <section hidden={step !== 2} className="space-y-4">
@@ -239,15 +327,18 @@ export function DeveloperListingWizard({
         </section>
 
         <section hidden={step !== 3} className="space-y-5">
-          <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4"><p className="text-sm font-semibold">Property photos</p><p className="mt-1 text-xs text-neutral-500">Upload or link at least three clear, real property images.</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><Field label="Upload photos"><input className={`${inputClass} py-3`} name="photoFiles" type="file" accept="image/*" multiple /></Field><Field label="Or paste image URLs"><textarea className={`${inputClass} min-h-20 py-3`} name="photoUrls" placeholder="Three or more comma-separated URLs" /></Field></div></div>
-          <div className="grid gap-4 sm:grid-cols-2"><TextField label="Brochure / floor plan URL" name="brochureUrl" placeholder="https://..." /><Field label="Or upload brochure"><input className={`${inputClass} py-3`} name="brochureFile" type="file" accept="application/pdf,image/*,.xlsx" /></Field><TextField label="Video tour URL" name="videoUrl" placeholder="https://youtu.be/..." /><Field label="Or upload video"><input className={`${inputClass} py-3`} name="videoFile" type="file" accept="video/*" /></Field></div>
-          <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><p className="font-semibold">Ready for review</p><p className="mt-1 text-xs text-emerald-700">Submitting creates a developer-owned resale. It remains pending until the Brixeler team approves it.</p></div>
+          <DeveloperMediaField label="Property photos" description="Add at least three clear property images by dropping files, browsing, or pasting URLs." fileName="photoFiles" urlName="photoUrls" accept="image/*" multiple required />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <DeveloperMediaField label="Brochure / floor plan" fileName="brochureFile" urlName="brochureUrl" accept="application/pdf,image/*,.xlsx" />
+            <DeveloperMediaField label="Video tour" fileName="videoFile" urlName="videoUrl" accept="video/*" />
+          </div>
+          <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><p className="font-semibold">Final review</p><p className="mt-1 text-xs text-emerald-700">Submitting creates a developer-owned resale. It remains pending until the Brixeler team approves it; approval and mobile publication are separate from the launch label.</p><ul className="mt-3 space-y-1 text-xs text-emerald-700"><li>✓ Project ownership and linked project are checked on submit.</li><li>✓ Pricing, area, payment terms, and description are validated.</li><li>✓ Three unique property photos are required before review.</li><li>✓ Publication remains controlled by the Brixeler review workflow.</li></ul></div>
         </section>
       </div>
 
       <footer className="flex items-center justify-between border-t border-black/5 bg-neutral-50/60 px-5 py-4 sm:px-8">
         <button type="button" onClick={() => setStep((current) => Math.max(current - 1, 0))} disabled={step === 0} className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-neutral-600 disabled:invisible"><ArrowLeft size={16} /> Back</button>
-        {step < steps.length - 1 ? <button type="button" onClick={advance} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white">Continue <ArrowRight aria-hidden="true" size={16} /></button> : <ListingSubmitButton />}
+        {step < steps.length - 1 ? <button type="button" onClick={advance} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-semibold text-white">Continue <ArrowRight aria-hidden="true" size={16} /></button> : <div className="flex flex-wrap items-center justify-end gap-2"><MobilePreviewButton formId="developer-listing-creator" titleField="name" bodyField="description" typeField="propertyType" label="Preview mobile" /><ListingSubmitButton /></div>}
       </footer>
     </form>
   );

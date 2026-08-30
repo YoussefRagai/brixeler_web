@@ -11,11 +11,14 @@ export type AgentRow = {
   deals: number;
   earnings: string;
   status: string;
+  account_status?: string;
   tier: string;
+  growth_tier_level?: number | null;
   badges: string[];
   profile_picture_url?: string | null;
   language_preference?: string | null;
   verification_status?: string | null;
+  verification_review_version?: number;
 };
 
 type Props = {
@@ -42,6 +45,9 @@ type AgentProfileResponse = {
     notification_preferences: Record<string, boolean> | null;
     profile_visibility: string | null;
     account_status: string | null;
+    account_lifecycle_state: string | null;
+    verification_documents_url: string[] | null;
+    verification_review_version: number | null;
     total_deals: number | null;
     successful_deals: number | null;
     total_earnings: number | null;
@@ -82,7 +88,7 @@ type AgentProfileResponse = {
       benefit_value: number | null;
     } | null;
   }[];
-  tier: { name: string; bonus: number };
+  tier: { name: string; level: number | null; benefit_type?: string | null; benefit_value?: number | null };
   notes: { id: string; note: string; created_at: string; created_by: string; is_demo: boolean }[];
 };
 
@@ -100,6 +106,14 @@ export function AgentTable({ agents }: Props) {
     () => agents.find((agent) => agent.id === activeAgentId) ?? null,
     [activeAgentId, agents],
   );
+
+  const closeModal = () => {
+    setActiveAgentId(null);
+    setActiveTab(tabs[0]);
+    setProfileData(null);
+    setActionMessage(null);
+    setNote("");
+  };
 
   useEffect(() => {
     if (!activeAgentId) return;
@@ -130,38 +144,45 @@ export function AgentTable({ agents }: Props) {
     };
   }, [activeAgentId]);
 
-  const closeModal = () => {
-    setActiveAgentId(null);
-    setActiveTab(tabs[0]);
-    setProfileData(null);
-    setActionMessage(null);
-    setNote("");
-  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeModal();
+    };
+    if (activeAgentId) {
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
+    }
+    return undefined;
+  }, [activeAgentId]);
 
-  const runAccountAction = async (agent: AgentRow, action: "suspend" | "reactivate" | "delete") => {
-    const label = action === "delete" ? "permanently delete" : action;
+  const runAccountAction = async (agent: AgentRow, action: "suspend" | "reactivate" | "archive" | "restore") => {
+    const label = action === "reactivate" || action === "restore" ? "restore" : action;
     if (!window.confirm(`Are you sure you want to ${label} ${agent.name}?`)) return;
+    const reason = window.prompt(`Enter a reason for ${label} ${agent.name} (3–1000 characters):`, "")?.trim();
+    if (!reason || reason.length < 3) {
+      setActionMessage("A reason of at least 3 characters is required.");
+      return;
+    }
     setActionMessage("Working…");
-    const endpoint = action === "delete" ? "delete" : "suspend";
+    const endpoint = action === "archive" ? "archive" : action === "restore" ? "restore" : "suspend";
     const response = await fetch(`/api/admin/agents/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agentId: agent.id, suspended: action !== "reactivate" }),
+      body: JSON.stringify({ agentId: agent.id, suspended: action === "suspend", reason }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       setActionMessage(payload.error ?? `Unable to ${action} account.`);
       return;
     }
-    setActionMessage(action === "delete" ? "Account deleted." : action === "reactivate" ? "Account reactivated." : "Account suspended.");
+    setActionMessage(action === "archive" ? "Account archived and recoverable." : action === "restore" || action === "reactivate" ? "Account restored." : "Account suspended.");
     router.refresh();
-    if (action === "delete") closeModal();
   };
 
   return (
     <>
-      <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
-        <table className="w-full text-left text-sm">
+      <div className="mt-6 hidden overflow-x-auto rounded-2xl border border-white/10 md:block">
+        <table className="min-w-[920px] w-full text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase tracking-[0.2em] text-slate-500">
             <tr>
               <th className="px-4 py-3">Agent</th>
@@ -221,12 +242,15 @@ export function AgentTable({ agents }: Props) {
                         Suspend user
                       </button>
                     ) : null}
-                    <button
-                      onClick={() => runAccountAction(agent, "delete")}
-                      className="rounded-full border border-rose-300/50 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/10"
-                    >
-                      Delete account
-                    </button>
+                    {agent.status === "active" || agent.status === "suspended" ? (
+                      <button onClick={() => runAccountAction(agent, "archive")} className="rounded-full border border-rose-300/50 px-3 py-1 text-xs text-rose-200 hover:bg-rose-500/10">
+                        Archive account
+                      </button>
+                    ) : agent.status === "archived" ? (
+                      <button onClick={() => runAccountAction(agent, "restore")} className="rounded-full border border-emerald-300/50 px-3 py-1 text-xs text-emerald-200 hover:bg-emerald-500/10">
+                        Restore account
+                      </button>
+                    ) : null}
                   </div>
                 </td>
               </tr>
@@ -235,12 +259,51 @@ export function AgentTable({ agents }: Props) {
         </table>
       </div>
 
+      <div className="mt-6 grid gap-3 md:hidden">
+        {agents.map((agent) => (
+          <article key={agent.id} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-sm text-slate-200">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/10">
+                {agent.profile_picture_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={agent.profile_picture_url} alt="" className="h-full w-full object-cover" />
+                ) : <span className="font-semibold">{agent.name.charAt(0)}</span>}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-white">{agent.name}</p>
+                <p className="truncate text-xs text-slate-400">{agent.phone}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                  <span className="rounded-full border border-white/10 px-2 py-1">{agent.status}</span>
+                  <span className="rounded-full border border-white/10 px-2 py-1">Growth: {agent.tier}</span>
+                  {agent.verification_status ? <span className="rounded-full border border-white/10 px-2 py-1">KYC: {agent.verification_status}</span> : null}
+                </div>
+              </div>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-3 text-xs">
+              <div><dt className="text-slate-500">Deals</dt><dd className="mt-1 text-white">{agent.deals}</dd></div>
+              <div><dt className="text-slate-500">Earnings</dt><dd className="mt-1 text-white">{agent.earnings}</dd></div>
+              <div><dt className="text-slate-500">Badges</dt><dd className="mt-1 text-white">{agent.badges.length || "—"}</dd></div>
+              <div><dt className="text-slate-500">Tier level</dt><dd className="mt-1 text-white">{agent.growth_tier_level ?? "—"}</dd></div>
+            </dl>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setActiveAgentId(agent.id)} className="min-h-10 rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-white">Open profile</button>
+              {agent.status === "archived" ? <button type="button" onClick={() => runAccountAction(agent, "restore")} className="min-h-10 rounded-full border border-emerald-300/50 px-3 py-2 text-xs font-semibold text-emerald-200">Restore</button> : agent.status === "suspended" ? <button type="button" onClick={() => runAccountAction(agent, "reactivate")} className="min-h-10 rounded-full border border-emerald-300/50 px-3 py-2 text-xs font-semibold text-emerald-200">Reactivate</button> : <button type="button" onClick={() => runAccountAction(agent, "suspend")} className="min-h-10 rounded-full border border-amber-300/50 px-3 py-2 text-xs font-semibold text-amber-200">Suspend</button>}
+              {agent.status !== "archived" && agent.status !== "purged" ? <button type="button" onClick={() => runAccountAction(agent, "archive")} className="min-h-10 rounded-full border border-rose-300/50 px-3 py-2 text-xs font-semibold text-rose-200">Archive</button> : null}
+            </div>
+          </article>
+        ))}
+        {!agents.length ? <p className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">No agents match these filters.</p> : null}
+      </div>
+
       {activeAgent ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
           onClick={closeModal}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="agent-profile-title"
             className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-[#0f1115] p-6 text-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
@@ -259,10 +322,10 @@ export function AgentTable({ agents }: Props) {
                   )}
                 </div>
                 <p className="mt-3 text-xs uppercase tracking-[0.3em] text-slate-500">Agent profile</p>
-                <p className="text-2xl font-semibold">{activeAgent.name}</p>
+                <p id="agent-profile-title" className="text-2xl font-semibold">{activeAgent.name}</p>
                 <p className="text-xs text-slate-400">{activeAgent.phone}</p>
               </div>
-              <button onClick={closeModal} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/80">
+              <button type="button" onClick={closeModal} aria-label="Close agent profile" className="min-h-10 rounded-full border border-white/10 px-3 py-1 text-xs text-white/80">
                 Close
               </button>
             </div>
@@ -270,11 +333,12 @@ export function AgentTable({ agents }: Props) {
             <div className="mt-6 grid gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 sm:grid-cols-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Status</p>
-                <p className="text-sm text-white">{profileData?.profile?.account_status ?? activeAgent.status}</p>
+                <p className="text-sm text-white">{profileData?.profile?.account_lifecycle_state ?? activeAgent.status}</p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Tier</p>
                 <p className="text-sm text-white">{profileData?.tier?.name ?? activeAgent.tier}</p>
+                <p className="text-[10px] text-slate-500">Canonical Growth tier</p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Language</p>
@@ -288,6 +352,10 @@ export function AgentTable({ agents }: Props) {
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab}
+                  aria-controls={`agent-tab-panel-${tab.toLowerCase().replaceAll(" ", "-")}`}
                   className={clsx(
                     "rounded-full border px-4 py-2 text-xs",
                     activeTab === tab
@@ -300,7 +368,7 @@ export function AgentTable({ agents }: Props) {
               ))}
             </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-slate-300">
+            <div id={`agent-tab-panel-${activeTab.toLowerCase().replaceAll(" ", "-")}`} role="tabpanel" className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-slate-300">
               {profileLoading ? <p className="text-slate-400">Loading profile data…</p> : null}
               {!profileLoading && activeTab === "Overview" && (
                 <div className="space-y-5">
@@ -444,8 +512,8 @@ export function AgentTable({ agents }: Props) {
                     <span className="text-white">{profileData?.tier?.name ?? activeAgent.tier}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Bonus rate</span>
-                    <span className="text-white">{profileData?.tier?.bonus ?? 0}%</span>
+                    <span className="text-slate-400">Growth benefit</span>
+                    <span className="text-white">{profileData?.tier?.benefit_type && profileData.tier.benefit_type !== "none" ? `${profileData.tier.benefit_type}${profileData.tier.benefit_value != null ? ` · ${profileData.tier.benefit_value}` : ""}` : "None"}</span>
                   </div>
                   <p className="text-xs text-slate-500">Based on referral achievements.</p>
                 </div>

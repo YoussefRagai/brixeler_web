@@ -1,11 +1,17 @@
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { AdminLayout } from "@/components/AdminLayout";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { buildAdminUi } from "@/lib/adminUi";
-import { ADMIN_ROLE_LABELS, ADMIN_ROLE_DESCRIPTIONS, type AdminRole } from "@/lib/adminRoles";
+import { ADMIN_ROLE_LABELS, ADMIN_ROLE_DESCRIPTIONS, isAdminRole, type AdminRole } from "@/lib/adminRoles";
 import { fetchAdminAccounts, logAdminActivity } from "@/lib/adminQueries";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { requireAdminRole } from "@/lib/adminAuth";
 import { AdminRoleEditor } from "@/components/AdminRoleEditor";
+import { sendAdminPortalInvite } from "@/lib/adminAccountInvites";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PRIVILEGED_SESSION_MAX_AGE_MS = 15 * 60 * 1000;
 
 const roleMatrix: { role: AdminRole; permissions: string[] }[] = [
   {
@@ -46,24 +52,40 @@ const roleMatrix: { role: AdminRole; permissions: string[] }[] = [
 async function inviteAdminAction(formData: FormData) {
   "use server";
   const admin = await requireAdminRole(["super_admin"]);
-  if (!admin?.adminId) return;
+  if (!admin?.adminId) redirect("/settings/admins?error=Access%20denied.");
+  if (Date.now() - admin.session.issuedAt > PRIVILEGED_SESSION_MAX_AGE_MS) {
+    redirect("/settings/admins?error=Reauthenticate%20before%20inviting%20an%20administrator.%20Sign%20out%20and%20sign%20in%20again.");
+  }
   const email = formData.get("email")?.toString().toLowerCase().trim();
-  const password = formData.get("password")?.toString();
   const displayName = formData.get("displayName")?.toString().trim() || null;
-  const roles = formData.getAll("roles").map((r) => r.toString()) as AdminRole[];
-  const developerIds = formData.getAll("developerIds").map((r) => r.toString());
+  const rawRoles = formData.getAll("roles").map((r) => r.toString());
+  const roles = [...new Set(rawRoles.filter((role): role is AdminRole => isAdminRole(role)))];
+  const developerIds = [...new Set(formData.getAll("developerIds").map((r) => r.toString()))];
 
-  if (!email || !password) return;
+  if (!email || !roles.length || rawRoles.length !== roles.length) {
+    redirect("/settings/admins?error=Email%20and%20at%20least%20one%20supported%20role%20are%20required.");
+  }
+  if (developerIds.some((id) => !UUID_PATTERN.test(id))) {
+    redirect("/settings/admins?error=Developer%20scope%20contains%20an%20invalid%20identifier.");
+  }
+  if (developerIds.length && !roles.some((role) => role === "developers_admin" || role === "super_admin")) {
+    redirect("/settings/admins?error=Developer%20scope%20requires%20the%20Developers%20admin%20role.");
+  }
+  if (developerIds.length) {
+    const { data: scopedDevelopers, error: scopeError } = await supabaseServer
+      .from("developers")
+      .select("id")
+      .in("id", developerIds);
+    if (scopeError || scopedDevelopers?.length !== developerIds.length) {
+      redirect("/settings/admins?error=One%20or%20more%20scoped%20developers%20do%20not%20exist.");
+    }
+  }
 
-  const { data: userData, error: createUserError } = await supabaseServer.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
+  const { authUserId, error: inviteError } = await sendAdminPortalInvite({ email, displayName });
 
-  if (createUserError || !userData?.user?.id) {
-    console.error("Failed to create admin auth user", createUserError);
-    return;
+  if (inviteError || !authUserId) {
+    console.error("Failed to invite admin auth user", inviteError);
+    redirect(`/settings/admins?error=${encodeURIComponent(inviteError?.message ?? "Unable to send admin invite.")}`);
   }
 
   const permissions = {
@@ -75,7 +97,7 @@ async function inviteAdminAction(formData: FormData) {
   const legacyRole = roles.includes("super_admin") ? "super_admin" : roles.length ? "admin" : "reviewer";
 
   const { error: insertError } = await supabaseServer.from("admins").insert({
-    id: userData.user.id,
+    id: authUserId,
     role: legacyRole,
     roles,
     permissions,
@@ -85,22 +107,26 @@ async function inviteAdminAction(formData: FormData) {
 
   if (insertError) {
     console.error("Failed to create admin record", insertError);
-    await supabaseServer.auth.admin.deleteUser(userData.user.id);
-    return;
+    await supabaseServer.auth.admin.deleteUser(authUserId);
+    redirect("/settings/admins?error=Unable%20to%20create%20the%20admin%20record.");
   }
 
   await logAdminActivity({
     adminId: admin.adminId,
     action: "admin.invite",
     resourceType: "admins",
-    resourceId: userData.user.id,
+    resourceId: authUserId,
     metadata: { email, roles },
   });
+  revalidatePath("/settings/admins");
+  revalidatePath("/admins");
+  redirect("/settings/admins?success=Invite%20sent.");
 }
 
 
-export default async function AdminsPage() {
+export default async function AdminsPage({ searchParams }: { searchParams?: Promise<{ success?: string; error?: string }> }) {
   const ui = await buildAdminUi(["super_admin"]);
+  const feedback = (await searchParams) ?? {};
   const admins = await fetchAdminAccounts();
   const { data: developers } = await supabaseServer.from("developers").select("id, name").order("name");
 
@@ -116,6 +142,8 @@ export default async function AdminsPage() {
         <AdminAccessDenied />
       ) : (
         <>
+          {feedback.success ? <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{feedback.success}</div> : null}
+          {feedback.error ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{feedback.error}</div> : null}
           <section className="grid gap-4 sm:grid-cols-3">
             <article className="rounded-2xl border border-white/5 bg-white/5 p-4">
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Total admins</p>
@@ -157,6 +185,7 @@ export default async function AdminsPage() {
                     adminId={admin.id}
                     roles={admin.roles ?? []}
                     developerIds={admin.developer_ids ?? null}
+                    status={admin.status}
                     developers={(developers ?? []) as { id: string; name: string | null }[]}
                   />
                 </td>
@@ -172,7 +201,7 @@ export default async function AdminsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-slate-300">
-                      {admin.created_at ? new Date(admin.created_at).toLocaleString() : "—"}
+                      {admin.last_active_at ? new Date(admin.last_active_at).toLocaleString() : "Never"}
                     </td>
                   </tr>
                 ))}
@@ -219,15 +248,9 @@ export default async function AdminsPage() {
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white"
                   />
                 </div>
-                <div>
-                  <label className="text-xs text-slate-500">Temporary password</label>
-                  <input
-                    name="password"
-                    type="password"
-                    required
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white"
-                  />
-                </div>
+                <p className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-xs text-emerald-100">
+                  The admin receives a time-limited invite and sets their own password. No password is handled by this form.
+                </p>
                 <div>
                   <label className="text-xs text-slate-500">Display name</label>
                   <input

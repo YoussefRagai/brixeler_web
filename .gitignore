@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/output/
+/.external-council-runs/
+/.ollama-cloud-runs/
 
 # next.js
 /.next/

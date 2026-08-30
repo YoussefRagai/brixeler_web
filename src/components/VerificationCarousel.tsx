@@ -1,16 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { clsx } from "clsx";
+import { useRouter } from "next/navigation";
 
 export type VerificationCard = {
   id: string;
   name: string;
+  phone: string;
+  submittedAt: string | null;
   submitted: string;
   docs: string[];
   status: string;
   priority: string;
   notes: string;
+  accountStatus: string;
+  lifecycleState: string;
+  reviewVersion: number;
+  ageHours: number;
+  reviewable: boolean;
 };
 
 type Props = {
@@ -48,6 +56,7 @@ export function VerificationCarousel({ queue }: Props) {
   const [search, setSearch] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const router = useRouter();
 
   const filteredQueue = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -57,6 +66,11 @@ export function VerificationCarousel({ queue }: Props) {
 
   const current = filteredQueue[activeIndex];
   const next = filteredQueue[activeIndex + 1];
+
+  useEffect(() => {
+    setActiveIndex((currentIndex) => Math.min(currentIndex, Math.max(filteredQueue.length - 1, 0)));
+    setActiveDocIndex(0);
+  }, [filteredQueue.length]);
 
   const docs = useMemo(() => current?.docs ?? [], [current]);
   const activeDoc = docs[activeDocIndex];
@@ -99,7 +113,7 @@ export function VerificationCarousel({ queue }: Props) {
   };
 
   const approve = async () => {
-    if (!current || isSubmitting) return;
+    if (!current || isSubmitting || !current.reviewable) return;
     setIsSubmitting(true);
     setErrorMessage(null);
     setActionMessage(null);
@@ -107,13 +121,14 @@ export function VerificationCarousel({ queue }: Props) {
       const response = await fetch("/api/admin/verification/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId: current.id }),
+        body: JSON.stringify({ agentId: current.id, reviewVersion: current.reviewVersion }),
       });
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(payload?.error ?? "Unable to approve this verification request.");
       }
       advanceCard("right");
+      router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to approve this verification request.");
     } finally {
@@ -122,7 +137,7 @@ export function VerificationCarousel({ queue }: Props) {
   };
 
   const requestChange = async () => {
-    if (!current || isSubmitting) return;
+    if (!current || isSubmitting || !current.reviewable) return;
     if (!reason.trim()) {
       setShowRequestChange(true);
       return;
@@ -134,13 +149,14 @@ export function VerificationCarousel({ queue }: Props) {
       const response = await fetch("/api/admin/verification/reject", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId: current.id, reason: reason.trim() }),
+        body: JSON.stringify({ agentId: current.id, reason: reason.trim(), reviewVersion: current.reviewVersion }),
       });
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(payload?.error ?? "Unable to request changes for this verification.");
       }
       advanceCard("left");
+      router.refresh();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to request changes for this verification.");
     } finally {
@@ -195,7 +211,7 @@ export function VerificationCarousel({ queue }: Props) {
       </div>
       {errorMessage ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{errorMessage}</div> : null}
       {actionMessage ? <div aria-live="polite" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{actionMessage}</div> : null}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Pending agents</p>
           <p className="text-lg text-slate-300">{filteredQueue.length - activeIndex} submissions awaiting action</p>
@@ -213,8 +229,10 @@ export function VerificationCarousel({ queue }: Props) {
           <div className="absolute inset-0 translate-y-3 scale-[0.96] rounded-[36px] border border-white/5 bg-black/20 shadow-xl shadow-black/30" />
         ) : null}
         <div
+          role="group"
+          aria-label={`Verification request for ${current.name}`}
           className={clsx(
-            "absolute inset-0 rounded-[36px] border border-white/10 bg-[#0f1115] p-6 text-slate-100 shadow-2xl shadow-black/40 transition-all duration-300",
+            "absolute inset-0 overflow-y-auto rounded-[36px] border border-white/10 bg-[#0f1115] p-4 text-slate-100 shadow-2xl shadow-black/40 transition-all duration-300 sm:p-6",
             direction === "right" && "translate-x-24 -rotate-3 opacity-0",
             direction === "left" && "-translate-x-24 rotate-3 opacity-0",
           )}
@@ -223,9 +241,10 @@ export function VerificationCarousel({ queue }: Props) {
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Verification</p>
               <p className="text-2xl font-semibold !text-white">{current.name}</p>
-              <p className="text-xs text-slate-400">Submitted {current.submitted}</p>
+              <p className="text-xs text-slate-400">Submitted {current.submitted} · {current.ageHours < 1 ? "less than 1h old" : `${Math.floor(current.ageHours)}h old`}</p>
+              <p className="mt-1 text-xs text-slate-400">{current.phone}</p>
             </div>
-            <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">
+            <span className={clsx("rounded-full border px-3 py-1 text-xs", current.reviewable ? "border-white/10 text-slate-300" : "border-amber-300/40 text-amber-200")}>
               {current.priority} priority
             </span>
           </header>
@@ -282,7 +301,8 @@ export function VerificationCarousel({ queue }: Props) {
               ) : null}
             </div>
 
-            {showRequestChange ? (
+            {!current.reviewable ? <div role="alert" className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm text-amber-100">This profile is {current.accountStatus} and cannot be reviewed. Restore the account first.</div> : null}
+            {showRequestChange && current.reviewable ? (
               <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
                 <label className="text-xs uppercase tracking-[0.3em] text-slate-500">
                   Change request message
@@ -322,7 +342,7 @@ export function VerificationCarousel({ queue }: Props) {
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !current.reviewable}
             onClick={() => setShowRequestChange((prev) => !prev)}
             className="flex-1 rounded-full border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-slate-100"
           >
@@ -330,7 +350,7 @@ export function VerificationCarousel({ queue }: Props) {
           </button>
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !current.reviewable}
             onClick={approve}
             className="flex-1 rounded-full bg-emerald-400 px-4 py-3 text-sm font-semibold text-black hover:bg-emerald-300"
           >
@@ -339,7 +359,7 @@ export function VerificationCarousel({ queue }: Props) {
           {showRequestChange ? (
             <button
               type="button"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !current.reviewable}
               onClick={requestChange}
               className="flex-1 rounded-full border border-rose-200/40 bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-rose-50"
             >

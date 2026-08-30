@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import type { DeveloperRole } from "./developerRbac";
 
 const COOKIE_NAME = "brixeler_dev_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
@@ -11,6 +12,12 @@ if (!sessionSecret) {
 
 export type DeveloperSession = {
   developerId: string;
+  accountId: string;
+  /**
+   * This is useful for rendering optimistic UI only. Server authorization
+   * rehydrates and verifies the role from developer_accounts on every request.
+   */
+  role?: DeveloperRole | null;
   developerName?: string | null;
   userId: string;
   issuedAt: number;
@@ -48,7 +55,14 @@ function decodeSession(value: string | undefined | null): DeveloperSession | nul
     if (parsed.issuedAt > Date.now() || Date.now() - parsed.issuedAt > SESSION_MAX_AGE * 1000) {
       return null;
     }
-    return parsed as DeveloperSession;
+    return {
+      ...parsed,
+      // Sessions issued before the profile-review release did not embed the
+      // membership id. requireDeveloperSession rehydrates it from the active
+      // membership row so existing users are not forced to sign in again.
+      accountId: typeof parsed.accountId === "string" ? parsed.accountId : "",
+      role: typeof parsed.role === "string" ? parsed.role : null,
+    } as DeveloperSession;
   } catch {
     return null;
   }

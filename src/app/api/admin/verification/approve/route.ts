@@ -11,29 +11,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body: { agentId?: string } = {};
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+  const body = (await request.json().catch(() => null)) as { agentId?: string; reviewVersion?: number } | null;
 
-  const agentId = body.agentId;
+  const agentId = body?.agentId?.trim();
   if (!agentId) return NextResponse.json({ error: "Missing agentId" }, { status: 400 });
 
-  const { error } = await supabaseServer
-    .from("users_profile")
-    .update({ verification_status: "verified", verification_rejection_reason: null })
-    .eq("id", agentId);
+  const expectedVersion = typeof body?.reviewVersion === "number" && Number.isInteger(body.reviewVersion)
+    ? body.reviewVersion
+    : null;
+  const { data, error } = await supabaseServer.rpc("review_agent_verification", {
+    p_agent_id: agentId,
+    p_reviewer_id: admin.adminId,
+    p_decision: "approved",
+    p_reason: null,
+    p_expected_review_version: expectedVersion,
+  });
 
-  if (error) return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  if (error) return NextResponse.json({ error: error.message }, { status: 409 });
 
   await logAdminActivity({
     adminId: admin.adminId,
     action: "user.verify",
     resourceType: "users_profile",
     resourceId: agentId,
+    metadata: { review_version: data?.review_version ?? null, document_count: data?.document_count ?? null },
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, review: data });
 }

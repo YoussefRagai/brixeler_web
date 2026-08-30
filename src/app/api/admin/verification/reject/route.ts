@@ -11,33 +11,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body: { agentId?: string; reason?: string } = {};
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+  const body = (await request.json().catch(() => null)) as { agentId?: string; reason?: string; reviewVersion?: number } | null;
 
-  const agentId = body.agentId;
-  const reason = body.reason?.trim();
+  const agentId = body?.agentId?.trim();
+  const reason = body?.reason?.trim();
   if (!agentId || !reason) {
     return NextResponse.json({ error: "Missing agentId or reason" }, { status: 400 });
   }
 
-  const { error } = await supabaseServer
-    .from("users_profile")
-    .update({ verification_status: "pending", verification_rejection_reason: reason })
-    .eq("id", agentId);
+  const expectedVersion = typeof body?.reviewVersion === "number" && Number.isInteger(body.reviewVersion)
+    ? body.reviewVersion
+    : null;
+  const { data, error } = await supabaseServer.rpc("review_agent_verification", {
+    p_agent_id: agentId,
+    p_reviewer_id: admin.adminId,
+    p_decision: "request_changes",
+    p_reason: reason,
+    p_expected_review_version: expectedVersion,
+  });
 
-  if (error) return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  if (error) return NextResponse.json({ error: error.message }, { status: 409 });
 
   await logAdminActivity({
     adminId: admin.adminId,
     action: "user.verify_request_change",
     resourceType: "users_profile",
     resourceId: agentId,
-    metadata: { reason },
+    metadata: { reason, review_version: data?.review_version ?? null },
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, review: data });
 }

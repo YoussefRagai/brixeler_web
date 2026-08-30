@@ -1,11 +1,27 @@
-export type AdminRole =
-  | "super_admin"
-  | "user_auth_admin"
-  | "user_support_admin"
-  | "developers_admin"
-  | "listing_admin"
-  | "deals_admin"
-  | "marketing_admin";
+export const ADMIN_ROLES = [
+  "super_admin",
+  "user_auth_admin",
+  "user_support_admin",
+  "developers_admin",
+  "listing_admin",
+  "deals_admin",
+  "marketing_admin",
+] as const;
+
+export type AdminRole = (typeof ADMIN_ROLES)[number];
+
+export function isAdminRole(value: unknown): value is AdminRole {
+  return typeof value === "string" && (ADMIN_ROLES as readonly string[]).includes(value);
+}
+
+/**
+ * Normalize values read from the database or a request boundary. Legacy
+ * `admin`/`reviewer` enum values intentionally do not grant access here.
+ */
+export function normalizeAdminRoles(value: unknown): AdminRole[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter(isAdminRole))];
+}
 
 export type AdminNavIcon =
   | "layout"
@@ -56,11 +72,12 @@ export type AdminNavItem = {
 
 export function hasAdminRole(userRoles: AdminRole[], required?: AdminRole[]) {
   if (!required || required.length === 0) return true;
-  if (userRoles.includes("super_admin")) return true;
-  return required.some((role) => userRoles.includes(role));
+  const roles = normalizeAdminRoles(userRoles);
+  if (roles.includes("super_admin")) return true;
+  return required.some((role) => roles.includes(role));
 }
 
 export function filterAdminNav(items: AdminNavItem[], roles: AdminRole[]) {
-  if (roles.includes("super_admin")) return items;
+  if (normalizeAdminRoles(roles).includes("super_admin")) return items;
   return items.filter((item) => hasAdminRole(roles, item.roles));
 }

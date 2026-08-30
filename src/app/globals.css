@@ -182,6 +182,27 @@ button:disabled {
   color: #050505 !important;
 }
 
+/* The light compatibility layer above intentionally remaps legacy white text
+   on light cards. Preserve white foregrounds when the element itself, or its
+   containing control, deliberately keeps a dark background. Without this
+   exception selected tabs and primary actions render black-on-black. */
+.glassless .bg-black.text-white,
+.glassless .bg-black .text-white,
+.glassless [class~="bg-black/50"].text-white,
+.glassless [class~="bg-black/50"] .text-white,
+.glassless [class~="bg-black/60"].text-white,
+.glassless [class~="bg-black/60"] .text-white,
+.glassless [class~="bg-black/70"].text-white,
+.glassless [class~="bg-black/70"] .text-white,
+.glassless [class~="bg-black/80"].text-white,
+.glassless [class~="bg-black/80"] .text-white,
+.glassless [class~="bg-black/90"].text-white,
+.glassless [class~="bg-black/90"] .text-white,
+.glassless [class~="bg-[#0f1115]"].text-white,
+.glassless [class~="bg-[#0f1115]"] .text-white {
+  color: #fff !important;
+}
+
 /* A few older dashboard modules still use the dark-theme slate utilities.
    Keep the shared light command-center canvas readable without changing the
    underlying data or action contracts. */

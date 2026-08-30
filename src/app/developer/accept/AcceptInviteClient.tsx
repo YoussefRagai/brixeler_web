@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
@@ -31,6 +31,7 @@ export function AcceptInviteClient() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const activationRequestId = useId();
 
   const supabase = useMemo(() => createBrowserSupabase(), []);
 
@@ -81,7 +82,7 @@ export function AcceptInviteClient() {
     event.preventDefault();
     setError(null);
 
-    if (!accessToken) {
+    if (!accessToken || !activationRequestId) {
       setError("Your invite session is not ready yet.");
       return;
     }
@@ -112,7 +113,11 @@ export function AcceptInviteClient() {
     const response = await fetch("/api/developer/activate-invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken, fullName: fullName.trim() || null }),
+      body: JSON.stringify({
+        accessToken,
+        fullName: fullName.trim() || null,
+        activationRequestId,
+      }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as { error?: string };

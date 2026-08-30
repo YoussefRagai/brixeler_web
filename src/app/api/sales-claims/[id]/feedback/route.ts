@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getAdminContextFromRequest } from "@/lib/adminAuth";
 import { hasAdminRole } from "@/lib/adminRoles";
-import { logAdminActivity } from "@/lib/adminQueries";
 
 type RouteContext = {
   params: Promise<{ id?: string }>;
@@ -21,49 +20,44 @@ export async function POST(request: Request, context: RouteContext) {
 
   let body: { type?: "request_change" | "reject"; reason?: string };
   try {
-    body = await request.json();
+    const parsed: unknown = await request.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    }
+    body = parsed as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
   const type = body.type;
+  if ((body.type != null && typeof body.type !== "string") || (body.reason != null && typeof body.reason !== "string")) {
+    return NextResponse.json({ error: "Invalid feedback fields." }, { status: 400 });
+  }
   const reason = body.reason?.trim();
-  if (!type || !reason) {
+  if (type !== "request_change" && type !== "reject") {
+    return NextResponse.json({ error: "Invalid feedback type." }, { status: 400 });
+  }
+  if (!reason) {
     return NextResponse.json({ error: "Missing feedback data." }, { status: 400 });
   }
 
-  const { data: row, error: fetchError } = await supabaseServer
-    .from("deal_stage_entries")
-    .select("payload")
-    .eq("id", id)
-    .maybeSingle();
-  if (fetchError) {
-    return NextResponse.json({ error: "Unable to load sales claim." }, { status: 500 });
+  if (reason.length > 4000) {
+    return NextResponse.json({ error: "Feedback reason is too long." }, { status: 400 });
   }
 
-  const payload = (row?.payload ?? {}) as Record<string, unknown>;
-  const nextPayload = {
-    ...payload,
-    feedback_type: type,
-    feedback_reason: reason,
-    feedback_at: new Date().toISOString(),
-  };
-
-  const { error: updateError } = await supabaseServer
-    .from("deal_stage_entries")
-    .update({ payload: nextPayload, status: type === "reject" ? "Rejected" : "Change Requested" })
-    .eq("id", id);
-  if (updateError) {
-    return NextResponse.json({ error: "Unable to update sales claim." }, { status: 500 });
-  }
-
-  await logAdminActivity({
-    adminId: admin.adminId,
-    action: type === "reject" ? "sales_claim.reject" : "sales_claim.request_change",
-    resourceType: "deal_stage_entries",
-    resourceId: id,
-    metadata: { reason },
+  const { error } = await supabaseServer.rpc("transition_sales_claim", {
+    p_entry_id: id,
+    p_next_status: type === "reject" ? "Rejected" : "Change Requested",
+    p_actor_id: admin.adminId,
+    p_feedback_type: type,
+    p_feedback_reason: reason,
   });
+  if (error) {
+    console.error("Failed to update sales claim feedback", error);
+    const message = error.message ?? "Unable to update sales claim.";
+    const conflict = /cannot move|must be|required|not found|only .* can/i.test(message);
+    return NextResponse.json({ error: message }, { status: conflict ? 409 : 500 });
+  }
 
   return NextResponse.json({ success: true });
 }

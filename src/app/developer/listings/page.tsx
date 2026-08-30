@@ -6,34 +6,36 @@ import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { DEVELOPER_LISTING_DRAFT_KEY } from "@/components/DeveloperListingWizard";
 import { LocalStorageCleanup } from "@/components/LocalStorageCleanup";
-import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
+import { currentDeveloperImpersonation, requireDeveloperCapability } from "@/lib/developerAuth";
 import {
-  deleteListing,
+  archiveDeveloperListing,
   fetchDeveloperProjects,
   fetchDeveloperResales,
   requestListingRenewal,
+  restoreDeveloperListing,
   toggleListingVisibility,
   type DeveloperListing,
 } from "@/lib/developerQueries";
 
-type ResaleView = "agent" | "developer";
+type ResaleView = "agent" | "developer" | "archived";
 
 export default async function DeveloperListingsPage({
   searchParams,
 }: {
   searchParams?: Promise<{ success?: string; error?: string; view?: string; clearDraft?: string }>;
 }) {
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_inventory");
   const feedback = (await searchParams) ?? {};
-  const activeView: ResaleView = feedback.view === "developer" ? "developer" : "agent";
+  const activeView: ResaleView = feedback.view === "developer" || feedback.view === "archived" ? feedback.view : "agent";
   const [listings, projects, impersonation] = await Promise.all([
     fetchDeveloperResales(session.developerId),
     fetchDeveloperProjects(session.developerId),
     currentDeveloperImpersonation(),
   ]);
   const agentListings = listings.filter((listing) => Boolean(listing.listed_by_agent_id));
-  const developerListings = listings.filter((listing) => !listing.listed_by_agent_id);
-  const visibleListings = activeView === "agent" ? agentListings : developerListings;
+  const developerListings = listings.filter((listing) => !listing.listed_by_agent_id && !listing.archived_at);
+  const archivedListings = listings.filter((listing) => !listing.listed_by_agent_id && Boolean(listing.archived_at));
+  const visibleListings = activeView === "agent" ? agentListings : activeView === "archived" ? archivedListings : developerListings;
   const projectNames = new Map(projects.map((project) => [project.id, project.name]));
 
   return (
@@ -62,16 +64,17 @@ export default async function DeveloperListingsPage({
           </Link>
         </div>
 
-        <nav aria-label="Resale source" className="flex gap-1 overflow-x-auto border-b border-black/5 bg-neutral-50/70 p-2">
+        <nav aria-label="Resale source" className="grid grid-cols-1 gap-1 border-b border-black/5 bg-neutral-50/70 p-2 sm:flex">
           <SourceTab active={activeView === "agent"} count={agentListings.length} href="/developer/listings?view=agent" icon={<UserRound aria-hidden="true" size={16} />} label="Agent submissions" />
           <SourceTab active={activeView === "developer"} count={developerListings.length} href="/developer/listings?view=developer" icon={<Building2 aria-hidden="true" size={16} />} label="Developer inventory" />
+          <SourceTab active={activeView === "archived"} count={archivedListings.length} href="/developer/listings?view=archived" icon={<Building2 aria-hidden="true" size={16} />} label="Archived" />
         </nav>
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 lg:px-6">
           <div>
-            <p className="text-sm font-semibold text-neutral-900">{activeView === "agent" ? "Listed by app users" : "Created by your team"}</p>
+            <p className="text-sm font-semibold text-neutral-900">{activeView === "agent" ? "Listed by app users" : activeView === "archived" ? "Retained archive" : "Created by your team"}</p>
             <p className="mt-0.5 text-xs text-neutral-500">
-              {activeView === "agent" ? "These units remain owned and managed by the agent who submitted them." : "Edit visibility, renew, or remove these listings at any time."}
+              {activeView === "agent" ? "These units remain owned and managed by the agent who submitted them." : activeView === "archived" ? "Archived listings stay outside the mobile catalog until restored to hidden inventory." : "Edit details, review publication, renew, or archive these listings at any time."}
             </p>
           </div>
           {activeView === "agent" ? <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"><ShieldCheck aria-hidden="true" size={14} /> Read-only</span> : null}
@@ -83,13 +86,13 @@ export default async function DeveloperListingsPage({
               <tr><th className="px-6 py-3 font-medium">Unit</th><th className="px-4 py-3 font-medium">Price</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Inquiries</th><th className="px-6 py-3 text-right font-medium">{activeView === "agent" ? "Source" : "Actions"}</th></tr>
             </thead>
             <tbody>
-              {visibleListings.map((listing) => <ListingRow key={listing.id} listing={listing} projectName={listing.project_id ? projectNames.get(listing.project_id) : undefined} readOnly={activeView === "agent"} />)}
+              {visibleListings.map((listing) => <ListingRow key={listing.id} listing={listing} projectName={listing.project_id ? projectNames.get(listing.project_id) : undefined} readOnly={activeView === "agent"} archived={activeView === "archived"} />)}
             </tbody>
           </table>
         </div>
 
         <div className="divide-y divide-black/5 md:hidden">
-          {visibleListings.map((listing) => <ListingCard key={listing.id} listing={listing} projectName={listing.project_id ? projectNames.get(listing.project_id) : undefined} readOnly={activeView === "agent"} />)}
+          {visibleListings.map((listing) => <ListingCard key={listing.id} listing={listing} projectName={listing.project_id ? projectNames.get(listing.project_id) : undefined} readOnly={activeView === "agent"} archived={activeView === "archived"} />)}
         </div>
 
         {!visibleListings.length ? (
@@ -107,25 +110,28 @@ export default async function DeveloperListingsPage({
 }
 
 function SourceTab({ active, count, href, icon, label }: { active: boolean; count: number; href: string; icon: React.ReactNode; label: string }) {
-  return <Link aria-current={active ? "page" : undefined} className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${active ? "bg-white text-black shadow-sm ring-1 ring-black/5" : "text-neutral-500 hover:text-black"}`} href={href}>{icon}{label}<span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-black text-white" : "bg-black/5 text-neutral-600"}`}>{count}</span></Link>;
+  return <Link aria-current={active ? "page" : undefined} className={`inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl px-3 text-center text-sm font-semibold transition sm:w-auto sm:shrink-0 sm:px-4 ${active ? "bg-white text-black shadow-sm ring-1 ring-black/5" : "text-neutral-500 hover:text-black"}`} href={href}>{icon}{label}<span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-black text-white" : "bg-black/5 text-neutral-600"}`}>{count}</span></Link>;
 }
 
-function ListingRow({ listing, projectName, readOnly }: { listing: DeveloperListing; projectName?: string; readOnly: boolean }) {
-  return <tr className="border-b border-black/5 last:border-0"><td className="px-6 py-4"><div className="flex items-center gap-2 font-semibold text-[#050505]"><span className="min-w-0 truncate">{listing.name}</span>{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName && listing.project_id ? <Link className="font-medium text-neutral-700 underline-offset-2 hover:text-black hover:underline" href={`/developer/projects?project=${listing.project_id}`}>{projectName}</Link> : "No linked project"} · Updated {formatDate(listing.updated_at)}{listing.expires_at ? ` · Expires ${formatDate(listing.expires_at)}` : ""}</p></td><td className="px-4 py-4 font-medium text-neutral-800">EGP {listing.price.toLocaleString()}</td><td className="px-4 py-4"><StatusBadge listing={listing} /></td><td className="px-4 py-4 text-neutral-600">{listing.inquiries}</td><td className="px-6 py-4">{readOnly ? <div className="text-right text-xs font-medium text-neutral-500">App agent · view-only</div> : <ListingActions listing={listing} />}</td></tr>;
+function ListingRow({ listing, projectName, readOnly, archived }: { listing: DeveloperListing; projectName?: string; readOnly: boolean; archived: boolean }) {
+  return <tr className="border-b border-black/5 last:border-0"><td className="px-6 py-4"><div className="flex items-center gap-2 font-semibold text-[#050505]"><span className="min-w-0 truncate">{listing.name}</span>{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName && listing.project_id ? <Link className="font-medium text-neutral-700 underline-offset-2 hover:text-black hover:underline" href={`/developer/projects?project=${listing.project_id}`}>{projectName}</Link> : "No linked project"} · Updated {formatDate(listing.updated_at)}{listing.expires_at ? ` · Expires ${formatDate(listing.expires_at)}` : ""}</p></td><td className="px-4 py-4 font-medium text-neutral-800">EGP {listing.price.toLocaleString()}</td><td className="px-4 py-4"><StatusBadge listing={listing} /></td><td className="px-4 py-4 text-neutral-600">{listing.inquiries}</td><td className="px-6 py-4">{readOnly ? <div className="text-right text-xs font-medium text-neutral-500">App agent · view-only</div> : <ListingActions listing={listing} archived={archived} />}</td></tr>;
 }
 
-function ListingCard({ listing, projectName, readOnly }: { listing: DeveloperListing; projectName?: string; readOnly: boolean }) {
-  return <article className="p-5"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2 font-semibold text-[#050505]"><span className="truncate">{listing.name}</span>{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName && listing.project_id ? <Link className="font-medium text-neutral-700 underline-offset-2 hover:text-black hover:underline" href={`/developer/projects?project=${listing.project_id}`}>{projectName}</Link> : "No linked project"}</p><p className="mt-1 text-xs text-neutral-400">Updated {formatDate(listing.updated_at)}{listing.expires_at ? ` · Expires ${formatDate(listing.expires_at)}` : ""}</p></div><StatusBadge listing={listing} /></div><div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-xs text-neutral-500">Price</p><p className="font-semibold">EGP {listing.price.toLocaleString()}</p></div><div className="text-right"><p className="text-xs text-neutral-500">Inquiries</p><p className="font-semibold">{listing.inquiries}</p></div></div><div className="mt-4 border-t border-black/5 pt-4">{readOnly ? <p className="text-xs font-medium text-neutral-500">App agent submission · view-only</p> : <ListingActions listing={listing} />}</div></article>;
+function ListingCard({ listing, projectName, readOnly, archived }: { listing: DeveloperListing; projectName?: string; readOnly: boolean; archived: boolean }) {
+  return <article className="p-5"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2 font-semibold text-[#050505]"><span className="truncate">{listing.name}</span>{listing.is_demo ? <DemoBadge /> : null}</div><p className="mt-1 text-xs text-neutral-500">{projectName && listing.project_id ? <Link className="font-medium text-neutral-700 underline-offset-2 hover:text-black hover:underline" href={`/developer/projects?project=${listing.project_id}`}>{projectName}</Link> : "No linked project"}</p><p className="mt-1 text-xs text-neutral-400">Updated {formatDate(listing.updated_at)}{listing.expires_at ? ` · Expires ${formatDate(listing.expires_at)}` : ""}</p></div><StatusBadge listing={listing} /></div><div className="mt-4 flex items-end justify-between gap-3"><div><p className="text-xs text-neutral-500">Price</p><p className="font-semibold">EGP {listing.price.toLocaleString()}</p></div><div className="text-right"><p className="text-xs text-neutral-500">Inquiries</p><p className="font-semibold">{listing.inquiries}</p></div></div><div className="mt-4 border-t border-black/5 pt-4">{readOnly ? <p className="text-xs font-medium text-neutral-500">App agent submission · view-only</p> : <ListingActions listing={listing} archived={archived} />}</div></article>;
 }
 
-function ListingActions({ listing }: { listing: DeveloperListing }) {
-  return <div className="flex flex-wrap justify-end gap-2"><Link className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" href={`/developer/listings/${listing.id}`}>Edit</Link><form action={toggleVisibilityAction}><input type="hidden" name="listingId" value={listing.id} /><input type="hidden" name="visibility" value={listing.visibility === "public" ? "hidden" : "public"} /><button className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" type="submit">{listing.visibility === "public" ? "Hide" : "Show"}</button></form>{listing.status === "approved" && listing.renewal_status !== "awaiting_admin" && listing.renewal_status !== "active" ? <form action={requestRenewalAction}><input type="hidden" name="listingId" value={listing.id} /><button className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" type="submit">Renew</button></form> : null}<form action={deleteListingAction}><input type="hidden" name="listingId" value={listing.id} /><ConfirmSubmitButton className="rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-50" confirmMessage="Delete this listing permanently? This cannot be undone." pendingLabel="Deleting…">Delete</ConfirmSubmitButton></form></div>;
+function ListingActions({ listing, archived }: { listing: DeveloperListing; archived: boolean }) {
+  if (archived) return <form action={restoreListingAction}><input type="hidden" name="listingId" value={listing.id} /><button className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800" type="submit">Restore to hidden inventory</button></form>;
+  return <div className="flex flex-wrap justify-end gap-2"><Link className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" href={`/developer/listings/${listing.id}`}>Edit</Link><form action={toggleVisibilityAction}><input type="hidden" name="listingId" value={listing.id} /><input type="hidden" name="visibility" value={listing.visibility === "public" ? "hidden" : "public"} /><button className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" type="submit">{listing.visibility === "public" ? "Hide" : "Restore visibility"}</button></form>{listing.status === "approved" && listing.renewal_status !== "awaiting_admin" && listing.renewal_status !== "active" ? <form action={requestRenewalAction}><input type="hidden" name="listingId" value={listing.id} /><button className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" type="submit">Renew</button></form> : null}<form action={archiveListingAction}><input type="hidden" name="listingId" value={listing.id} /><ConfirmSubmitButton className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-50" confirmMessage="Archive this listing? It will be hidden and retained so you can restore visibility later." pendingLabel="Archiving…">Archive</ConfirmSubmitButton></form></div>;
 }
 
 function StatusBadge({ listing }: { listing: DeveloperListing }) {
-  const label = listing.renewal_status === "awaiting_admin" ? "Renewal pending" : listing.visibility === "hidden" ? "Hidden" : listing.status;
-  const tone = label === "approved" ? "bg-emerald-50 text-emerald-700" : label === "Hidden" ? "bg-neutral-100 text-neutral-600" : "bg-amber-50 text-amber-700";
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${tone}`}>{label}</span>;
+  const publication = listing.archived_at ? "Archived" : listing.status === "approved" && listing.published_at ? listing.visibility === "public" ? "Published to mobile" : "Published · hidden" : listing.status === "approved" ? "Approved · awaiting publish" : listing.status === "rejected" ? "Changes requested" : "Pending review";
+  const publicationTone = listing.status === "approved" && listing.published_at ? "bg-emerald-50 text-emerald-700" : listing.status === "rejected" ? "bg-rose-50 text-rose-700" : listing.status === "approved" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700";
+  const visibility = listing.visibility === "public" ? "Visible to agents" : "Hidden · restorable";
+  const readiness = listing.quality_score != null ? `Readiness ${Math.round(listing.quality_score)}%` : listing.quality_issues?.length ? `${listing.quality_issues.length} checks need attention` : null;
+  return <div className="flex flex-col items-start gap-1"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${publicationTone}`}>{publication}</span><span className="text-[11px] font-medium text-neutral-500">{visibility}{listing.renewal_status === "awaiting_admin" ? " · Renewal pending" : ""}</span>{readiness ? <span className="text-[11px] text-neutral-400">{readiness}</span> : null}</div>;
 }
 
 function DemoBadge() { return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Demo</span>; }
@@ -134,7 +140,7 @@ function formatDate(value: string | null) { return value ? new Intl.DateTimeForm
 
 async function toggleVisibilityAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_inventory");
   const listingId = formData.get("listingId")?.toString();
   const visibility = formData.get("visibility")?.toString() ?? "public";
   if (!listingId) return;
@@ -144,20 +150,31 @@ async function toggleVisibilityAction(formData: FormData) {
   redirect(`/developer/listings?view=developer&success=${encodeURIComponent(visibility === "hidden" ? "Listing hidden from the mobile catalog." : "Listing restored to the mobile catalog.")}`);
 }
 
-async function deleteListingAction(formData: FormData) {
+async function archiveListingAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_inventory");
   const listingId = formData.get("listingId")?.toString();
   if (!listingId) return;
-  const { error } = await deleteListing(session.developerId, listingId);
+  const { error } = await archiveDeveloperListing(session.developerId, listingId, session.accountId);
   revalidatePath("/developer/listings");
   if (error) redirect(`/developer/listings?view=developer&error=${encodeURIComponent(error.message)}`);
-  redirect("/developer/listings?view=developer&success=Listing%20deleted.");
+  redirect(`/developer/listings?view=developer&success=${encodeURIComponent("Listing archived and retained. Use Show to restore visibility when ready.")}`);
+}
+
+async function restoreListingAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_inventory");
+  const listingId = formData.get("listingId")?.toString();
+  if (!listingId) return;
+  const { error } = await restoreDeveloperListing(session.developerId, listingId);
+  revalidatePath("/developer/listings");
+  if (error) redirect(`/developer/listings?view=archived&error=${encodeURIComponent(error.message)}`);
+  redirect(`/developer/listings?view=developer&success=${encodeURIComponent("Listing restored to hidden inventory. Publish it only after review requirements are satisfied.")}`);
 }
 
 async function requestRenewalAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_inventory");
   const listingId = formData.get("listingId")?.toString();
   if (!listingId) return;
   try { await requestListingRenewal(listingId, session.userId, session.developerId); }

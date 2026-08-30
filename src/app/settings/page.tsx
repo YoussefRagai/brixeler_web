@@ -1,33 +1,22 @@
-import { AdminLayout } from "@/components/AdminLayout";
-import { AdminAccessDenied } from "@/components/AdminAccessDenied";
-import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
-import { buildAdminUi } from "@/lib/adminUi";
-import { requireAdminRole } from "@/lib/adminAuth";
-import { logAdminActivity } from "@/lib/adminQueries";
-import { supabaseServer } from "@/lib/supabaseServer";
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { AdminLayout } from "@/components/AdminLayout";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { requireAdminRole } from "@/lib/adminAuth";
+import { logAdminActivity } from "@/lib/adminQueries";
+import { buildAdminUi } from "@/lib/adminUi";
+import { compensateDeveloperInviteAuthUser } from "@/lib/developerAccountInvites";
+import { supabaseServer } from "@/lib/supabaseServer";
 
-type ReferralTier = {
+type ReferralBand = {
   id: string;
   tier_name: string;
   min_referrals: number;
   max_referrals: number | null;
   bonus_percentage: number;
-  requires_verification: boolean;
-  requires_first_deal: boolean;
   behavior_requirement: "none" | "verified" | "first_deal";
-};
-
-type Badge = {
-  id: string;
-  name: string;
-  badge_type: string;
-  unlock_criteria: Record<string, unknown>;
-  benefit_type: string;
-  benefit_value: number | null;
-  is_active: boolean;
-  display_order: number | null;
 };
 
 type DemoBatch = {
@@ -39,538 +28,209 @@ type DemoBatch = {
   removed_at: string | null;
 };
 
+const behaviorOptions: Array<{ value: ReferralBand["behavior_requirement"]; label: string }> = [
+  { value: "none", label: "All referrals" },
+  { value: "verified", label: "Verified referrals" },
+  { value: "first_deal", label: "Referrals with a first deal" },
+];
+
 async function requireSettingsAdmin() {
   const admin = await requireAdminRole(["super_admin"]);
   if (!admin) redirect("/settings?error=Access%20denied.");
   return admin;
 }
 
-async function getSettingsData(): Promise<{ tiers: ReferralTier[]; badges: Badge[]; demoBatches: DemoBatch[] }> {
-  const [{ data: tiers }, { data: badges }, { data: demoBatches }] = await Promise.all([
+async function getSettingsData() {
+  const [bandsResult, batchesResult, tiersResult, badgesResult, audiencesResult] = await Promise.all([
     supabaseServer
       .from("referral_bonus_rules")
-      .select("id, tier_name, min_referrals, max_referrals, bonus_percentage, requires_verification, requires_first_deal, behavior_requirement")
+      .select("id, tier_name, min_referrals, max_referrals, bonus_percentage, behavior_requirement")
       .order("min_referrals", { ascending: true }),
-    supabaseServer
-      .from("badges")
-      .select("id, name, badge_type, unlock_criteria, benefit_type, benefit_value, is_active, display_order")
-      .order("display_order", { ascending: true }),
     supabaseServer
       .from("demo_data_batches")
       .select("batch_key, label, notes, status, created_at, removed_at")
       .order("created_at", { ascending: false }),
+    supabaseServer.from("tiers").select("id", { count: "exact", head: true }),
+    supabaseServer.from("badges").select("id", { count: "exact", head: true }),
+    supabaseServer.from("growth_audiences").select("id", { count: "exact", head: true }),
   ]);
 
   return {
-    tiers: (tiers ?? []) as ReferralTier[],
-    badges: (badges ?? []) as Badge[],
-    demoBatches: (demoBatches ?? []) as DemoBatch[],
+    bands: (bandsResult.data ?? []) as ReferralBand[],
+    demoBatches: (batchesResult.data ?? []) as DemoBatch[],
+    growthCounts: {
+      tiers: tiersResult.count ?? 0,
+      badges: badgesResult.count ?? 0,
+      audiences: audiencesResult.count ?? 0,
+    },
   };
 }
 
-async function upsertTier(formData: FormData) {
+function formError(message: string): never {
+  redirect(`/settings?error=${encodeURIComponent(message)}`);
+}
+
+async function upsertReferralBand(formData: FormData) {
   "use server";
   const admin = await requireSettingsAdmin();
-  const tierId = formData.get("tierId")?.toString() || undefined;
-  const tierName = formData.get("tierName")?.toString() ?? "";
-  const minReferrals = parseInt(formData.get("minReferrals")?.toString() ?? "0", 10);
-  const maxReferralsRaw = formData.get("maxReferrals")?.toString() ?? "";
-  const bonusPercentage = parseFloat(formData.get("bonusPercentage")?.toString() ?? "0");
-  const behaviorRequirement = (formData.get("behaviorRequirement")?.toString() ??
-    "none") as ReferralTier["behavior_requirement"];
-  const requiresVerification = behaviorRequirement === "verified";
-  const requiresFirstDeal = behaviorRequirement === "first_deal";
+  const bandId = formData.get("bandId")?.toString() || undefined;
+  const name = formData.get("name")?.toString().trim() ?? "";
+  const min = Number(formData.get("minReferrals"));
+  const rawMax = formData.get("maxReferrals")?.toString().trim() ?? "";
+  const max = rawMax ? Number(rawMax) : null;
+  const bonus = Number(formData.get("bonusPercentage"));
+  const behavior = formData.get("behaviorRequirement")?.toString() as ReferralBand["behavior_requirement"];
 
-  if (!tierName.trim()) return;
+  if (!name || name.length > 50) formError("Use a referral-band name between 1 and 50 characters.");
+  if (!Number.isInteger(min) || min < 0) formError("Minimum referrals must be a non-negative whole number.");
+  if (max !== null && (!Number.isInteger(max) || max < min)) formError("Maximum referrals must be blank or at least the minimum.");
+  if (!Number.isFinite(bonus) || bonus < 0 || bonus > 5) formError("Bonus percentage must be between 0 and 5.");
+  if (!behaviorOptions.some((option) => option.value === behavior)) formError("Choose a supported referral qualification.");
 
-  const { error } = await supabaseServer.from("referral_bonus_rules").upsert({
-    id: tierId,
-    tier_name: tierName.trim(),
-    min_referrals: Number.isNaN(minReferrals) ? 0 : minReferrals,
-    max_referrals: maxReferralsRaw.length ? Number(maxReferralsRaw) : null,
-    bonus_percentage: Number.isNaN(bonusPercentage) ? 0 : bonusPercentage,
-    requires_verification: requiresVerification,
-    requires_first_deal: requiresFirstDeal,
-    behavior_requirement: behaviorRequirement,
+  const { data: existing, error: loadError } = await supabaseServer
+    .from("referral_bonus_rules")
+    .select("id, min_referrals, max_referrals");
+  if (loadError) formError("Unable to validate the referral bands.");
+  const overlaps = (existing ?? []).some((row) => {
+    if (row.id === bandId) return false;
+    const rowMax = row.max_referrals ?? Number.POSITIVE_INFINITY;
+    const nextMax = max ?? Number.POSITIVE_INFINITY;
+    return min <= rowMax && row.min_referrals <= nextMax;
   });
-  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
+  if (overlaps) formError("Referral ranges cannot overlap. Adjust the minimum or maximum and try again.");
+
+  const { data, error } = await supabaseServer
+    .from("referral_bonus_rules")
+    .upsert({
+      id: bandId,
+      tier_name: name,
+      min_referrals: min,
+      max_referrals: max,
+      bonus_percentage: bonus,
+      requires_verification: behavior === "verified",
+      requires_first_deal: behavior === "first_deal",
+      behavior_requirement: behavior,
+    })
+    .select("id")
+    .single();
+  if (error) formError(error.message);
   await logAdminActivity({
     adminId: admin.adminId,
-    action: tierId ? "settings.update_tier" : "settings.create_tier",
+    action: bandId ? "settings.referral_band.updated" : "settings.referral_band.created",
     resourceType: "referral_bonus_rules",
-    resourceId: tierId ?? null,
-    metadata: { tier_name: tierName.trim() },
+    resourceId: data?.id ?? bandId ?? null,
+    metadata: { name, min_referrals: min, max_referrals: max, bonus_percentage: bonus, behavior_requirement: behavior },
   });
-
   revalidatePath("/settings");
+  redirect(`/settings?success=${encodeURIComponent(`Referral payout band ${bandId ? "updated" : "created"}.`)}`);
 }
 
-async function deleteTier(formData: FormData) {
+async function deleteReferralBand(formData: FormData) {
   "use server";
   const admin = await requireSettingsAdmin();
-  const tierId = formData.get("tierId")?.toString();
-  if (!tierId) return;
-  const { error } = await supabaseServer.from("referral_bonus_rules").delete().eq("id", tierId);
-  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
-  await logAdminActivity({
-    adminId: admin.adminId,
-    action: "settings.delete_tier",
-    resourceType: "referral_bonus_rules",
-    resourceId: tierId,
-  });
+  const bandId = formData.get("bandId")?.toString();
+  if (!bandId) formError("Missing referral payout band.");
+  const { error } = await supabaseServer.from("referral_bonus_rules").delete().eq("id", bandId);
+  if (error) formError(error.message);
+  await logAdminActivity({ adminId: admin.adminId, action: "settings.referral_band.deleted", resourceType: "referral_bonus_rules", resourceId: bandId });
   revalidatePath("/settings");
-}
-
-async function upsertBadge(formData: FormData) {
-  "use server";
-  const admin = await requireSettingsAdmin();
-  const badgeId = formData.get("badgeId")?.toString() || undefined;
-  const badgeName = formData.get("badgeName")?.toString() ?? "";
-  const badgeType = formData.get("badgeType")?.toString() ?? "deal_milestone";
-  const criteriaType = formData.get("criteriaType")?.toString() ?? "total_deals";
-  const criteriaValue = parseFloat(formData.get("criteriaValue")?.toString() ?? "0");
-  const benefitType = formData.get("benefitType")?.toString() ?? "none";
-  const benefitValue = parseFloat(formData.get("benefitValue")?.toString() ?? "0");
-  const displayOrder = parseInt(formData.get("displayOrder")?.toString() ?? "0", 10);
-  const isActive = formData.get("isActive") === "on";
-
-  if (!badgeName.trim()) return;
-
-  const { error } = await supabaseServer.from("badges").upsert({
-    id: badgeId,
-    name: badgeName.trim(),
-    badge_type: badgeType,
-    unlock_criteria: { type: criteriaType, threshold: Number.isNaN(criteriaValue) ? 0 : criteriaValue },
-    benefit_type: benefitType,
-    benefit_value: Number.isNaN(benefitValue) ? null : benefitValue,
-    display_order: Number.isNaN(displayOrder) ? null : displayOrder,
-    is_active: isActive,
-  });
-  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
-  await logAdminActivity({
-    adminId: admin.adminId,
-    action: badgeId ? "settings.update_badge" : "settings.create_badge",
-    resourceType: "badges",
-    resourceId: badgeId ?? null,
-  });
-
-  revalidatePath("/settings");
-}
-
-async function deleteBadge(formData: FormData) {
-  "use server";
-  const admin = await requireSettingsAdmin();
-  const badgeId = formData.get("badgeId")?.toString();
-  if (!badgeId) return;
-  const { error } = await supabaseServer.from("badges").delete().eq("id", badgeId);
-  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
-  await logAdminActivity({
-    adminId: admin.adminId,
-    action: "settings.delete_badge",
-    resourceType: "badges",
-    resourceId: badgeId,
-  });
-  revalidatePath("/settings");
+  redirect("/settings?success=Referral%20payout%20band%20deleted.");
 }
 
 async function removeDemoBatch(formData: FormData) {
   "use server";
   const admin = await requireSettingsAdmin();
-  const batchKey = formData.get("batchKey")?.toString();
-  if (!batchKey) return;
-  const { error } = await supabaseServer.rpc("cleanup_demo_batch", { p_batch: batchKey });
-  if (error) redirect(`/settings?error=${encodeURIComponent(error.message)}`);
-  await logAdminActivity({
-    adminId: admin.adminId,
-    action: "settings.remove_demo_batch",
-    resourceType: "demo_data_batches",
-    resourceId: batchKey,
-  });
+  const batchKey = formData.get("batchKey")?.toString().trim();
+  if (!batchKey) formError("Missing demo batch.");
+  const { data: demoAccounts, error: demoAccountsError } = await supabaseServer
+    .from("developer_accounts")
+    .select("auth_user_id, developer_id, invite_request_id")
+    .eq("is_demo", true)
+    .eq("demo_batch", batchKey);
+  if (demoAccountsError) formError("Unable to prepare developer demo-account cleanup.");
+
+  const { error: cleanupError } = await supabaseServer.rpc("cleanup_demo_batch", { p_batch: batchKey });
+  if (cleanupError) formError(cleanupError.message);
+
+  const cleanupFailures: string[] = [];
+  for (const account of demoAccounts ?? []) {
+    const result = await compensateDeveloperInviteAuthUser({
+      authUserId: account.auth_user_id,
+      developerId: account.developer_id,
+      inviteRequestId: account.invite_request_id ?? "",
+    });
+    if (["auth_delete_failed", "membership_check_failed"].includes(result.reason ?? "")) {
+      cleanupFailures.push(account.auth_user_id);
+    }
+  }
+  if (cleanupFailures.length) {
+    formError(`Demo rows were removed, but ${cleanupFailures.length} Auth cleanup operation(s) need follow-up.`);
+  }
+  await logAdminActivity({ adminId: admin.adminId, action: "settings.demo_batch.removed", resourceType: "demo_data_batches", resourceId: batchKey });
   revalidatePath("/settings");
   redirect("/settings?success=Demo%20batch%20removed.");
 }
 
+function BandFields({ band }: { band?: ReferralBand }) {
+  return (
+    <>
+      <input type="hidden" name="bandId" value={band?.id ?? ""} />
+      <label className="space-y-1.5 text-xs font-semibold text-neutral-600 sm:col-span-2">Label<input name="name" required maxLength={50} defaultValue={band?.tier_name ?? ""} placeholder="Qualified referrals" className="mt-1.5 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3.5 text-sm text-[#111]" /></label>
+      <label className="space-y-1.5 text-xs font-semibold text-neutral-600">Minimum<input name="minReferrals" required type="number" min={0} step={1} defaultValue={band?.min_referrals ?? 0} className="mt-1.5 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3.5 text-sm text-[#111]" /></label>
+      <label className="space-y-1.5 text-xs font-semibold text-neutral-600">Maximum<input name="maxReferrals" type="number" min={0} step={1} defaultValue={band?.max_referrals ?? ""} placeholder="No limit" className="mt-1.5 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3.5 text-sm text-[#111]" /></label>
+      <label className="space-y-1.5 text-xs font-semibold text-neutral-600">Bonus %<input name="bonusPercentage" required type="number" min={0} max={5} step="0.05" defaultValue={band?.bonus_percentage ?? 0} className="mt-1.5 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3.5 text-sm text-[#111]" /></label>
+      <label className="space-y-1.5 text-xs font-semibold text-neutral-600 sm:col-span-2">Qualifying referrals<select name="behaviorRequirement" defaultValue={band?.behavior_requirement ?? "verified"} className="mt-1.5 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3.5 text-sm text-[#111]">{behaviorOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+    </>
+  );
+}
+
 export default async function SettingsPage({ searchParams }: { searchParams?: Promise<{ success?: string; error?: string }> }) {
   const ui = await buildAdminUi(["super_admin"]);
-  const { tiers, badges, demoBatches } = await getSettingsData();
   const feedback = (await searchParams) ?? {};
+  const { bands, demoBatches, growthCounts } = await getSettingsData();
+  const activeDemoBatches = demoBatches.filter((batch) => batch.status === "active").length;
 
   return (
-    <AdminLayout
-      title="System settings"
-      description="Adjust payout overrides, referral tiers, and gamification rewards."
-      actions={
-        <button className="rounded-full bg-emerald-400 px-5 py-2 text-sm font-semibold text-emerald-950">
-          Auto-save enabled
-        </button>
-      }
-      navItems={ui.navItems}
-      meta={ui.meta}
-    >
-      {!ui.hasAccess ? (
-        <AdminAccessDenied />
-      ) : (
-        <>
-        {feedback.success ? <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">{feedback.success}</div> : null}
-        {feedback.error ? <div className="rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{feedback.error}</div> : null}
-        <section className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Referral tiers</p>
-          <div className="mt-4 space-y-4 text-sm text-slate-200">
-            {tiers.map((tier) => (
-              <form
-                key={tier.id}
-                action={upsertTier}
-                className="grid gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 text-xs uppercase tracking-[0.3em] text-slate-500 md:grid-cols-5"
-              >
-                <input type="hidden" name="tierId" value={tier.id} />
-                <label className="md:col-span-2 flex flex-col gap-2">
-                  Name
-                  <input
-                    name="tierName"
-                    defaultValue={tier.tier_name}
-                    className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                  />
-                </label>
-                <label className="flex flex-col gap-2">
-                  Min
-                  <input
-                    name="minReferrals"
-                    type="number"
-                    defaultValue={tier.min_referrals}
-                    className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                  />
-                </label>
-                <label className="flex flex-col gap-2">
-                  Max
-                  <input
-                    name="maxReferrals"
-                    type="number"
-                    defaultValue={tier.max_referrals ?? ""}
-                    className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                  />
-                </label>
-                <label className="flex flex-col gap-2">
-                  Bonus %
-                  <input
-                    name="bonusPercentage"
-                    type="number"
-                    step="0.05"
-                    defaultValue={tier.bonus_percentage}
-                    className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                  />
-                </label>
-                <label className="md:col-span-2 flex flex-col gap-2">
-                  Behavior
-                  <select
-                    name="behaviorRequirement"
-                    defaultValue={tier.behavior_requirement ?? "none"}
-                    className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                  >
-                    <option value="none">Total referrals</option>
-                    <option value="verified">Verified referrals</option>
-                    <option value="first_deal">Referrals with deals</option>
-                  </select>
-                </label>
-                <div className="md:col-span-5 flex gap-2">
-                  <button
-                    type="submit"
-                    className="rounded-full bg-white/90 px-4 py-2 text-[11px] font-semibold text-black"
-                  >
-                    Save tier
-                  </button>
-                  <button
-                    formAction={deleteTier}
-                    className="rounded-full border border-white/20 px-4 py-2 text-[11px] text-white/60 hover:text-white"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </form>
-            ))}
-          </div>
-          <div className="mt-6 rounded-2xl border border-dashed border-white/10 p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Add tier</p>
-            <form action={upsertTier} className="mt-4 grid gap-4 md:grid-cols-4">
-              <input type="hidden" name="tierId" value="" />
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Name
-                <input
-                  name="tierName"
-                  placeholder="Tier label"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                  required
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Min
-                <input
-                  name="minReferrals"
-                  type="number"
-                  placeholder="0"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Max
-                <input
-                  name="maxReferrals"
-                  type="number"
-                  placeholder="Leave blank"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Bonus %
-                <input
-                  name="bonusPercentage"
-                  type="number"
-                  step="0.05"
-                  placeholder="0.25"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Behavior
-                <select
-                  name="behaviorRequirement"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                  defaultValue="none"
-                >
-                  <option value="none">Total referrals</option>
-                  <option value="verified">Verified referrals</option>
-                  <option value="first_deal">Referrals with deals</option>
-                </select>
-              </label>
-              <div className="md:col-span-3 flex justify-end">
-                <button className="rounded-full bg-emerald-400 px-6 py-2 text-sm font-semibold text-emerald-950">
-                  Add tier
-                </button>
-              </div>
-            </form>
-          </div>
-        </article>
+    <AdminLayout title="System settings" description="Control referral payouts, Growth ownership, and removable demonstration data." navItems={ui.navItems} meta={ui.meta}>
+      {!ui.hasAccess ? <AdminAccessDenied /> : (
+        <div className="space-y-6">
+          {feedback.success ? <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{feedback.success}</div> : null}
+          {feedback.error ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{feedback.error}</div> : null}
+          <section className="grid gap-3 sm:grid-cols-3">
+            <article className="rounded-2xl border border-black/5 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Referral bands</p><p className="mt-2 text-2xl font-semibold text-[#111]">{bands.length}</p></article>
+            <article className="rounded-2xl border border-black/5 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Growth catalog</p><p className="mt-2 text-2xl font-semibold text-[#111]">{growthCounts.tiers + growthCounts.badges}</p><p className="mt-1 text-xs text-neutral-500">{growthCounts.tiers} tiers · {growthCounts.badges} badges</p></article>
+            <article className="rounded-2xl border border-black/5 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Active demo batches</p><p className="mt-2 text-2xl font-semibold text-[#111]">{activeDemoBatches}</p></article>
+          </section>
 
-        <article className="rounded-3xl border border-white/5 bg-white/5 p-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Badges & gamification</p>
-          <div className="mt-4 space-y-4 text-sm text-slate-200">
-            {badges.map((badge) => {
-              const criteria = badge.unlock_criteria as { type?: string; threshold?: number };
-              return (
-                <form
-                  key={badge.id}
-                  action={upsertBadge}
-                  className="grid gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 text-xs uppercase tracking-[0.3em] text-slate-500 md:grid-cols-6"
-                >
-                  <input type="hidden" name="badgeId" value={badge.id} />
-                  <label className="md:col-span-2 flex flex-col gap-2">
-                    Name
-                    <input
-                      name="badgeName"
-                      defaultValue={badge.name}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-2">
-                    Type
-                    <select
-                      name="badgeType"
-                      defaultValue={badge.badge_type}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                    >
-                      <option value="deal_milestone">Deals</option>
-                      <option value="earnings">Earnings</option>
-                      <option value="referrals">Referrals</option>
-                      <option value="speed">Speed</option>
-                      <option value="contributions">Contributions</option>
-                      <option value="special">Special</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-2">
-                    Criteria
-                    <select
-                      name="criteriaType"
-                      defaultValue={(criteria?.type as string) ?? "total_deals"}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                    >
-                      <option value="total_deals">Total deals</option>
-                      <option value="total_volume">Total volume</option>
-                      <option value="verified_referrals">Verified referrals</option>
-                      <option value="avg_review_time">Avg review time</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-2">
-                    Threshold
-                    <input
-                      name="criteriaValue"
-                      type="number"
-                      step="0.5"
-                      defaultValue={criteria?.threshold ?? 0}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-2">
-                    Display order
-                    <input
-                      name="displayOrder"
-                      type="number"
-                      defaultValue={badge.display_order ?? 0}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-2">
-                    Benefit
-                    <select
-                      name="benefitType"
-                      defaultValue={badge.benefit_type}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                    >
-                      <option value="none">None</option>
-                      <option value="commission_boost">Commission boost</option>
-                      <option value="priority_support">Priority support</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-2">
-                    Benefit value
-                    <input
-                      name="benefitValue"
-                      type="number"
-                      step="0.05"
-                      defaultValue={badge.benefit_value ?? 0}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                    />
-                  </label>
-                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-slate-500">
-                    <label className="flex items-center gap-2">
-                      <input type="checkbox" name="isActive" defaultChecked={badge.is_active} />
-                      Active
-                    </label>
-                  </div>
-                  <div className="md:col-span-6 flex gap-2">
-                    <button
-                      type="submit"
-                      className="rounded-full bg-white/90 px-4 py-2 text-[11px] font-semibold text-black"
-                    >
-                      Save badge
-                    </button>
-                    <button
-                      formAction={deleteBadge}
-                      className="rounded-full border border-white/20 px-4 py-2 text-[11px] text-white/60 hover:text-white"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </form>
-              );
-            })}
-          </div>
-          <div className="mt-6 rounded-2xl border border-dashed border-white/10 p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Add badge</p>
-            <form action={upsertBadge} className="mt-4 grid gap-4 md:grid-cols-3">
-              <input type="hidden" name="badgeId" value="" />
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Name
-                <input
-                  name="badgeName"
-                  placeholder="Momentum Maker"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                  required
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Type
-                <select
-                  name="badgeType"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                >
-                  <option value="deal_milestone">Deals</option>
-                  <option value="earnings">Earnings</option>
-                  <option value="referrals">Referrals</option>
-                  <option value="speed">Speed</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Criteria type
-                <select
-                  name="criteriaType"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                >
-                  <option value="total_deals">Total deals</option>
-                  <option value="total_volume">Total volume</option>
-                  <option value="verified_referrals">Verified referrals</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Threshold
-                <input
-                  name="criteriaValue"
-                  type="number"
-                  step="0.5"
-                  placeholder="5"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Benefit type
-                <select
-                  name="benefitType"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                >
-                  <option value="none">None</option>
-                  <option value="commission_boost">Commission boost</option>
-                  <option value="priority_support">Priority support</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Benefit value
-                <input
-                  name="benefitValue"
-                  type="number"
-                  step="0.05"
-                  placeholder="0.25"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.3em] text-slate-500">
-                Display order
-                <input
-                  name="displayOrder"
-                  type="number"
-                  placeholder="10"
-                  className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white"
-                />
-              </label>
-              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-slate-500">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="isActive" defaultChecked />
-                  Active
-                </label>
+          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(300px,0.7fr)]">
+            <article className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm shadow-black/5">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#66722f]">Referral payout policy</p><h2 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[#111]">Clear, non-overlapping bonus bands</h2><p className="mt-1 max-w-2xl text-sm text-neutral-500">These bands affect referral payout calculations only. Mobile progression tiers and badges are managed in Growth.</p></div><span className="rounded-full border border-[#d9dfbf] bg-[#f1f5d9] px-3 py-1.5 text-xs font-semibold text-[#4c5d11]">Explicit save</span></div>
+              <div className="mt-5 space-y-3">
+                {bands.map((band) => (
+                  <article key={band.id} className="rounded-2xl border border-black/10 bg-[#fafaf8] p-4">
+                    <form action={upsertReferralBand} className="grid gap-3 sm:grid-cols-5"><BandFields band={band} /><div className="sm:col-span-5"><button type="submit" className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white">Save band</button></div></form>
+                    <form action={deleteReferralBand} className="mt-2"><input type="hidden" name="bandId" value={band.id} /><ConfirmSubmitButton confirmMessage={`Delete ${band.tier_name}? Referral calculations will stop using this range.`} pendingLabel="Deleting…" className="rounded-full border border-rose-200 bg-white px-4 py-2 text-xs font-semibold text-rose-700">Delete band</ConfirmSubmitButton></form>
+                  </article>
+                ))}
+                {!bands.length ? <p className="rounded-2xl border border-dashed border-black/10 px-4 py-8 text-center text-sm text-neutral-500">No referral payout bands are configured.</p> : null}
               </div>
-              <div className="md:col-span-3 flex justify-end">
-                <button className="rounded-full bg-emerald-400 px-6 py-2 text-sm font-semibold text-emerald-950">
-                  Add badge
-                </button>
-              </div>
-            </form>
-          </div>
-        </article>
-        </section>
-        <section className="mt-6 rounded-3xl border border-amber-300/20 bg-amber-300/5 p-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-amber-200">Demo data control</p>
-          <p className="mt-2 max-w-3xl text-sm text-slate-400">Every seeded project, listing, support item, campaign, and task belongs to a named batch. Remove one batch here before launch without touching production records.</p>
-          <div className="mt-5 space-y-3">
-            {demoBatches.map((batch) => (
-              <article key={batch.batch_key} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                <div><div className="flex items-center gap-2"><p className="font-semibold text-white">{batch.label}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${batch.status === "active" ? "bg-amber-300/15 text-amber-200" : "bg-white/10 text-slate-400"}`}>{batch.status}</span></div><p className="mt-1 font-mono text-xs text-slate-500">{batch.batch_key}</p>{batch.notes ? <p className="mt-2 text-sm text-slate-400">{batch.notes}</p> : null}</div>
-                {batch.status === "active" ? <form action={removeDemoBatch}><input type="hidden" name="batchKey" value={batch.batch_key}/><ConfirmSubmitButton pendingLabel="Removing…" confirmMessage={`Remove all demo records in ${batch.label}? This cannot be undone.`} className="rounded-full border border-rose-300/40 px-4 py-2 text-xs font-semibold text-rose-200">Remove demo batch</ConfirmSubmitButton></form> : <p className="text-xs text-slate-500">Removed {batch.removed_at ? new Date(batch.removed_at).toLocaleString() : ""}</p>}
-              </article>
-            ))}
-            {!demoBatches.length ? <p className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">No demo batches have been registered.</p> : null}
-          </div>
-        </section>
-        </>
+              <details className="mt-4 rounded-2xl border border-dashed border-black/10 bg-[#fafaf8] p-4"><summary className="cursor-pointer text-sm font-semibold text-[#111]">Add referral payout band</summary><form action={upsertReferralBand} className="mt-4 grid gap-3 sm:grid-cols-5"><BandFields /><div className="sm:col-span-5"><button className="rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white">Create band</button></div></form></details>
+            </article>
+
+            <aside className="space-y-4">
+              <article className="rounded-3xl border border-[#c8c2e9] bg-[#f2f1fb] p-5"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#4d477f]">Growth ownership</p><h2 className="mt-2 text-lg font-semibold text-[#111]">One place for tiers and badges</h2><p className="mt-2 text-sm leading-5 text-neutral-600">Catalog design, rules, audiences, approvals, versions, and mobile visibility now live exclusively in Growth.</p><div className="mt-4 flex flex-wrap gap-2"><Link href="/rewards" className="rounded-full bg-[#4d477f] px-4 py-2 text-xs font-semibold text-white">Open tiers & badges</Link><Link href="/growth/audiences" className="rounded-full border border-[#4d477f]/30 bg-white px-4 py-2 text-xs font-semibold text-[#4d477f]">Open audiences ({growthCounts.audiences})</Link></div></article>
+              <article className="rounded-3xl border border-black/5 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">What reaches customers</p><ul className="mt-3 space-y-2 text-sm leading-5 text-neutral-600"><li>Only approved, active Growth resources are eligible.</li><li>Referral bands change payout calculations, not profile progression.</li><li>Demo resources remain flagged and removable before launch.</li></ul></article>
+            </aside>
+          </section>
+
+          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
+            <div><p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">Demo data control</p><h2 className="mt-1 text-xl font-semibold text-[#111]">Remove demonstrations by exact batch</h2><p className="mt-1 max-w-3xl text-sm text-neutral-600">Cleanup targets only records explicitly marked with the selected batch. Production records are preserved.</p></div>
+            <div className="mt-5 space-y-3">
+              {demoBatches.map((batch) => <article key={batch.batch_key} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-white p-4"><div><div className="flex items-center gap-2"><p className="font-semibold text-[#111]">{batch.label}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${batch.status === "active" ? "bg-amber-100 text-amber-800" : "bg-neutral-100 text-neutral-500"}`}>{batch.status}</span></div><p className="mt-1 font-mono text-xs text-neutral-500">{batch.batch_key}</p>{batch.notes ? <p className="mt-2 text-sm text-neutral-600">{batch.notes}</p> : null}</div>{batch.status === "active" ? <form action={removeDemoBatch}><input type="hidden" name="batchKey" value={batch.batch_key} /><ConfirmSubmitButton pendingLabel="Removing…" confirmMessage={`Remove all demo records in ${batch.label}? This cannot be undone.`} className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700">Remove demo batch</ConfirmSubmitButton></form> : <p className="text-xs text-neutral-500">Removed {batch.removed_at ? new Date(batch.removed_at).toLocaleString() : ""}</p>}</article>)}
+              {!demoBatches.length ? <p className="rounded-2xl border border-dashed border-amber-300 px-4 py-8 text-center text-sm text-neutral-500">No demo batches have been registered.</p> : null}
+            </div>
+          </section>
+        </div>
       )}
     </AdminLayout>
   );

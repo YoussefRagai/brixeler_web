@@ -8,12 +8,14 @@ export function DeveloperProjectRequestTabs({
   requestContent,
   sectionIdSuffix,
   initialTab = "overview",
+  showRequests = true,
 }: {
   requestCount: number;
   overviewContent: ReactNode;
   requestContent: ReactNode;
   sectionIdSuffix?: string;
   initialTab?: "overview" | "requests";
+  showRequests?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<"overview" | "requests">(initialTab);
   const inventoryId = sectionIdSuffix ? `project-inventory-${sectionIdSuffix}` : "project-inventory";
@@ -24,6 +26,10 @@ export function DeveloperProjectRequestTabs({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  if (!showRequests) {
+    return <div className="mt-4">{overviewContent}</div>;
+  }
 
   return (
     <div className="mt-4">

@@ -28,28 +28,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid property status" }, { status: 400 });
   }
 
-  const payload: Record<string, unknown> = {
-    approval_status: status,
-    reviewed_at: new Date().toISOString(),
-    reviewed_by: admin.adminId,
-  };
-
-  if (status === "rejected" || status === "pending") {
-    payload.rejection_reason = body.reason ?? null;
-  } else {
-    payload.rejection_reason = null;
+  const reason = body.reason?.trim() || null;
+  if ((status === "rejected" || status === "pending") && (!reason || reason.length < 5)) {
+    return NextResponse.json({ error: "A review reason of at least 5 characters is required." }, { status: 400 });
   }
 
-  const { error } = await supabaseServer.from("properties").update(payload).eq("id", propertyId);
-  if (error) return NextResponse.json({ error: error.message ?? "Update failed" }, { status: 500 });
+  const { data, error } = await supabaseServer.rpc("review_property_listing", {
+    p_property_id: propertyId,
+    p_admin_id: admin.adminId,
+    p_decision: status,
+    p_reason: reason,
+  });
+  if (error) return NextResponse.json({ error: error.message ?? "Update failed" }, { status: 409 });
 
   await logAdminActivity({
     adminId: admin.adminId,
     action: `property.${status}`,
     resourceType: "properties",
     resourceId: propertyId,
-    metadata: { reason: body.reason ?? null },
+    metadata: { reason, decision: status },
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, property: data ?? null });
 }

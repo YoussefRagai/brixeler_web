@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   const [{ data: project, error: projectError }, { data: profile, error: profileError }, authResult] = await Promise.all([
     supabaseServer
       .from("developer_projects")
-      .select("id, developer_id, name, developers(name)")
+      .select("id, developer_id, name, lifecycle_state, published_at, is_demo, developers(name, is_active, lifecycle_state, published_at, is_demo)")
       .eq("id", projectId)
       .eq("developer_id", developerId)
       .eq("approval_status", "approved")
@@ -57,6 +57,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Project not found for this developer." }, { status: 404 });
   }
 
+  const developerRelation = Array.isArray(project.developers) ? project.developers[0] : project.developers;
+  const projectIsPublic =
+    project.lifecycle_state === "published" &&
+    Boolean(project.published_at) &&
+    project.is_demo !== true &&
+    developerRelation?.is_active === true &&
+    developerRelation.lifecycle_state === "published" &&
+    Boolean(developerRelation.published_at) &&
+    developerRelation.is_demo !== true;
+  if (!projectIsPublic) {
+    return NextResponse.json({ error: "Project is not currently available." }, { status: 404 });
+  }
+
   if (profileError || !profile) {
     return NextResponse.json({ error: "Your profile could not be loaded. Please sign in again." }, { status: 409 });
   }
@@ -65,20 +78,31 @@ export async function POST(request: Request) {
   if (propertyId) {
     const { data: property, error: propertyError } = await supabaseServer
       .from("properties")
-      .select("id, property_name, project_id, developer_id")
+      .select("id, property_name, project_id, developer_id, phase_id, published_at, is_demo, archived_at")
       .eq("id", propertyId)
       .eq("project_id", projectId)
       .eq("developer_id", developerId)
       .eq("approval_status", "approved")
       .eq("is_active", true)
+      .in("availability_state", ["available", "released"])
+      .eq("is_demo", false)
+      .not("published_at", "is", null)
+      .is("archived_at", null)
       .maybeSingle();
     if (propertyError || !property) {
       return NextResponse.json({ error: "Property not found for this project." }, { status: 404 });
     }
+    if (property.phase_id) {
+      const { data: phaseIsPublic, error: phaseError } = await supabaseServer.rpc("developer_project_phase_is_public", {
+        p_phase_id: property.phase_id,
+      });
+      if (phaseError || phaseIsPublic !== true) {
+        return NextResponse.json({ error: "Property phase is not currently available." }, { status: 404 });
+      }
+    }
     propertyNameSnapshot = property.property_name ?? null;
   }
 
-  const developerRelation = Array.isArray(project.developers) ? project.developers[0] : project.developers;
   const email = authResult.data.user?.email ?? null;
   const displayName =
     profile.display_name?.trim() ||

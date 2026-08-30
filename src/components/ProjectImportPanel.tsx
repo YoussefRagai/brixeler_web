@@ -27,6 +27,7 @@ type ImportedType = {
 
 type Props = {
   projectId: string;
+  phaseId?: string | null;
   onImportAction: (formData: FormData) => void;
 };
 
@@ -134,7 +135,7 @@ function parseWorkbook(rows: Array<Array<unknown>>): ImportedType[] {
   return Array.from(groups.values());
 }
 
-export function ProjectImportPanel({ projectId, onImportAction }: Props) {
+export function ProjectImportPanel({ projectId, phaseId, onImportAction }: Props) {
   const [imports, setImports] = useState<ImportedType[]>([]);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -224,6 +225,7 @@ export function ProjectImportPanel({ projectId, onImportAction }: Props) {
                   </div>
                   <form action={onImportAction}>
                     <input type="hidden" name="projectId" value={projectId} />
+                    {phaseId ? <input type="hidden" name="phaseId" value={phaseId} /> : null}
                     <input type="hidden" name="payload" value={JSON.stringify(item)} />
                     <button className="rounded-full bg-black px-3 py-1 text-xs font-semibold text-white" type="submit">
                       Save type + variants

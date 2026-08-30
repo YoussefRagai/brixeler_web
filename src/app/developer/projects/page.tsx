@@ -1,28 +1,65 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { DeveloperProjectRequestTabs } from "@/components/DeveloperProjectRequestTabs";
+import { DeveloperProjectPhaseBoard } from "@/components/DeveloperProjectPhaseBoard";
+import { DeveloperInventoryGrid } from "@/components/DeveloperInventoryGrid";
+import { DeveloperPublicationWorkflow } from "@/components/DeveloperPublicationWorkflow";
+import { DeveloperActivityTimeline } from "@/components/DeveloperActivityTimeline";
+import { DeveloperVersionHistory } from "@/components/DeveloperVersionHistory";
+import { DeveloperTemplateManager } from "@/components/DeveloperTemplateManager";
+import { DeveloperPublicationFeedbackPanel } from "@/components/DeveloperPublicationFeedbackPanel";
+import { DeveloperPriceHistoryPanel } from "@/components/DeveloperPriceHistoryPanel";
 import { ProjectImportPanel } from "@/components/ProjectImportPanel";
 import { PROJECT_WIZARD_DRAFT_KEY, ProjectWizard } from "@/components/ProjectWizard";
 import { LocalStorageCleanup } from "@/components/LocalStorageCleanup";
+import { MobilePreviewButton } from "@/components/MobilePreviewButton";
+import { DeveloperMediaField } from "@/components/DeveloperMediaField";
 import { VariantOutdoorFields } from "@/components/VariantOutdoorFields";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
-import { currentDeveloperImpersonation, requireDeveloperSession } from "@/lib/developerAuth";
+import { currentDeveloperImpersonation, hasDeveloperCapability, requireDeveloperCapability, requireDeveloperSession } from "@/lib/developerAuth";
 import {
-  deleteDeveloperProject,
-  deleteProjectUnitType,
-  deleteProjectUnitVariant,
-  fetchDeveloperContactRequests,
+  archiveDeveloperProject,
+  archiveDeveloperProjectPhase,
+  archiveProjectUnitType,
+  archiveProjectUnitVariant,
+  createDeveloperProjectPhase,
   fetchDeveloperProfile,
+  fetchDeveloperProjectPhases,
   fetchDeveloperProjects,
-  type DeveloperContactRequest,
+  importDeveloperProjectInventory,
+  restoreDeveloperProjectPhase,
+  restoreProjectUnitType,
+  restoreProjectUnitVariant,
+  restoreDeveloperProject,
+  updateDeveloperProjectPhase,
+  type DeveloperProjectPhase,
   type LimitedTimeOffer,
   type StructuredPaymentPlan,
-  updateDeveloperContactRequestStatus,
   upsertDeveloperProject,
   upsertProjectUnitType,
   upsertProjectUnitVariant,
+  bulkUpdateDeveloperInventory,
+  cloneDeveloperProjectFromTemplate,
+  createDeveloperInventoryHold,
+  fetchDeveloperInventoryActivity,
+  fetchDeveloperInventoryRows,
+  fetchDeveloperInventorySavedFilters,
+  fetchDeveloperInventoryVersions,
+  fetchDeveloperProjectImpactSummary,
+  fetchDeveloperProjectTemplates,
+  fetchDeveloperPropertyPriceHistory,
+  fetchDeveloperPublicationFeedback,
+  importDeveloperInventoryRows,
+  markDeveloperProjectReady,
+  releaseDeveloperInventoryHold,
+  resolveDeveloperPublicationFeedback,
+  restoreDeveloperInventoryVersion,
+  saveDeveloperInventoryFilter,
+  saveDeveloperProjectTemplate,
+  submitDeveloperProjectForReview,
 } from "@/lib/developerQueries";
 import { STORAGE_BUCKETS, isFile, removeUploadedStorageObjects, uploadFileToBucket } from "@/lib/storageServer";
 import { supabaseServer } from "@/lib/supabaseServer";
@@ -119,6 +156,7 @@ type CommissionRuleRow = {
 type ProjectMedia = {
   images?: string[];
   heroImageUrl?: string;
+  hero_image_url?: string;
   brochureUrl?: string;
   masterplanUrl?: string;
   [key: string]: unknown;
@@ -159,6 +197,109 @@ const normalizeLaunchStatus = (value?: string | null): ProjectStatusKey => {
 const getLaunchStatusLabel = (value?: string | null) =>
   PROJECT_STATUS_OPTIONS.find((option) => option.value === normalizeLaunchStatus(value))?.label ?? "Live";
 
+type ProjectPublicationInput = {
+  approval_status?: string | null;
+  lifecycle_state?: string | null;
+  published_at?: string | null;
+  publication_status?: string | null;
+};
+
+type ProjectReadinessInput = ProjectPublicationInput & {
+  name?: string | null;
+  description?: string | null;
+  location?: string | null;
+  project_types?: string[] | null;
+  hero_media?: ProjectMedia | null;
+  project_unit_types?: Array<{
+    label?: string | null;
+    min_price?: number | null;
+    unit_area_min?: number | null;
+    description?: string | null;
+    archived_at?: string | null;
+  }> | null;
+  quality_score?: number | null;
+  quality_issues?: string[] | null;
+};
+
+type WorkspaceSection = "overview" | "inventory" | "commercial" | "requests" | "settings";
+
+const getProjectPublicationStatus = (project: ProjectPublicationInput) => {
+  if (project.lifecycle_state === "archived") return { label: "Archived", tone: "bg-neutral-200 text-neutral-700" };
+  if (project.publication_status === "published") return { label: "Published to mobile", tone: "bg-emerald-100 text-emerald-800" };
+  if (project.publication_status === "changes_requested") return { label: "Changes requested", tone: "bg-rose-100 text-rose-800" };
+  if (project.publication_status === "submitted") return { label: "Submitted for review", tone: "bg-amber-100 text-amber-800" };
+  if (project.publication_status === "ready") return { label: "Ready to submit", tone: "bg-blue-100 text-blue-800" };
+  if (project.approval_status === "approved" && project.lifecycle_state === "published" && project.published_at) {
+    return { label: "Published to mobile", tone: "bg-emerald-100 text-emerald-800" };
+  }
+  if (project.approval_status === "rejected") return { label: "Changes requested", tone: "bg-rose-100 text-rose-800" };
+  if (project.approval_status === "approved") return { label: "Approved · awaiting publish", tone: "bg-blue-100 text-blue-800" };
+  return { label: "Pending review", tone: "bg-amber-100 text-amber-800" };
+};
+
+const getProjectReadiness = (project: ProjectReadinessInput) => {
+  const heroMedia = project.hero_media ?? null;
+  const hasHero = Boolean(
+    heroMedia?.heroImageUrl ||
+      heroMedia?.hero_image_url ||
+      (Array.isArray(heroMedia?.images) && heroMedia.images.length),
+  );
+  const unitTypes = (project.project_unit_types ?? []).filter((unit) => !unit.archived_at);
+  const checks = [
+    ["Project name", Boolean(project.name?.trim())],
+    ["Description", Boolean(project.description?.trim())],
+    ["Location", Boolean(project.location?.trim())],
+    ["Project type", Boolean(project.project_types?.length)],
+    ["Hero media", hasHero],
+    ["Unit inventory", unitTypes.length > 0],
+    ["Unit details", unitTypes.length > 0 && unitTypes.every((unit) => Boolean(unit.label?.trim()) && Number(unit.min_price) >= 100000 && Number(unit.unit_area_min) >= 10 && Boolean(unit.description?.trim()))],
+  ] as const;
+  const complete = checks.filter(([, value]) => value).length;
+  const score = project.quality_score != null && Number.isFinite(Number(project.quality_score))
+    ? Math.max(0, Math.min(100, Number(project.quality_score)))
+    : Math.round((complete / checks.length) * 100);
+  const missing = checks.filter(([, value]) => !value).map(([label]) => label);
+  return { score, missing, hasHero };
+};
+
+const normalizeProjectName = (value?: string | null) => value?.trim().toLocaleLowerCase().replace(/\s+/g, " ") ?? "";
+
+const decodeFeedback = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const normalizeHttpMediaUrl = (value?: string | null) => {
+  const raw = value?.trim() ?? "";
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+};
+
+const parseHttpMediaUrls = (value: FormDataEntryValue | null, label: string, limit: number) => {
+  const rawValues = typeof value === "string" ? value.split(/[\n,]/).map((entry) => entry.trim()).filter(Boolean) : [];
+  if (rawValues.length > limit) throw new Error(`${label} accepts no more than ${limit} URLs.`);
+  return rawValues.map((entry) => {
+    const normalized = normalizeHttpMediaUrl(entry);
+    if (!normalized) throw new Error(`${label} must contain only valid http(s) URLs.`);
+    return normalized;
+  });
+};
+
+const shouldShowInventoryUnitType = (unit: {
+  archived_at?: string | null;
+  project_unit_variants?: Array<{ archived_at?: string | null }> | null;
+}, showArchived: boolean) => showArchived
+  ? Boolean(unit.archived_at || unit.project_unit_variants?.some((variant) => variant.archived_at))
+  : !unit.archived_at;
+
 const toPlanNumber = (value?: string | null) => {
   if (!value || !value.trim()) return null;
   const parsed = Number(value);
@@ -198,26 +339,26 @@ export default async function DeveloperProjectsPage({
     template?: string | string[];
     status?: string | string[];
     error?: string | string[];
+    success?: string | string[];
     draft?: string | string[];
     section?: string | string[];
     settings?: string | string[];
+    inventory?: string | string[];
+    phase?: string | string[];
   }>;
 }) {
   const session = await requireDeveloperSession();
-  const [projects, profile, developerContactRequests, commissionRules, impersonation] = await Promise.all([
+  const canManageProjects = hasDeveloperCapability(session.role, "manage_projects");
+  const canManageInventory = hasDeveloperCapability(session.role, "manage_inventory");
+  const [projects, profile, commissionRules, impersonation] = await Promise.all([
     fetchDeveloperProjects(session.developerId),
     fetchDeveloperProfile(session.developerId),
-    fetchDeveloperContactRequests(session.developerId),
     supabaseServer
       .from("developer_commission_rules")
       .select("id, developer_id, property_id, commission_rate, platform_share")
       .eq("developer_id", session.developerId),
     currentDeveloperImpersonation(),
   ]);
-  const requestsByProject = developerContactRequests.reduce<Record<string, DeveloperContactRequest[]>>((acc, request) => {
-    (acc[request.project_id] ??= []).push(request);
-    return acc;
-  }, {});
   const resolvedSearchParams = (await searchParams) ?? {};
   const activeProjectId =
     typeof resolvedSearchParams?.project === "string" ? resolvedSearchParams.project : null;
@@ -231,6 +372,8 @@ export default async function DeveloperProjectsPage({
     typeof resolvedSearchParams?.variants === "string" ? resolvedSearchParams.variants === "1" : false;
   const focusVariantId =
     typeof resolvedSearchParams?.variant === "string" ? resolvedSearchParams.variant : null;
+  const requestedPhaseId =
+    typeof resolvedSearchParams?.phase === "string" ? resolvedSearchParams.phase : null;
   const templateProjectId =
     typeof resolvedSearchParams?.template === "string" ? resolvedSearchParams.template : null;
   const selectedStatus =
@@ -238,62 +381,120 @@ export default async function DeveloperProjectsPage({
       ? normalizeLaunchStatus(resolvedSearchParams.status)
       : null;
   const pageError =
-    typeof resolvedSearchParams?.error === "string" ? decodeURIComponent(resolvedSearchParams.error) : null;
+    typeof resolvedSearchParams?.error === "string" ? decodeFeedback(resolvedSearchParams.error) : null;
+  const pageSuccess =
+    typeof resolvedSearchParams?.success === "string" ? decodeFeedback(resolvedSearchParams.success) : null;
   const clearProjectDraft = resolvedSearchParams?.draft === "clear";
-  const workspaceSection = resolvedSearchParams?.section === "leads" ? "requests" : "overview";
-  const showProjectSettings = resolvedSearchParams?.settings === "1";
+  const requestedSection = typeof resolvedSearchParams?.section === "string" ? resolvedSearchParams.section : null;
+  const requestedWorkspaceSection: WorkspaceSection = requestedSection === "inventory" || requestedSection === "commercial" || requestedSection === "settings"
+    ? requestedSection
+    : "overview";
+  const workspaceSection: WorkspaceSection = canManageProjects ? requestedWorkspaceSection : "inventory";
+  if (!canManageInventory) redirect("/developer?error=Inventory+access+is+not+enabled+for+this+role");
+  if (showCreateWizard && !canManageProjects) redirect("/developer/projects?section=inventory&error=Only+project+managers+and+developer+super+admins+can+create+projects");
+  const showProjectSettings = workspaceSection === "settings" || resolvedSearchParams?.settings === "1";
+  const showArchivedProjects = resolvedSearchParams?.status === "archived";
+  const showArchivedInventory = resolvedSearchParams?.inventory === "archived";
   const templateProject =
     showCreateWizard && templateProjectId
       ? projects.find((project) => project.id === templateProjectId)
       : undefined;
   const templatePlanDefaults = asStructuredPlans(templateProject?.payment_plan_templates).slice(0, 3);
   const templateOfferDefaults = asLimitedTimeOffers(templateProject?.limited_time_offers).slice(0, 1);
-  const statusFilteredProjects = selectedStatus
-    ? projects.filter((project) => normalizeLaunchStatus(project.launch_status) === selectedStatus)
-    : projects;
+  const statusFilteredProjects = showArchivedProjects
+    ? projects.filter((project) => project.lifecycle_state === "archived")
+    : projects.filter((project) => project.lifecycle_state !== "archived")
+      .filter((project) => selectedStatus ? normalizeLaunchStatus(project.launch_status) === selectedStatus : true);
   const selectedProjectId =
     activeProjectId && projects.some((project) => project.id === activeProjectId)
       ? activeProjectId
-      : selectedStatus
-      ? null
-      : projects[0]?.id ?? null;
+      : null;
   const selectedProject = selectedProjectId
     ? projects.find((project) => project.id === selectedProjectId)
     : undefined;
+  const selectedProjectPhases = (selectedProject?.developer_project_phases ?? []) as DeveloperProjectPhase[];
+  const activeProjectPhases = selectedProjectPhases
+    .filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived")
+    .sort((a, b) => a.phase_order - b.phase_order);
+  const selectedPhaseId = requestedPhaseId && activeProjectPhases.some((phase) => phase.id === requestedPhaseId)
+    ? requestedPhaseId
+    : activeProjectPhases[0]?.id ?? null;
+  const selectedPhase = activeProjectPhases.find((phase) => phase.id === selectedPhaseId) ?? null;
+  const inventoryCounts = selectedProjectPhases.reduce<Record<string, number>>((counts, phase) => {
+    counts[phase.id] = (selectedProject?.project_unit_types ?? []).filter((unit) => unit.phase_id === phase.id && !unit.archived_at).length;
+    return counts;
+  }, {});
+  const selectedProjectUnitTypes = selectedProject?.project_unit_types?.filter((unit) =>
+    (!selectedPhaseId || unit.phase_id === selectedPhaseId) && shouldShowInventoryUnitType(unit, showArchivedInventory),
+  ) ?? [];
   const projectCommissionRule = selectedProjectId
     ? ((commissionRules.data ?? []) as CommissionRuleRow[]).find((rule) => rule.property_id === selectedProjectId)
     : undefined;
   const visibleProjects = selectedProjectId
-    ? statusFilteredProjects.filter((project) => project.id === selectedProjectId)
+    ? projects.filter((project) => project.id === selectedProjectId)
     : statusFilteredProjects;
   const resolvedUnitTypeId =
-    showVariantWizard && selectedProject?.project_unit_types?.length
+    showVariantWizard && selectedProjectUnitTypes.length
       ? (focusUnitTypeId &&
-          selectedProject.project_unit_types.some((unit) => unit.id === focusUnitTypeId)
+          selectedProjectUnitTypes.some((unit) => unit.id === focusUnitTypeId)
           ? focusUnitTypeId
-          : selectedProject.project_unit_types[0].id)
+          : selectedProjectUnitTypes[0].id)
       : null;
   const modalUnitTypeId = focusUnitTypeId ?? resolvedUnitTypeId ?? null;
   const resolvedUnitType =
     modalUnitTypeId && selectedProject
-      ? selectedProject.project_unit_types?.find((unit) => unit.id === modalUnitTypeId)
+      ? selectedProjectUnitTypes.find((unit) => unit.id === modalUnitTypeId)
       : undefined;
   const resolvedVariant =
     focusVariantId && resolvedUnitType
       ? resolvedUnitType.project_unit_variants?.find((variant) => variant.id === focusVariantId)
       : undefined;
   const projectGridClass = selectedProjectId ? "grid gap-4" : "grid gap-4 md:grid-cols-2";
+  const duplicateProjectIds = new Set(
+    projects
+      .filter((project) => project.lifecycle_state !== "archived")
+      .map((project) => normalizeProjectName(project.name))
+      .filter((name, index, names) => name && names.indexOf(name) !== index),
+  );
+  const selectedReadiness = selectedProject ? getProjectReadiness(selectedProject) : null;
+  const selectedPublication = selectedProject ? getProjectPublicationStatus(selectedProject) : null;
+  const selectedHeroMedia = selectedProject?.hero_media as ProjectMedia | null | undefined;
+  const selectedHeroImage = selectedHeroMedia?.heroImageUrl ?? selectedHeroMedia?.hero_image_url ?? (Array.isArray(selectedHeroMedia?.images) ? selectedHeroMedia.images[0] : null) ?? null;
+  const [inventoryRows, impactSummary, projectFeedback, allProjectVersions, projectActivity, savedInventoryFilters, projectTemplates, priceHistory] = selectedProjectId
+    ? await Promise.all([
+        fetchDeveloperInventoryRows(session.developerId, selectedProjectId, selectedPhaseId),
+        fetchDeveloperProjectImpactSummary(session.developerId, selectedProjectId),
+        fetchDeveloperPublicationFeedback(session.developerId, selectedProjectId),
+        fetchDeveloperInventoryVersions(session.developerId, { limit: 120 }),
+        fetchDeveloperInventoryActivity(session.developerId, selectedProjectId, { limit: 60 }),
+        fetchDeveloperInventorySavedFilters(session.developerId, session.accountId),
+        fetchDeveloperProjectTemplates(session.developerId),
+        fetchDeveloperPropertyPriceHistory(session.developerId, selectedProjectId, selectedPhaseId),
+      ])
+    : [[], null, [], [], [], [], [], []];
+  const workspaceEntityIds = new Set([
+    ...(selectedProjectId ? [selectedProjectId] : []),
+    ...selectedProjectPhases.map((phase) => phase.id),
+    ...((selectedProject?.project_unit_types ?? []).flatMap((unit) => [unit.id, ...(unit.project_unit_variants ?? []).map((variant) => variant.id)])),
+    ...inventoryRows.map((row) => row.id),
+  ]);
+  const projectVersions = allProjectVersions.filter((version) => workspaceEntityIds.has(version.entity_id));
 
   return (
     <DeveloperLayout
-      title="Projects"
-      description="Keep launch briefs, media, and talking points up to date for agents."
+      title={selectedProjectId && selectedProject ? selectedProject.name : "Projects"}
+      description={selectedProjectId ? "Project portal · phases, inventory, and publication" : "Keep launch briefs, media, and talking points up to date for agents."}
       impersonation={impersonation}
     >
       {clearProjectDraft ? <LocalStorageCleanup storageKey={`${PROJECT_WIZARD_DRAFT_KEY}:${session.developerId}`} /> : null}
       {pageError ? (
         <div role="alert" aria-live="assertive" className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {pageError}
+        </div>
+      ) : null}
+      {pageSuccess ? (
+        <div role="status" aria-live="polite" className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {pageSuccess}
         </div>
       ) : null}
 
@@ -305,15 +506,19 @@ export default async function DeveloperProjectsPage({
               <h2 className="mt-1 text-xl font-semibold text-neutral-900">Create a launch</h2>
               <p className="mt-1 text-sm text-neutral-500">Start with the essentials, then add inventory after creation.</p>
             </div>
-            <a
+            <Link
               href="/developer/projects"
               className="rounded-full border border-black/10 px-3 py-1 text-xs text-neutral-600 hover:border-black/30 hover:text-black"
             >
               Cancel
-            </a>
+            </Link>
           </div>
           <div>
-            <ProjectWizard action={upsertProjectAction} developerId={session.developerId}>
+            <ProjectWizard
+              action={upsertProjectAction}
+              developerId={session.developerId}
+              existingProjectNames={projects.filter((project) => project.lifecycle_state !== "archived").map((project) => project.name)}
+            >
               <div data-wizard-panel="basics" className="space-y-4">
               {projects.length ? (
                 <details className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
@@ -476,71 +681,13 @@ export default async function DeveloperProjectsPage({
               </div>
               </div>
               <div data-wizard-panel="media" className="grid gap-4 md:grid-cols-2">
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project images</span>
-                <input
-                  className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                  type="file"
-                  name="project_images"
-                  accept="image/*"
-                  multiple
-                />
-                <span className="text-xs text-neutral-500">Upload new images to refresh the project gallery.</span>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project brochure (PDF)</span>
-                <input
-                  className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                  type="file"
-                  name="project_brochure"
-                  accept="application/pdf"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Masterplan</span>
-                <input
-                  className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                  type="file"
-                  name="project_masterplan"
-                  accept="application/pdf,image/*"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Voice notes</span>
-                <input
-                  className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                  type="file"
-                  name="voice_notes"
-                  accept="audio/*"
-                  multiple
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project videos</span>
-                <input
-                  className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                  type="file"
-                  name="project_videos"
-                  accept="video/*"
-                  multiple
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Inventory template upload</span>
-                <input
-                  className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                  type="file"
-                  name="project_inventory"
-                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                />
-                <span className="text-xs text-neutral-500">
-                  Use the Brixeler customer Excel template only.{" "}
-                  <a href={INVENTORY_TEMPLATE_PATH} download className="font-semibold text-black underline underline-offset-2">
-                    Download template
-                  </a>
-                  , fill it, then upload the `.xlsx` file here.
-                </span>
-              </label>
+              <DeveloperMediaField label="Project logo" description="Used in this project's portal header." fileName="project_logo" urlName="project_logo_url" accept="image/*" />
+              <DeveloperMediaField label="Project images" description="Upload, drop, or paste image URLs to build the project gallery." fileName="project_images" urlName="project_image_urls" accept="image/*" multiple />
+              <DeveloperMediaField label="Project brochure (PDF)" fileName="project_brochure" urlName="project_brochure_url" accept="application/pdf" />
+              <DeveloperMediaField label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" />
+              <DeveloperMediaField label="Voice notes" fileName="voice_notes" urlName="voice_note_urls" accept="audio/*" multiple />
+              <DeveloperMediaField label="Project videos" fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple />
+              <DeveloperMediaField label="Inventory template" description="Upload the filled Brixeler .xlsx template or paste a hosted file URL." fileName="project_inventory" urlName="project_inventory_url" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
               </div>
               <div data-wizard-panel="amenities" className="space-y-4">
               <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3">
@@ -564,6 +711,16 @@ export default async function DeveloperProjectsPage({
                     </label>
                   ))}
                 </div>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                <p className="font-semibold">Final review before submission</p>
+                <p className="mt-1 text-xs text-emerald-800">Your project will be saved as a draft and sent for review. Launch status is only a marketing label; publication to mobile happens after approval.</p>
+                <ul className="mt-3 grid gap-1 text-xs text-emerald-800 sm:grid-cols-2">
+                  <li>✓ Project copy and location</li>
+                  <li>✓ Commercial terms and payment plans</li>
+                  <li>✓ Launch timing and project types</li>
+                  <li>✓ Media and shared amenities</li>
+                </ul>
               </div>
               </div>
             </ProjectWizard>
@@ -608,7 +765,7 @@ export default async function DeveloperProjectsPage({
                 >
                   Download template
                 </a>
-                <ProjectImportPanel projectId={selectedProjectId} onImportAction={importTypeWithVariantsAction} />
+                <ProjectImportPanel projectId={selectedProjectId} phaseId={selectedPhaseId} onImportAction={importTypeWithVariantsAction} />
               </div>
             </div>
           </div>
@@ -622,9 +779,8 @@ export default async function DeveloperProjectsPage({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-xs uppercase tracking-[0.25em] text-neutral-500">Project workspace</p>
-                  <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${selectedProject?.approval_status === "approved" ? "bg-emerald-100 text-emerald-800" : selectedProject?.approval_status === "rejected" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>
-                    {selectedProject?.approval_status === "approved" ? "Live in mobile" : selectedProject?.approval_status === "rejected" ? "Changes requested" : "Pending review"}
-                  </span>
+                  {selectedPublication ? <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${selectedPublication.tone}`}>{selectedPublication.label}</span> : null}
+                  {selectedProject?.is_demo ? <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">Demo</span> : null}
                 </div>
                 <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-[#050505]">
                   {selectedProject?.name ?? "Project analytics"}
@@ -633,14 +789,19 @@ export default async function DeveloperProjectsPage({
                   {selectedProject?.description ?? "Live telemetry for the selected project."}
                 </p>
                 {selectedProject?.rejection_reason ? <p className="mt-2 text-xs text-rose-700">Reviewer note: {selectedProject.rejection_reason}</p> : null}
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 font-semibold text-neutral-700">Launch status: {getLaunchStatusLabel(selectedProject?.launch_status)}</span>
+                  {selectedProject?.launch_date ? <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 text-neutral-600">Launch date: {selectedProject.launch_date.slice(0, 10)}</span> : null}
+                  {selectedReadiness ? <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 font-semibold text-neutral-700">Mobile readiness: {selectedReadiness.score}%</span> : null}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex max-w-full flex-wrap items-center justify-end gap-2 sm:gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-neutral-50">
-                  {profile?.logo_url ? (
+                  {selectedProject?.project_logo_url ?? profile?.logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={profile.logo_url}
-                      alt={`${profile?.name ?? "Developer"} logo`}
+                      src={selectedProject?.project_logo_url ?? profile!.logo_url!}
+                      alt={`${selectedProject?.name ?? profile?.name ?? "Developer"} logo`}
                       className="h-10 w-10 object-contain"
                     />
                   ) : (
@@ -648,21 +809,151 @@ export default async function DeveloperProjectsPage({
                   )}
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <a href={INVENTORY_TEMPLATE_PATH} download className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black">Download template</a>
-                  <ProjectImportPanel projectId={selectedProjectId} onImportAction={importTypeWithVariantsAction} />
+                  <MobilePreviewButton
+                    formId={`project-preview-${selectedProjectId}`}
+                    titleField="name"
+                    bodyField="description"
+                    typeField="launchStatus"
+                    label="Preview mobile"
+                    initialDraft={{
+                      title: selectedProject?.name ?? "Project preview",
+                      body: selectedProject?.description ?? "Add a project description to preview the mobile card.",
+                      type: getLaunchStatusLabel(selectedProject?.launch_status),
+                    }}
+                    imageUrl={selectedHeroImage}
+                  />
+                  {canManageProjects && selectedProject?.lifecycle_state === "archived" ? (
+                    <form action={restoreProjectAction}>
+                      <input type="hidden" name="projectId" value={selectedProjectId} />
+                      <ConfirmSubmitButton className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:opacity-50" confirmMessage="Restore this project to your active workspace? It will return to draft review before becoming visible again." pendingLabel="Restoring…">
+                        Restore project
+                      </ConfirmSubmitButton>
+                    </form>
+                  ) : canManageProjects ? (
+                    <form action={archiveProjectAction}>
+                      <input type="hidden" name="projectId" value={selectedProjectId} />
+                      <ConfirmSubmitButton className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 disabled:opacity-50" confirmMessage="Archive this project? Its inventory and leads will be retained and it will be hidden from active workspaces." pendingLabel="Archiving…">
+                        Archive project
+                      </ConfirmSubmitButton>
+                    </form>
+                  ) : null}
+                  <a href={INVENTORY_TEMPLATE_PATH} download className="hidden rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black sm:inline-flex">Download template</a>
+                  <ProjectImportPanel projectId={selectedProjectId} phaseId={selectedPhaseId} onImportAction={importTypeWithVariantsAction} />
                 </div>
               </div>
             </div>
-            <nav aria-label="Project sections" className="mt-4 flex gap-1 overflow-x-auto border-t border-black/5 pt-3 text-xs font-semibold">
-              <a className="shrink-0 rounded-full bg-black px-3 py-1.5 text-white" href="#project-overview">Overview</a>
-              <a className="shrink-0 rounded-full px-3 py-1.5 text-neutral-600 hover:bg-black/5 hover:text-black" href={`/developer/projects?project=${selectedProjectId}&section=inventory#project-inventory`}>Inventory</a>
-              <a className="shrink-0 rounded-full px-3 py-1.5 text-neutral-600 hover:bg-black/5 hover:text-black" href="#project-commercial">Commercial</a>
-              <a className="shrink-0 rounded-full px-3 py-1.5 text-neutral-600 hover:bg-black/5 hover:text-black" href={`/developer/projects?project=${selectedProjectId}&section=leads#project-leads`}>Leads</a>
-              <a className="shrink-0 rounded-full px-3 py-1.5 text-neutral-600 hover:bg-black/5 hover:text-black" href={`/developer/projects?project=${selectedProjectId}&settings=1#project-settings`}>Settings</a>
+            <nav aria-label="Project sections" className="mt-4 grid grid-cols-2 gap-1 border-t border-black/5 pt-3 text-xs font-semibold sm:flex sm:overflow-x-auto">
+              {canManageProjects ? <a className={`rounded-full px-3 py-2 text-center sm:shrink-0 ${workspaceSection === "overview" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=overview#project-overview`}>Overview</a> : null}
+              <a className={`rounded-full px-3 py-2 text-center sm:shrink-0 ${workspaceSection === "inventory" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=inventory#project-inventory`}>Inventory</a>
+              {canManageProjects ? <a className={`rounded-full px-3 py-2 text-center sm:shrink-0 ${workspaceSection === "commercial" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=commercial#project-commercial`}>Commercial</a> : null}
+              {canManageProjects ? <a className={`rounded-full px-3 py-2 text-center sm:shrink-0 ${workspaceSection === "settings" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=settings&settings=1#project-settings`}>Settings</a> : null}
             </nav>
           </header>
 
-          <details id="project-settings" open={showProjectSettings} className="scroll-mt-24 rounded-2xl border border-black/5 bg-neutral-50/80 p-4">
+          <DeveloperProjectPhaseBoard
+            projectId={selectedProjectId}
+            phases={selectedProjectPhases}
+            selectedPhaseId={selectedPhaseId}
+            inventoryCounts={inventoryCounts}
+            createAction={createProjectPhaseAction}
+            updateAction={updateProjectPhaseAction}
+            archiveAction={archiveProjectPhaseAction}
+            restoreAction={restoreProjectPhaseAction}
+            hrefForPhase={(phaseId) => `/developer/projects/${selectedProjectId}?section=inventory${phaseId ? `&phase=${phaseId}` : ""}#project-phases`}
+            canManagePhases={canManageProjects}
+          />
+
+          {selectedReadiness ? (
+            <DeveloperPublicationWorkflow
+              projectId={selectedProjectId}
+              status={selectedProject?.publication_status ?? (selectedProject?.approval_status === "rejected" ? "changes_requested" : selectedProject?.approval_status === "approved" ? "approved" : "draft")}
+              readiness={selectedReadiness}
+              markReadyAction={markProjectReadyAction}
+              submitAction={submitProjectForReviewAction}
+            />
+          ) : null}
+
+          {workspaceSection === "inventory" ? (
+            <>
+              <DeveloperInventoryGrid
+                projectId={selectedProjectId}
+                phaseId={selectedPhaseId}
+                rows={inventoryRows}
+                savedFilters={savedInventoryFilters}
+                bulkUpdateAction={bulkInventoryAction}
+                importAction={importInventoryRowsAction}
+                holdAction={holdInventoryAction}
+                releaseHoldAction={releaseInventoryHoldAction}
+                saveFilterAction={saveInventoryFilterAction}
+              />
+              <DeveloperPriceHistoryPanel history={priceHistory} />
+            </>
+          ) : null}
+
+          {workspaceSection === "overview" || workspaceSection === "settings" ? (
+            <>
+              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Project impact summary">
+                {[
+                  ["Phases", impactSummary?.phase_count ?? 0],
+                  ["Unit types", impactSummary?.unit_type_count ?? 0],
+                  ["Inventory rows", impactSummary?.property_count ?? 0],
+                  ["Active holds", impactSummary?.active_hold_count ?? 0],
+                ].map(([label, value]) => <div key={label} className="rounded-2xl border border-black/5 bg-white p-4"><p className="text-xs uppercase tracking-[0.2em] text-neutral-500">{label}</p><p className="mt-2 text-2xl font-semibold text-neutral-950">{value}</p></div>)}
+              </section>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <DeveloperPublicationFeedbackPanel projectId={selectedProjectId} feedback={projectFeedback} resolveAction={resolveFeedbackAction} />
+                <DeveloperActivityTimeline activities={projectActivity} />
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <DeveloperVersionHistory projectId={selectedProjectId} versions={projectVersions} restoreAction={restoreInventoryVersionAction} />
+                <DeveloperTemplateManager
+                  projectId={selectedProjectId}
+                  projectName={selectedProject!.name}
+                  projectPayload={{
+                    name: selectedProject!.name,
+                    description: selectedProject!.description,
+                    location: selectedProject!.location,
+                    hero_media: selectedProject!.hero_media,
+                    voice_notes: selectedProject!.voice_notes,
+                    video_links: selectedProject!.video_links,
+                    amenities: selectedProject!.amenities,
+                    payment_plans: selectedProject!.payment_plans,
+                    payment_plan_templates: selectedProject!.payment_plan_templates,
+                    limited_time_offers: selectedProject!.limited_time_offers,
+                    launch_status: selectedProject!.launch_status,
+                    launch_date: selectedProject!.launch_date,
+                    project_types: selectedProject!.project_types,
+                    phases: selectedProjectPhases.map((phase) => ({ ...phase, unit_types: (selectedProject!.project_unit_types ?? []).filter((unit) => unit.phase_id === phase.id) })),
+                  }}
+                  templates={projectTemplates}
+                  saveAction={saveProjectTemplateAction}
+                  cloneAction={cloneProjectTemplateAction}
+                />
+              </div>
+            </>
+          ) : null}
+
+          {selectedReadiness ? (
+            <section className="grid gap-4 rounded-3xl border border-black/5 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] sm:p-5" aria-label="Project publication readiness">
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Mobile readiness</p>
+                  <span className="dashboard-number text-sm font-semibold text-neutral-900">{selectedReadiness.score}%</span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={selectedReadiness.score} aria-label="Mobile readiness score">
+                  <span className={`block h-full rounded-full ${selectedReadiness.score >= 80 ? "bg-emerald-500" : selectedReadiness.score >= 50 ? "bg-amber-400" : "bg-rose-400"}`} style={{ width: `${selectedReadiness.score}%` }} />
+                </div>
+                <p className="mt-2 text-xs text-neutral-500">Completeness is based on the project fields and unit data currently in your workspace.</p>
+              </div>
+              <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3 text-xs text-neutral-600">
+                <p className="font-semibold text-neutral-800">{selectedPublication?.label ?? "Publication status unavailable"}</p>
+                <p className="mt-1">Launch status ({getLaunchStatusLabel(selectedProject?.launch_status)}) is a marketing label. Publication is a separate reviewed mobile state.</p>
+                {selectedReadiness.missing.length ? <p className="mt-2 text-amber-800">Still needed: {selectedReadiness.missing.join(", ")}</p> : <p className="mt-2 text-emerald-700">All local readiness checks are complete. Submit changes for review when ready.</p>}
+              </div>
+            </section>
+          ) : null}
+
+          <details id="project-settings" open={showProjectSettings} hidden={!showProjectSettings} className="scroll-mt-24 rounded-2xl border border-black/5 bg-neutral-50/80 p-4">
             <summary className="cursor-pointer list-none rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black">
               Project settings
             </summary>
@@ -670,7 +961,7 @@ export default async function DeveloperProjectsPage({
                 <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">
                   Edit project details
                 </p>
-                <form action={upsertProjectAction} className="mt-4 space-y-4">
+                <form id={`project-preview-${selectedProjectId}`} action={upsertProjectAction} className="mt-4 space-y-4">
                   <input type="hidden" name="projectId" value={selectedProjectId} />
                   <Field label="Project name" name="name" placeholder="Marina Vista Residences" required defaultValue={selectedProject?.name ?? ""} />
                   <Field label="Location" name="location" placeholder="North Coast, Ras El Hekma" defaultValue={selectedProject?.location ?? ""} />
@@ -820,70 +1111,28 @@ export default async function DeveloperProjectsPage({
                       }
                     />
                   </div>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project images</span>
-                    <input
-                      className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                      type="file"
-                      name="project_images"
-                      accept="image/*"
-                      multiple
-                    />
-                    <span className="text-xs text-neutral-500">Upload new images to refresh the project gallery.</span>
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project brochure (PDF)</span>
-                    <input
-                      className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                      type="file"
-                      name="project_brochure"
-                      accept="application/pdf"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Masterplan</span>
-                    <input
-                      className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                      type="file"
-                      name="project_masterplan"
-                      accept="application/pdf,image/*"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Voice notes</span>
-                    <input
-                      className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                      type="file"
-                      name="voice_notes"
-                      accept="audio/*"
-                      multiple
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Project videos</span>
-                    <input
-                      className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                      type="file"
-                      name="project_videos"
-                      accept="video/*"
-                      multiple
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Inventory template upload</span>
-                    <input
-                      className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
-                      type="file"
-                      name="project_inventory"
-                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    />
-                    {selectedProject?.inventory_url ? (
-                      <span className="text-xs text-neutral-500">Current inventory template uploaded</span>
-                    ) : null}
-                    <span className="text-xs text-neutral-500">
-                      Replace inventory only with the latest filled Brixeler Excel template.
-                    </span>
-                  </label>
+                  <DeveloperMediaField
+                    label="Project logo"
+                    description="Shown beside the project name in this portal."
+                    fileName="project_logo"
+                    urlName="project_logo_url"
+                    accept="image/*"
+                    currentValue={selectedProject?.project_logo_url ?? null}
+                  />
+                  <DeveloperMediaField
+                    label="Project images"
+                    description="Upload, drop, or paste image URLs to refresh the project gallery."
+                    fileName="project_images"
+                    urlName="project_image_urls"
+                    accept="image/*"
+                    multiple
+                    currentValue={phaseHeroImageFromMedia((selectedProject?.hero_media as ProjectMedia | null) ?? null)}
+                  />
+                  <DeveloperMediaField label="Project brochure (PDF)" fileName="project_brochure" urlName="project_brochure_url" accept="application/pdf" currentValue={(selectedProject?.hero_media as ProjectMedia | null)?.brochureUrl ?? null} />
+                  <DeveloperMediaField label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" />
+                  <DeveloperMediaField label="Voice notes" fileName="voice_notes" urlName="voice_note_urls" accept="audio/*" multiple currentValue={selectedProject?.voice_notes?.length ? `${selectedProject.voice_notes.length} existing notes` : null} />
+                  <DeveloperMediaField label="Project videos" fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple currentValue={selectedProject?.video_links?.length ? `${selectedProject.video_links.length} existing videos` : null} />
+                  <DeveloperMediaField label="Inventory template" description={selectedProject?.inventory_url ? "Replace with a new .xlsx upload or hosted URL. Current template is retained when both stay blank." : "Upload the filled Brixeler .xlsx template or paste a hosted file URL."} fileName="project_inventory" urlName="project_inventory_url" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" currentValue={selectedProject?.inventory_url ? "Current template available" : null} />
                   <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3">
                     <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add amenities</p>
                     <p className="mt-1 text-xs text-neutral-500">
@@ -966,30 +1215,51 @@ export default async function DeveloperProjectsPage({
         {!selectedProjectId ? <header className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">
-              {selectedStatus ? `${getLaunchStatusLabel(selectedStatus)} projects` : "Projects"}
+              {showArchivedProjects ? "Archived projects" : selectedStatus ? `${getLaunchStatusLabel(selectedStatus)} projects` : "Projects"}
             </p>
             <p className="text-base text-neutral-700">
-              {selectedStatus
+              {showArchivedProjects
+                ? "Archived projects remain recoverable and are hidden from active workspaces."
+                : selectedStatus
                 ? `Projects currently marked as ${getLaunchStatusLabel(selectedStatus)}.`
                 : "Visible inside the agent workspace"}
             </p>
           </div>
+          <a href={showArchivedProjects ? "/developer/projects" : "/developer/projects?status=archived"} className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black">
+            {showArchivedProjects ? "View active projects" : "View archived projects"}
+          </a>
         </header> : null}
         <div className={projectGridClass}>
           {visibleProjects.map((project) => {
-            const projectRequests = requestsByProject[project.id] ?? [];
+            const inventoryUnitTypes = project.project_unit_types?.filter((unit) =>
+              (!selectedProjectId || !selectedPhaseId || unit.phase_id === selectedPhaseId) &&
+              shouldShowInventoryUnitType(unit, showArchivedInventory),
+            ) ?? [];
+            const publicationStatus = getProjectPublicationStatus(project);
+            const readiness = getProjectReadiness(project);
             return (
             <article key={project.id} className="rounded-2xl border border-black/5 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Project record{project.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold tracking-wider text-amber-800">Demo</span> : null}</p>
+                  <p className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Project record{project.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold tracking-wider text-amber-800">Demo</span> : null}</p>
+                  <h3 className="mt-2 text-lg font-semibold tracking-tight text-neutral-950">{project.name}</h3>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${publicationStatus.tone}`}>{publicationStatus.label}</span>
+                    <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">Launch: {getLaunchStatusLabel(project.launch_status)}</span>
+                    {duplicateProjectIds.has(normalizeProjectName(project.name)) ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">Possible duplicate</span> : null}
+                  </div>
+                  <a href={`/developer/projects/${project.id}?section=overview#project-overview`} className="mt-3 inline-flex rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800">Open workspace</a>
                 </div>
-                <form action={deleteProjectAction}>
+                <form action={project.lifecycle_state === "archived" ? restoreProjectAction : archiveProjectAction}>
                   <input type="hidden" name="projectId" value={project.id} />
-                  <ConfirmSubmitButton className="text-xs text-red-500 hover:underline" confirmMessage="Remove this project and its dependent demo/test configuration?">
-                    Remove
+                  <ConfirmSubmitButton className={`text-xs hover:underline disabled:opacity-50 ${project.lifecycle_state === "archived" ? "text-emerald-700" : "text-amber-700"}`} confirmMessage={project.lifecycle_state === "archived" ? "Restore this project to your active workspace? It will return to draft review." : "Archive this project? Its inventory and leads will be retained and hidden from active workspaces."} pendingLabel={project.lifecycle_state === "archived" ? "Restoring…" : "Archiving…"}>
+                    {project.lifecycle_state === "archived" ? "Restore" : "Archive"}
                   </ConfirmSubmitButton>
                 </form>
+              </div>
+              <div className="mt-4">
+                <div className="flex items-center justify-between gap-2 text-xs text-neutral-500"><span>Mobile readiness</span><span className="dashboard-number font-semibold text-neutral-800">{readiness.score}%</span></div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-100"><span className={`block h-full rounded-full ${readiness.score >= 80 ? "bg-emerald-500" : readiness.score >= 50 ? "bg-amber-400" : "bg-rose-400"}`} style={{ width: `${readiness.score}%` }} /></div>
               </div>
               <div>
               {(() => {
@@ -1037,7 +1307,8 @@ export default async function DeveloperProjectsPage({
                 ))}
               </div>
               </div>
-              <details id={selectedProjectId === project.id ? "project-commercial" : undefined} className="scroll-mt-24 mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3" open>
+              {selectedProjectId ? <>
+              <details id={selectedProjectId === project.id ? "project-commercial" : undefined} hidden={selectedProjectId === project.id && workspaceSection !== "overview" && workspaceSection !== "commercial"} className="scroll-mt-24 mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3" open={workspaceSection === "overview" || workspaceSection === "commercial"}>
                 <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Commercial</summary>
                 {asStructuredPlans(project.payment_plan_templates).length ? (
                   <>
@@ -1057,24 +1328,30 @@ export default async function DeveloperProjectsPage({
                   <p className="mt-2 text-xs text-neutral-500">No payment plans added yet. Open Settings to add the commercial terms agents should use.</p>
                 )}
               </details>
+              <div hidden={selectedProjectId === project.id && workspaceSection !== "overview" && workspaceSection !== "inventory"}>
               <DeveloperProjectRequestTabs
-                requestCount={projectRequests.length}
+                showRequests={false}
+                requestCount={0}
                 sectionIdSuffix={selectedProjectId ? undefined : project.id}
-                initialTab={workspaceSection}
+                initialTab="overview"
                 overviewContent={
                   <div className="rounded-2xl border border-dashed border-black/10 bg-neutral-50/60 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Unit inventory</p>
-                      <a
-                        href="#add-property-types"
-                        className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
-                      >
-                        Add unit type
-                      </a>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Unit inventory</p>
+                        <p className="mt-1 text-sm font-semibold text-neutral-900">{selectedPhase ? `${selectedPhase.phase_order}. ${selectedPhase.name}` : "Choose a release phase"}</p>
+                        <p className="mt-1 text-xs text-neutral-500">Every unit type saved here is assigned to this release phase.</p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {!showArchivedInventory ? <a href="#add-property-types" className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black">Add unit type</a> : null}
+                        <a href={`/developer/projects?project=${project.id}&section=inventory&inventory=${showArchivedInventory ? "active" : "archived"}#project-inventory`} className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black">
+                          {showArchivedInventory ? "View active inventory" : "View archived inventory"}
+                        </a>
+                      </div>
                     </div>
-                    {project.project_unit_types?.length ? (
+                    {inventoryUnitTypes.length ? (
                       <div className="mt-3 space-y-3">
-                        {project.project_unit_types.map((unit) => (
+                        {inventoryUnitTypes.map((unit) => (
                           <div key={unit.id} className="rounded-2xl border border-black/5 bg-white p-3 text-sm text-neutral-700">
                             <div className="flex items-start justify-between gap-3">
                               <div>
@@ -1106,18 +1383,20 @@ export default async function DeveloperProjectsPage({
                                   ) : null}
                                 </div>
                               </div>
-                              <form action={deleteUnitTypeAction}>
-                                <input type="hidden" name="projectId" value={project.id} />
-                                <input type="hidden" name="unitTypeId" value={unit.id} />
-                                <ConfirmSubmitButton className="text-xs text-red-500 hover:underline disabled:opacity-50" confirmMessage="Delete this unit type and all of its variants? This cannot be undone." pendingLabel="Deleting…">
-                                  Delete
-                                </ConfirmSubmitButton>
-                              </form>
+                              {(!showArchivedInventory || unit.archived_at) ? (
+                                <form action={unit.archived_at ? restoreUnitTypeAction : archiveUnitTypeAction}>
+                                  <input type="hidden" name="projectId" value={project.id} />
+                                  <input type="hidden" name="unitTypeId" value={unit.id} />
+                                  <ConfirmSubmitButton className={`text-xs hover:underline disabled:opacity-50 ${unit.archived_at ? "text-emerald-700" : "text-amber-700"}`} confirmMessage={unit.archived_at ? "Restore this unit type and its retained variants? It will remain subject to project review." : "Archive this unit type? Its variants will be retained and hidden until you restore it."} pendingLabel={unit.archived_at ? "Restoring…" : "Archiving…"}>
+                                    {unit.archived_at ? "Restore" : "Archive"}
+                                  </ConfirmSubmitButton>
+                                </form>
+                              ) : <span className="rounded-full border border-black/10 bg-neutral-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Active type</span>}
                             </div>
-                            {unit.project_unit_variants?.length ? (
+                            {unit.project_unit_variants?.filter((variant) => showArchivedInventory ? variant.archived_at : !variant.archived_at).length ? (
                               <div className="mt-3">
                                 <div className="flex flex-wrap gap-2">
-                                  {unit.project_unit_variants.map((variant) => (
+                                  {unit.project_unit_variants.filter((variant) => showArchivedInventory ? variant.archived_at : !variant.archived_at).map((variant) => (
                                     <a
                                       key={variant.id}
                                       href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1&variant=${variant.id}`}
@@ -1126,12 +1405,7 @@ export default async function DeveloperProjectsPage({
                                       {formatVariantChip(variant)}
                                     </a>
                                   ))}
-                                  <a
-                                    href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1`}
-                                    className="rounded-full border border-dashed border-black/20 px-3 py-1 text-xs text-neutral-500 hover:border-black/40 hover:text-neutral-700"
-                                  >
-                                    + Add variant
-                                  </a>
+                                  {!showArchivedInventory ? <a href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1`} className="rounded-full border border-dashed border-black/20 px-3 py-1 text-xs text-neutral-500 hover:border-black/40 hover:text-neutral-700">+ Add variant</a> : null}
                                 </div>
                                 <p className="mt-2 text-xs text-neutral-500">
                                   Variants let you add different areas, prices, and payment plans for the same type.
@@ -1142,18 +1416,13 @@ export default async function DeveloperProjectsPage({
                                 <p className="text-xs text-neutral-500">
                                   No variants yet. That is fine. Add one only if you need advanced bedroom, payment-plan, or stock variations.
                                 </p>
-                                <a
-                                  href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1`}
-                                  className="mt-3 inline-flex rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
-                                >
-                                  Add first variant
-                                </a>
+                                  {!showArchivedInventory ? <a href={`/developer/projects?project=${project.id}&unitType=${unit.id}&variants=1`} className="mt-3 inline-flex rounded-full border border-black/10 px-3 py-1 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black">Add first variant</a> : null}
                               </div>
                             )}
                             <details className="mt-3 rounded-xl border border-black/10 bg-neutral-50 p-3">
                               <summary className="text-xs font-semibold text-neutral-600">Edit {unit.label}</summary>
                               <div className="mt-3 space-y-3">
-                                <UnitTypeForm projectId={project.id} unitType={unit} paymentPlanSummary={project.payment_plans ?? null} />
+                        <UnitTypeForm projectId={project.id} unitType={unit} phases={selectedProjectPhases} selectedPhaseId={selectedPhaseId} paymentPlanSummary={project.payment_plans ?? null} />
                               </div>
                             </details>
                             {showVariantWizard && resolvedUnitTypeId === unit.id ? (
@@ -1165,76 +1434,26 @@ export default async function DeveloperProjectsPage({
                         ))}
                       </div>
                     ) : (
-                      <p className="mt-2 text-sm text-neutral-500">No unit types yet. Add the first commercial range when you are ready.</p>
+                      <p className="mt-2 text-sm text-neutral-500">{showArchivedInventory ? "No archived unit types in this project." : "No active unit types yet. Add the first commercial range when you are ready."}</p>
                     )}
-                    <details id="add-property-types" className="mt-4 rounded-2xl border border-dashed border-black/10 bg-white p-4">
+                    {!showArchivedInventory ? <details id="add-property-types" className="mt-4 rounded-2xl border border-dashed border-black/10 bg-white p-4">
                       <summary className="cursor-pointer text-sm font-semibold text-neutral-700">Add a unit type</summary>
                       <p className="mt-1 text-xs text-neutral-500">Define one commercial range now. Detailed variants remain optional.</p>
                       <div className="mt-4 space-y-3">
-                        <UnitTypeForm projectId={project.id} paymentPlanSummary={project.payment_plans ?? null} />
+                        <UnitTypeForm projectId={project.id} phases={selectedProjectPhases} selectedPhaseId={selectedPhaseId} paymentPlanSummary={project.payment_plans ?? null} />
                       </div>
-                    </details>
+                    </details> : null}
                   </div>
                 }
-                requestContent={
-                  <div className="rounded-2xl border border-dashed border-black/10 bg-neutral-50/60 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Lead requests</p>
-                      <span className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-semibold text-neutral-600">
-                        {projectRequests.length} open records
-                      </span>
-                    </div>
-                    {projectRequests.length ? (
-                      <div className="mt-3 space-y-3">
-                        {projectRequests.map((request) => (
-                          <div key={request.id} className="rounded-2xl border border-black/5 bg-white p-4">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-[#050505]">{request.requester_display_name}</p>
-                                <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-                                  {request.request_type === "meeting" ? "Meeting request" : "Call request"}
-                                </p>
-                              </div>
-                              <div className="text-right text-xs text-neutral-500">
-                                <p>{new Date(request.created_at).toLocaleString()}</p>
-                                <p className="capitalize">{request.status}</p>
-                              </div>
-                            </div>
-                            <div className="mt-3 grid gap-2 text-xs text-neutral-500 sm:grid-cols-2 lg:grid-cols-3">
-                              <p>Developer: {request.developer_name_snapshot}</p>
-                              <p>Project: {request.project_name_snapshot}</p>
-                              {request.property_name_snapshot ? <p>Property: {request.property_name_snapshot}</p> : null}
-                              <p>Deals closed: {request.requester_total_deals}</p>
-                              {request.requester_phone ? <p>Phone: {request.requester_phone}</p> : null}
-                              {request.requester_email ? <p>Email: {request.requester_email}</p> : null}
-                            </div>
-                            <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3 text-sm text-neutral-700">
-                              {request.request_body}
-                            </div>
-                            <form action={updateContactRequestStatusAction} className="mt-3 flex flex-wrap gap-2">
-                              <input type="hidden" name="requestId" value={request.id} />
-                              {(["open", "contacted", "closed"] as const).filter((status) => status !== request.status).map((status) => (
-                                <button key={status} name="status" value={status} className="rounded-full border border-black/10 px-3 py-1 text-xs font-semibold capitalize hover:border-black/30" type="submit">
-                                  Mark {status}
-                                </button>
-                              ))}
-                            </form>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-3 text-sm text-neutral-500">
-                        No user contact requests yet. When agents ask for a call or meeting from the app, they will land here.
-                      </p>
-                    )}
-                  </div>
-                }
+                requestContent={null}
               />
+              </div>
+              </> : null}
             </article>
           )})}
-          {!projects.length && (
+          {!visibleProjects.length && (
             <p className="rounded-2xl border border-dashed border-black/5 bg-white p-6 text-sm text-neutral-500">
-              No projects yet. Use the form below to create your first launch.
+              {showArchivedProjects ? "No archived projects in this workspace." : "No active projects yet. Use the create action to start your first launch."}
             </p>
           )}
         </div>
@@ -1249,9 +1468,12 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & { label: string; as?: 
 type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; as: "textarea" };
 type UnitTypeFormProps = {
   projectId: string;
+  phases?: DeveloperProjectPhase[];
+  selectedPhaseId?: string | null;
   paymentPlanSummary?: string | null;
   unitType?: {
     id: string;
+    phase_id?: string | null;
     category?: string | null;
     label: string;
     min_price: number;
@@ -1263,6 +1485,8 @@ type UnitTypeFormProps = {
     finishing_status?: string | null;
     hero_image_url?: string | null;
     description?: string | null;
+    archived_at?: string | null;
+    archived_by_account_id?: string | null;
     project_unit_variants?: Array<{
       id: string;
       category?: string | null;
@@ -1287,6 +1511,8 @@ type UnitTypeFormProps = {
       stock_count?: number | null;
       description?: string | null;
       amenities?: string[] | null;
+      archived_at?: string | null;
+      archived_by_account_id?: string | null;
     }> | null;
   };
 };
@@ -1312,13 +1538,21 @@ function Field(props: InputProps | TextareaProps) {
   );
 }
 
-function UnitTypeForm({ projectId, paymentPlanSummary, unitType }: UnitTypeFormProps) {
+function UnitTypeForm({ projectId, phases = [], selectedPhaseId, paymentPlanSummary, unitType }: UnitTypeFormProps) {
   const categoryValue = normalizeCategory(unitType?.category ?? inferCategoryFromType(unitType?.label));
   const baseTypeValue = normalizeTypeForCategory(categoryValue, unitType?.label);
   return (
     <form action={upsertProjectUnitTypeAction} className="space-y-3 text-sm">
       <input type="hidden" name="projectId" value={projectId} />
       {unitType ? <input type="hidden" name="unitTypeId" value={unitType.id} /> : null}
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Release phase</span>
+        <select className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3" name="phaseId" required defaultValue={unitType?.phase_id ?? selectedPhaseId ?? ""}>
+          <option value="">Choose a phase</option>
+          {phases.filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived").sort((a, b) => a.phase_order - b.phase_order).map((phase) => <option key={phase.id} value={phase.id}>{phase.phase_order}. {phase.name}</option>)}
+        </select>
+        <span className="text-xs text-neutral-500">Inventory is scoped to one phase. Move it by selecting another active phase.</span>
+      </label>
       <div className="grid gap-3 md:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Category</span>
@@ -1501,6 +1735,8 @@ function VariantForm({
     stock_count?: number | null;
     description?: string | null;
     amenities?: string[] | null;
+    archived_at?: string | null;
+    archived_by_account_id?: string | null;
   };
 }) {
   const categoryValue = normalizeCategory(variant?.category ?? unitTypeCategory ?? inferCategoryFromType(unitTypeLabel));
@@ -1648,11 +1884,11 @@ function VariantForm({
         </div>
       </form>
       {variant ? (
-        <form action={deleteVariantAction} className="mt-2 flex justify-end">
+        <form action={variant.archived_at ? restoreVariantAction : archiveVariantAction} className="mt-2 flex justify-end">
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="variantId" value={variant.id} />
-          <ConfirmSubmitButton className="text-xs text-red-500 hover:underline disabled:opacity-50" confirmMessage="Delete this variant permanently? This cannot be undone." pendingLabel="Deleting…">
-            Delete variant
+          <ConfirmSubmitButton className={`text-xs hover:underline disabled:opacity-50 ${variant.archived_at ? "text-emerald-700" : "text-amber-700"}`} confirmMessage={variant.archived_at ? "Restore this variant? It will remain subject to project review." : "Archive this variant? It will be retained and hidden from active inventory."} pendingLabel={variant.archived_at ? "Restoring…" : "Archiving…"}>
+            {variant.archived_at ? "Restore variant" : "Archive variant"}
           </ConfirmSubmitButton>
         </form>
       ) : null}
@@ -1680,6 +1916,7 @@ function formatVariantChip(variant: {
   max_price?: number | null;
   installment_years?: number | null;
   down_payment_percent?: number | null;
+  archived_at?: string | null;
 }) {
   const kind = variant.label ?? null;
   const beds = variant.bedrooms != null ? `${variant.bedrooms}BR` : "?BR";
@@ -1708,19 +1945,34 @@ function formatVariantChip(variant: {
       }`
     : "Price TBD";
   const layouts = variant.layout_options?.length ? `${variant.layout_options.length} layouts` : null;
-  return [variant.category, kind, beds, baths, garden, roof, finishing, delivery, bua, land, price, layouts]
+  return [variant.category, kind, beds, baths, garden, roof, finishing, delivery, bua, land, price, layouts, variant.archived_at ? "Archived" : null]
     .filter(Boolean)
     .join(" · ");
 }
 
 async function upsertProjectAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_projects");
   const id = formData.get("projectId")?.toString();
   const name = formData.get("name")?.toString().trim();
-  if (!name) return;
-  const description = formData.get("description")?.toString() ?? undefined;
+  const invalidTarget = id ? `/developer/projects?project=${id}&section=settings` : "/developer/projects?create=1";
+  if (!name) {
+    redirect(`${invalidTarget}&error=${encodeURIComponent("Add a project name before saving.")}`);
+  }
+  const description = formData.get("description")?.toString().trim() || undefined;
   const location = formData.get("location")?.toString().trim() || undefined;
+  const numberInputs = [
+    ["acres", formData.get("acres")?.toString()],
+    ["footprint", formData.get("footprint")?.toString()],
+    ["maintenance", formData.get("maintenance")?.toString()],
+    ["CH fees", formData.get("chFees")?.toString()],
+    ["EOI value", formData.get("eoiValueApt")?.toString()],
+    ["EOI value", formData.get("eoiValueVilla")?.toString()],
+  ] as const;
+  const invalidNumber = numberInputs.find(([, raw]) => raw?.trim() && parseOptionalNumber(raw) == null);
+  if (invalidNumber) {
+    redirect(`${invalidTarget}&error=${encodeURIComponent(`Enter a valid ${invalidNumber[0]}.`)}`);
+  }
   const acres = parseOptionalNumber(formData.get("acres")?.toString());
   const footprint = parseOptionalNumber(formData.get("footprint")?.toString());
   const maintenance = parseOptionalNumber(formData.get("maintenance")?.toString());
@@ -1730,6 +1982,15 @@ async function upsertProjectAction(formData: FormData) {
   const launchDate = formData.get("launchDate")?.toString().trim() || null;
   const eoiValueApt = parseOptionalNumber(formData.get("eoiValueApt")?.toString());
   const eoiValueVilla = parseOptionalNumber(formData.get("eoiValueVilla")?.toString());
+  if (footprint != null && (footprint < 0 || footprint > 100)) {
+    redirect(`${invalidTarget}&error=${encodeURIComponent("Footprint must be between 0% and 100%.")}`);
+  }
+  if ([acres, maintenance, chFees, eoiValueApt, eoiValueVilla].some((value) => value != null && value < 0)) {
+    redirect(`${invalidTarget}&error=${encodeURIComponent("Project commercial values cannot be negative.")}`);
+  }
+  if (launchDate && Number.isNaN(Date.parse(`${launchDate}T00:00:00`))) {
+    redirect(`${invalidTarget}&error=${encodeURIComponent("Enter a valid launch date.")}`);
+  }
   const commissionRateRaw = formData.get("commissionRate")?.toString() ?? null;
   const platformShareRaw = formData.get("platformShare")?.toString() ?? null;
   const amenities = formData
@@ -1777,12 +2038,31 @@ async function upsertProjectAction(formData: FormData) {
   const projectKey = id || `new-${Date.now()}`;
   const projectBasePath = `developers/${session.developerId}/projects/${projectKey}`;
 
+  const projectLogoFile = formData.get("project_logo");
   const imageFiles = formData.getAll("project_images").filter(isFile) as File[];
   const brochureFile = formData.get("project_brochure");
   const masterplanFile = formData.get("project_masterplan");
   const voiceFiles = formData.getAll("voice_notes").filter(isFile) as File[];
   const videoFiles = formData.getAll("project_videos").filter(isFile) as File[];
   const inventoryFile = formData.get("project_inventory");
+  let pastedImageUrls: string[] = [];
+  let pastedVoiceUrls: string[] = [];
+  let pastedVideoUrls: string[] = [];
+  let pastedBrochureUrl: string | null = null;
+  let pastedMasterplanUrl: string | null = null;
+  let pastedInventoryUrl: string | null = null;
+  let pastedProjectLogoUrl: string | null = null;
+  try {
+    pastedProjectLogoUrl = parseHttpMediaUrls(formData.get("project_logo_url"), "Project logo", 1)[0] ?? null;
+    pastedImageUrls = parseHttpMediaUrls(formData.get("project_image_urls"), "Project images", 20);
+    pastedVoiceUrls = parseHttpMediaUrls(formData.get("voice_note_urls"), "Voice notes", 10);
+    pastedVideoUrls = parseHttpMediaUrls(formData.get("project_video_urls"), "Project videos", 10);
+    pastedBrochureUrl = parseHttpMediaUrls(formData.get("project_brochure_url"), "Project brochure", 1)[0] ?? null;
+    pastedMasterplanUrl = parseHttpMediaUrls(formData.get("project_masterplan_url"), "Project masterplan", 1)[0] ?? null;
+    pastedInventoryUrl = parseHttpMediaUrls(formData.get("project_inventory_url"), "Inventory template", 1)[0] ?? null;
+  } catch (error) {
+    redirect(`${invalidTarget}&error=${encodeURIComponent(error instanceof Error ? error.message : "Enter valid media URLs.")}`);
+  }
 
   if (isFile(inventoryFile) && !isExcelTemplateFile(inventoryFile)) {
     const target = id ? `/developer/projects?project=${id}` : "/developer/projects?create=1";
@@ -1801,6 +2081,7 @@ async function upsertProjectAction(formData: FormData) {
   const heroMedia: ProjectMedia = { ...existingHeroMedia };
   let heroMediaUpdated = false;
   let inventoryUrl = existingProject?.inventory_url ?? null;
+  let projectLogoUrl = existingProject?.project_logo_url ?? null;
   let voiceNoteUrls: string[] | undefined;
   let videoUrls: string[] | undefined;
   const uploadedObjects: Array<{ bucket: string; url: string }> = [];
@@ -1811,8 +2092,15 @@ async function upsertProjectAction(formData: FormData) {
   };
 
   try {
-    if (imageFiles.length) {
-      const imageUrls = [];
+    if (isFile(projectLogoFile) || pastedProjectLogoUrl) {
+      projectLogoUrl = isFile(projectLogoFile) ? await uploadTracked({
+        bucket: STORAGE_BUCKETS.projectImages,
+        pathPrefix: `${projectBasePath}/logo`,
+        file: projectLogoFile,
+      }) : pastedProjectLogoUrl!;
+    }
+    if (imageFiles.length || pastedImageUrls.length) {
+      const imageUrls = [...pastedImageUrls];
       for (const file of imageFiles) {
         imageUrls.push(await uploadTracked({
           bucket: STORAGE_BUCKETS.projectImages,
@@ -1825,28 +2113,28 @@ async function upsertProjectAction(formData: FormData) {
       heroMediaUpdated = true;
     }
 
-    if (isFile(brochureFile)) {
-      const brochureUrl = await uploadTracked({
+    if (isFile(brochureFile) || pastedBrochureUrl) {
+      const brochureUrl = isFile(brochureFile) ? await uploadTracked({
         bucket: STORAGE_BUCKETS.projectBrochures,
         pathPrefix: `${projectBasePath}/brochure`,
         file: brochureFile,
-      });
+      }) : pastedBrochureUrl!;
       heroMedia.brochureUrl = brochureUrl;
       heroMediaUpdated = true;
     }
 
-    if (isFile(masterplanFile)) {
-      const masterplanUrl = await uploadTracked({
+    if (isFile(masterplanFile) || pastedMasterplanUrl) {
+      const masterplanUrl = isFile(masterplanFile) ? await uploadTracked({
         bucket: STORAGE_BUCKETS.projectBrochures,
         pathPrefix: `${projectBasePath}/masterplan`,
         file: masterplanFile,
-      });
+      }) : pastedMasterplanUrl!;
       heroMedia.masterplanUrl = masterplanUrl;
       heroMediaUpdated = true;
     }
 
-    if (voiceFiles.length) {
-      voiceNoteUrls = [];
+    if (voiceFiles.length || pastedVoiceUrls.length) {
+      voiceNoteUrls = [...pastedVoiceUrls];
       for (const file of voiceFiles) {
         voiceNoteUrls.push(await uploadTracked({
             bucket: STORAGE_BUCKETS.projectVoiceNotes,
@@ -1856,8 +2144,8 @@ async function upsertProjectAction(formData: FormData) {
       }
     }
 
-    if (videoFiles.length) {
-      videoUrls = [];
+    if (videoFiles.length || pastedVideoUrls.length) {
+      videoUrls = [...pastedVideoUrls];
       for (const file of videoFiles) {
         videoUrls.push(await uploadTracked({
             bucket: STORAGE_BUCKETS.projectVideos,
@@ -1867,12 +2155,12 @@ async function upsertProjectAction(formData: FormData) {
       }
     }
 
-    if (isFile(inventoryFile)) {
-      inventoryUrl = await uploadTracked({
+    if (isFile(inventoryFile) || pastedInventoryUrl) {
+      inventoryUrl = isFile(inventoryFile) ? await uploadTracked({
         bucket: STORAGE_BUCKETS.projectBrochures,
         pathPrefix: `${projectBasePath}/inventory`,
         file: inventoryFile,
-      });
+      }) : pastedInventoryUrl!;
     }
   } catch (error) {
     await removeUploadedStorageObjects(uploadedObjects);
@@ -1898,6 +2186,7 @@ async function upsertProjectAction(formData: FormData) {
     ch_fees: chFees,
     project_types: projectTypes,
     inventory_url: inventoryUrl,
+    project_logo_url: projectLogoUrl,
     hero_media: heroMediaUpdated ? heroMedia : undefined,
     voice_notes: voiceNoteUrls?.length ? voiceNoteUrls : undefined,
     video_links: videoUrls?.length ? videoUrls : undefined,
@@ -1913,7 +2202,7 @@ async function upsertProjectAction(formData: FormData) {
     if (commissionResult?.error) {
       redirect(`/developer/projects?project=${data.id}&error=${encodeURIComponent("Project saved, but the commission rule could not be saved. Please retry.")}`);
     }
-    redirect(`/developer/projects?project=${data.id}&step=types&draft=clear`);
+    redirect(`${projectPortalHref(data.id, "section=inventory")}&draft=clear&success=${encodeURIComponent("Project saved as a draft and submitted for review. Start with Phase 1, then add phase-scoped inventory.")}`);
   }
   if (error) {
     await removeUploadedStorageObjects(uploadedObjects);
@@ -1926,19 +2215,196 @@ async function upsertProjectAction(formData: FormData) {
   revalidatePath("/developer/projects");
 }
 
-async function deleteProjectAction(formData: FormData) {
+async function archiveProjectAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_projects");
   const projectId = formData.get("projectId")?.toString();
   if (!projectId) return;
-  const { error } = await deleteDeveloperProject(session.developerId, projectId);
+  const { error } = await archiveDeveloperProject(session.developerId, projectId);
   if (error) redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error.message)}`);
   revalidatePath("/developer/projects");
+  redirect(`/developer/projects?status=archived&success=${encodeURIComponent("Project archived. Inventory and leads were retained.")}`);
+}
+
+async function restoreProjectAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  if (!projectId) return;
+  const { error } = await restoreDeveloperProject(session.developerId, projectId);
+  if (error) redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error.message)}`);
+  revalidatePath("/developer/projects");
+  redirect(`/developer/projects?project=${projectId}&success=${encodeURIComponent("Project restored as a draft. Submit it for review when ready.")}`);
+}
+
+const projectPortalHref = (projectId: string, query = "") => `/developer/projects/${projectId}${query ? `?${query}` : ""}`;
+
+function phaseHeroImageFromMedia(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const media = value as { heroImageUrl?: unknown; hero_image_url?: unknown };
+  return typeof media.heroImageUrl === "string" && media.heroImageUrl.trim()
+    ? media.heroImageUrl.trim()
+    : typeof media.hero_image_url === "string" && media.hero_image_url.trim()
+    ? media.hero_image_url.trim()
+    : null;
+}
+
+async function uploadPhaseHeroImage(formData: FormData, projectId: string, phaseKey: string) {
+  const imageFile = formData.get("phaseHeroImage");
+  if (!isFile(imageFile)) return null;
+  return uploadFileToBucket({
+    bucket: STORAGE_BUCKETS.projectImages,
+    pathPrefix: `developers/${phaseKey}/projects/${projectId}/phases`,
+    file: imageFile,
+  });
+}
+
+async function developerProjectUploadPreflight(developerId: string, projectId: string) {
+  const { data, error } = await supabaseServer
+    .from("developer_projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("developer_id", developerId)
+    .maybeSingle();
+  return !error && Boolean(data);
+}
+
+function phaseFormValues(formData: FormData) {
+  const name = formData.get("phaseName")?.toString().trim() ?? "";
+  const description = formData.get("phaseDescription")?.toString().trim() || null;
+  const phaseOrderRaw = formData.get("phaseOrder")?.toString().trim() ?? "";
+  const phaseOrder = phaseOrderRaw ? Number(phaseOrderRaw) : null;
+  const launchStatus = formData.get("phaseLaunchStatus")?.toString().trim() || "upcoming";
+  const launchDate = formData.get("phaseLaunchDate")?.toString().trim() || null;
+  const pastedHero = formData.get("phaseHeroImageUrl")?.toString().trim() ?? "";
+  return { name, description, phaseOrder, launchStatus, launchDate, pastedHero };
+}
+
+function validatePhaseForm(values: ReturnType<typeof phaseFormValues>) {
+  if (!values.name || values.name.length > 160) return "Add a phase name between 1 and 160 characters.";
+  if (values.phaseOrder != null && (!Number.isInteger(values.phaseOrder) || values.phaseOrder <= 0)) return "Phase order must be a whole number greater than zero.";
+  if (!["upcoming", "new_launch", "live"].includes(values.launchStatus)) return "Choose a valid phase launch status.";
+  if (values.launchDate && Number.isNaN(Date.parse(`${values.launchDate}T00:00:00`))) return "Enter a valid phase launch date.";
+  if (values.pastedHero && !normalizeHttpMediaUrl(values.pastedHero)) return "Phase image URLs must use http:// or https://.";
+  return null;
+}
+
+async function createProjectPhaseAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  if (!projectId) return;
+  const values = phaseFormValues(formData);
+  const validationError = validatePhaseForm(values);
+  if (validationError) redirect(`${projectPortalHref(projectId, "section=inventory")}&error=${encodeURIComponent(validationError)}`);
+  if (!await developerProjectUploadPreflight(session.developerId, projectId)) {
+    redirect(`${projectPortalHref(projectId, "section=inventory")}&error=${encodeURIComponent("Project not found or access denied.")}`);
+  }
+  const pastedHero = normalizeHttpMediaUrl(values.pastedHero);
+  const uploadedObjects: Array<{ bucket: string; url: string }> = [];
+  let heroImageUrl = pastedHero;
+  try {
+    const uploaded = await uploadPhaseHeroImage(formData, projectId, session.developerId);
+    if (uploaded) {
+      uploadedObjects.push({ bucket: STORAGE_BUCKETS.projectImages, url: uploaded });
+      heroImageUrl = uploaded;
+    }
+  } catch (error) {
+    await removeUploadedStorageObjects(uploadedObjects);
+    redirect(`${projectPortalHref(projectId, "section=inventory")}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to upload the phase image.")}`);
+  }
+  const result = await createDeveloperProjectPhase(session.developerId, projectId, session.accountId, {
+    name: values.name,
+    description: values.description,
+    phaseOrder: values.phaseOrder,
+    launchStatus: values.launchStatus,
+    launchDate: values.launchDate,
+    heroMedia: heroImageUrl ? { heroImageUrl } : {},
+  });
+  if (result.error || !result.data) {
+    await removeUploadedStorageObjects(uploadedObjects);
+    redirect(`${projectPortalHref(projectId, "section=inventory")}&error=${encodeURIComponent(result.error?.message ?? "Unable to create this release phase.")}`);
+  }
+  revalidatePath("/developer/projects");
+  revalidatePath(`/developer/projects/${projectId}`);
+  redirect(`${projectPortalHref(projectId, `section=inventory&phase=${result.data.id}`)}&success=${encodeURIComponent("Release phase created. Add phase-scoped inventory, then submit the project for review.")}`);
+}
+
+async function updateProjectPhaseAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString();
+  if (!projectId || !phaseId) return;
+  const values = phaseFormValues(formData);
+  const validationError = validatePhaseForm(values);
+  if (validationError) redirect(`${projectPortalHref(projectId, `section=inventory&phase=${phaseId}`)}&error=${encodeURIComponent(validationError)}`);
+  if (!await developerProjectUploadPreflight(session.developerId, projectId)) {
+    redirect(`${projectPortalHref(projectId, `section=inventory&phase=${phaseId}`)}&error=${encodeURIComponent("Project not found or access denied.")}`);
+  }
+  const phases = await fetchDeveloperProjectPhases(session.developerId, projectId);
+  const current = phases.find((phase) => phase.id === phaseId);
+  if (!current) redirect(`${projectPortalHref(projectId, "section=inventory")}&error=${encodeURIComponent("Phase not found or access denied.")}`);
+  const currentHero = phaseHeroImageFromMedia(current.hero_media);
+  const pastedHero = normalizeHttpMediaUrl(values.pastedHero);
+  const uploadedObjects: Array<{ bucket: string; url: string }> = [];
+  let heroImageUrl = pastedHero || currentHero;
+  try {
+    const uploaded = await uploadPhaseHeroImage(formData, projectId, session.developerId);
+    if (uploaded) {
+      uploadedObjects.push({ bucket: STORAGE_BUCKETS.projectImages, url: uploaded });
+      heroImageUrl = uploaded;
+    }
+  } catch (error) {
+    await removeUploadedStorageObjects(uploadedObjects);
+    redirect(`${projectPortalHref(projectId, `section=inventory&phase=${phaseId}`)}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to upload the phase image.")}`);
+  }
+  const result = await updateDeveloperProjectPhase(session.developerId, phaseId, session.accountId, {
+    name: values.name,
+    description: values.description,
+    phaseOrder: values.phaseOrder,
+    launchStatus: values.launchStatus,
+    launchDate: values.launchDate,
+    heroMedia: heroImageUrl ? { ...(current.hero_media && typeof current.hero_media === "object" ? current.hero_media : {}), heroImageUrl } : {},
+  });
+  if (result.error || !result.data) {
+    await removeUploadedStorageObjects(uploadedObjects);
+    redirect(`${projectPortalHref(projectId, `section=inventory&phase=${phaseId}`)}&error=${encodeURIComponent(result.error?.message ?? "Unable to update this release phase.")}`);
+  }
+  revalidatePath("/developer/projects");
+  revalidatePath(`/developer/projects/${projectId}`);
+  redirect(`${projectPortalHref(projectId, `section=inventory&phase=${phaseId}`)}&success=${encodeURIComponent("Release phase saved. The project is queued for review again.")}`);
+}
+
+async function archiveProjectPhaseAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString();
+  if (!projectId || !phaseId) return;
+  const result = await archiveDeveloperProjectPhase(session.developerId, phaseId, session.accountId);
+  if (result.error) redirect(`${projectPortalHref(projectId, "section=inventory")}&error=${encodeURIComponent(result.error.message)}`);
+  revalidatePath("/developer/projects");
+  revalidatePath(`/developer/projects/${projectId}`);
+  redirect(`${projectPortalHref(projectId, "section=inventory")}&success=${encodeURIComponent("Release phase archived. Its inventory was retained.")}`);
+}
+
+async function restoreProjectPhaseAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString();
+  if (!projectId || !phaseId) return;
+  const result = await restoreDeveloperProjectPhase(session.developerId, phaseId, session.accountId);
+  if (result.error) redirect(`${projectPortalHref(projectId, "section=inventory")}&error=${encodeURIComponent(result.error.message)}`);
+  revalidatePath("/developer/projects");
+  revalidatePath(`/developer/projects/${projectId}`);
+  redirect(`${projectPortalHref(projectId, `section=inventory&phase=${phaseId}`)}&success=${encodeURIComponent("Release phase restored as a draft. Submit the project for review when ready.")}`);
 }
 
 async function moveProjectStatusAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_projects");
   const projectId = formData.get("projectId")?.toString();
   const status = normalizeLaunchStatus(formData.get("status")?.toString());
   if (!projectId) return;
@@ -1954,18 +2420,6 @@ async function moveProjectStatusAction(formData: FormData) {
   }
   revalidatePath("/developer/projects");
   redirect(`/developer/projects?status=${status}&project=${projectId}`);
-}
-
-async function updateContactRequestStatusAction(formData: FormData) {
-  "use server";
-  const session = await requireDeveloperSession();
-  const requestId = formData.get("requestId")?.toString();
-  const value = formData.get("status")?.toString();
-  const status = value === "contacted" || value === "closed" ? value : value === "open" ? value : null;
-  if (!requestId || !status) return;
-  const { error } = await updateDeveloperContactRequestStatus(session.developerId, requestId, status);
-  if (error) redirect(`/developer/projects?error=${encodeURIComponent(error.message)}`);
-  revalidatePath("/developer/projects");
 }
 
 async function upsertProjectCommissionRule(input: {
@@ -2007,43 +2461,71 @@ async function upsertProjectCommissionRule(input: {
 
 async function upsertProjectUnitTypeAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_inventory");
   const projectId = formData.get("projectId")?.toString();
   const unitTypeId = formData.get("unitTypeId")?.toString() || undefined;
+  const phaseId = formData.get("phaseId")?.toString() || undefined;
   const unitCategory = normalizeCategory(formData.get("unitCategory")?.toString());
   const baseTypeRaw = formData.get("unitBaseType")?.toString().trim() || "";
   const baseType = normalizeTypeForCategory(unitCategory, baseTypeRaw);
-  const minPrice = parseOptionalNumber(formData.get("unitStartPrice")?.toString());
-  const maxPrice = parseOptionalNumber(formData.get("unitMaxPrice")?.toString()) ?? undefined;
   if (!projectId) {
     return;
   }
+  if (!phaseId) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Choose a release phase before saving inventory.")}`);
+  }
+
+  const readUnitNumber = (field: string, label: string) => {
+    const raw = formData.get(field)?.toString().trim();
+    if (!raw) return undefined;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent(`${label} must be zero or more.`)}`);
+    }
+    return parsed;
+  };
+  const minPrice = readUnitNumber("unitStartPrice", "Minimum price");
+  const maxPrice = readUnitNumber("unitMaxPrice", "Maximum price");
   if (minPrice == null || minPrice <= 0) {
-    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent("Enter a valid minimum price before saving this unit type.")}`);
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Enter a valid minimum price before saving this unit type.")}`);
+  }
+  if (maxPrice != null && maxPrice < minPrice) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Maximum price must be greater than or equal to the minimum.")}`);
   }
 
   const finishingStatus = formData.get("unitFinishing")?.toString().trim() || undefined;
-  const unitAreaMin = parseOptionalNumber(formData.get("unitMinBua")?.toString()) ?? undefined;
-  const unitAreaMax = parseOptionalNumber(formData.get("unitMaxBua")?.toString()) ?? undefined;
-  const landAreaMin = parseOptionalNumber(formData.get("unitMinLand")?.toString()) ?? undefined;
-  const landAreaMax = parseOptionalNumber(formData.get("unitMaxLand")?.toString()) ?? undefined;
+  const unitAreaMin = readUnitNumber("unitMinBua", "Minimum BUA");
+  const unitAreaMax = readUnitNumber("unitMaxBua", "Maximum BUA");
+  const landAreaMin = readUnitNumber("unitMinLand", "Minimum land area");
+  const landAreaMax = readUnitNumber("unitMaxLand", "Maximum land area");
+  if (unitAreaMax != null && unitAreaMin != null && unitAreaMax < unitAreaMin) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Maximum BUA must be greater than or equal to the minimum.")}`);
+  }
+  if (landAreaMax != null && landAreaMin != null && landAreaMax < landAreaMin) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Maximum land area must be greater than or equal to the minimum.")}`);
+  }
+  if (!await developerProjectUploadPreflight(session.developerId, projectId)) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Project not found or access denied.")}`);
+  }
   const heroImageFile = formData.get("unitHeroImage");
-  const description = formData.get("unitDescription")?.toString() || undefined;
+  const description = formData.get("unitDescription")?.toString().trim() || undefined;
   const label: string = baseType;
 
+  const uploadedObjects: Array<{ bucket: string; url: string }> = [];
   let heroImageUrl: string | undefined = undefined;
-  if (isFile(heroImageFile)) {
-    heroImageUrl = await uploadFileToBucket({
-      bucket: STORAGE_BUCKETS.projectUnitImages,
-      pathPrefix: `developers/${session.developerId}/projects/${projectId}/unit-types`,
-      file: heroImageFile,
-    });
-  }
-
   let result;
   try {
+    if (isFile(heroImageFile)) {
+      heroImageUrl = await uploadFileToBucket({
+        bucket: STORAGE_BUCKETS.projectUnitImages,
+        pathPrefix: `developers/${session.developerId}/projects/${projectId}/unit-types`,
+        file: heroImageFile,
+      });
+      uploadedObjects.push({ bucket: STORAGE_BUCKETS.projectUnitImages, url: heroImageUrl });
+    }
     result = await upsertProjectUnitType(session.developerId, projectId, {
       id: unitTypeId,
+      phaseId,
       category: unitCategory,
       label,
       minPrice,
@@ -2057,80 +2539,111 @@ async function upsertProjectUnitTypeAction(formData: FormData) {
       heroImageUrl,
     });
   } catch (error) {
+    await removeUploadedStorageObjects(uploadedObjects);
     redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to save this unit type.")}`);
   }
   const { data, error } = result;
   if (error) {
+    await removeUploadedStorageObjects(uploadedObjects);
     revalidatePath("/developer/projects");
-    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error.message)}`);
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent(error.message)}`);
   }
   if (!unitTypeId && data?.id) {
-    redirect(`/developer/projects?project=${projectId}`);
+    redirect(`/developer/projects?project=${projectId}&section=inventory&success=${encodeURIComponent("Unit type saved. Add variants only when you need more commercial detail.")}`);
   }
   revalidatePath("/developer/projects");
 }
 
-async function deleteUnitTypeAction(formData: FormData) {
+async function archiveUnitTypeAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_inventory");
   const projectId = formData.get("projectId")?.toString();
   const unitTypeId = formData.get("unitTypeId")?.toString();
   if (!projectId || !unitTypeId) return;
   let result;
   try {
-    result = await deleteProjectUnitType(session.developerId, unitTypeId);
+    result = await archiveProjectUnitType(session.developerId, unitTypeId, session.accountId);
   } catch (error) {
-    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to delete this unit type.")}`);
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to archive this unit type.")}`);
   }
   if (result?.error) {
     redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(result.error.message)}`);
   }
   revalidatePath("/developer/projects");
-  redirect(`/developer/projects?project=${projectId}`);
+  redirect(`/developer/projects?project=${projectId}&section=inventory&success=${encodeURIComponent("Unit type archived. Its variants were retained.")}`);
+}
+
+async function restoreUnitTypeAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_inventory");
+  const projectId = formData.get("projectId")?.toString();
+  const unitTypeId = formData.get("unitTypeId")?.toString();
+  if (!projectId || !unitTypeId) return;
+  let result;
+  try {
+    result = await restoreProjectUnitType(session.developerId, unitTypeId);
+  } catch (error) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to restore this unit type.")}`);
+  }
+  if (result?.error) redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(result.error.message)}`);
+  revalidatePath("/developer/projects");
+  redirect(`/developer/projects?project=${projectId}&section=inventory&inventory=archived&success=${encodeURIComponent("Unit type restored to active inventory.")}`);
 }
 
 async function upsertProjectUnitVariantAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_inventory");
   const projectId = formData.get("projectId")?.toString();
   const unitTypeId = formData.get("unitTypeId")?.toString();
   const variantId = formData.get("variantId")?.toString() || undefined;
   const variantCategory = normalizeCategory(formData.get("variantCategory")?.toString());
   const variantTypeRaw = formData.get("variantType")?.toString().trim() || "";
   const variantType = normalizeTypeForCategory(variantCategory, variantTypeRaw);
-  const minPriceValue = formData.get("variantMinPrice")?.toString();
-  const minPrice = minPriceValue ? Number(minPriceValue) : NaN;
-  if (!projectId || !unitTypeId || Number.isNaN(minPrice) || minPrice <= 0) {
-    if (projectId) redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent("Enter a valid minimum price before saving this variant.")}`);
+  if (!projectId || !unitTypeId) {
     return;
   }
 
-  const toOptionalNumber = (value?: string | null, allowZero = false) => {
-    if (!value || !value.trim()) return undefined;
-    const parsed = Number(value);
-    if (Number.isNaN(parsed)) return undefined;
-    if (!allowZero && parsed <= 0) return undefined;
+  const readVariantNumber = (field: string, label: string, allowZero = true) => {
+    const raw = formData.get(field)?.toString().trim();
+    if (!raw) return undefined;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0 || (!allowZero && parsed <= 0)) {
+      redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent(`${label} must be a valid ${allowZero ? "zero or more" : "positive"} number.`)}`);
+    }
     return parsed;
   };
 
-  const maxPrice = toOptionalNumber(formData.get("variantMaxPrice")?.toString(), true);
-  const bedrooms = toOptionalNumber(formData.get("variantBedrooms")?.toString(), true);
-  const bathrooms = toOptionalNumber(formData.get("variantBathrooms")?.toString(), true);
+  const minPrice = readVariantNumber("variantMinPrice", "Minimum price", false);
+  if (minPrice == null) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Enter a valid minimum price before saving this variant.")}`);
+  }
+  const maxPrice = readVariantNumber("variantMaxPrice", "Maximum price");
+  const bedrooms = readVariantNumber("variantBedrooms", "Bedrooms");
+  const bathrooms = readVariantNumber("variantBathrooms", "Bathrooms");
   const hasGarden = formData.get("variantHasGarden")?.toString() === "yes";
-  const gardenAreaSqm = toOptionalNumber(formData.get("variantGardenAreaSqm")?.toString(), true);
+  const gardenAreaSqm = readVariantNumber("variantGardenAreaSqm", "Garden area");
   const hasRoof = formData.get("variantHasRoof")?.toString() === "yes";
-  const roofAreaSqm = toOptionalNumber(formData.get("variantRoofAreaSqm")?.toString(), true);
+  const roofAreaSqm = readVariantNumber("variantRoofAreaSqm", "Roof area");
   const finishingStatus = formData.get("variantFinishing")?.toString().trim() || undefined;
   const deliveryDate = formData.get("variantDeliveryDate")?.toString().trim() || undefined;
-  const areaMin = toOptionalNumber(formData.get("variantAreaMin")?.toString(), true);
-  const areaMax = toOptionalNumber(formData.get("variantAreaMax")?.toString(), true);
-  const landAreaMin = toOptionalNumber(formData.get("variantLandMin")?.toString(), true);
-  const landAreaMax = toOptionalNumber(formData.get("variantLandMax")?.toString(), true);
+  const areaMin = readVariantNumber("variantAreaMin", "Minimum BUA");
+  const areaMax = readVariantNumber("variantAreaMax", "Maximum BUA");
+  const landAreaMin = readVariantNumber("variantLandMin", "Minimum land area");
+  const landAreaMax = readVariantNumber("variantLandMax", "Maximum land area");
+  if (maxPrice != null && maxPrice < minPrice) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Maximum price must be greater than or equal to the minimum.")}`);
+  }
+  if (areaMax != null && areaMin != null && areaMax < areaMin) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Maximum BUA must be greater than or equal to the minimum.")}`);
+  }
+  if (landAreaMax != null && landAreaMin != null && landAreaMax < landAreaMin) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Maximum land area must be greater than or equal to the minimum.")}`);
+  }
   const layoutOptions = (formData.get("variantLayouts")?.toString() ?? "")
     .split("\n")
     .map((value) => value.trim())
     .filter(Boolean);
-  const description = formData.get("variantDescription")?.toString() || undefined;
+  const description = formData.get("variantDescription")?.toString().trim() || undefined;
 
   let result;
   try {
@@ -2159,36 +2672,57 @@ async function upsertProjectUnitVariantAction(formData: FormData) {
     redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to save this variant.")}`);
   }
   if (result?.error) {
-    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(result.error.message)}`);
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent(result.error.message)}`);
   }
-  redirect(`/developer/projects?project=${projectId}&unitType=${unitTypeId}&variants=1`);
+  redirect(`/developer/projects?project=${projectId}&unitType=${unitTypeId}&variants=1&success=${encodeURIComponent("Variant saved to this unit type.")}`);
 }
 
-async function deleteVariantAction(formData: FormData) {
+async function archiveVariantAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_inventory");
   const projectId = formData.get("projectId")?.toString();
   const variantId = formData.get("variantId")?.toString();
   if (!projectId || !variantId) return;
   let result;
   try {
-    result = await deleteProjectUnitVariant(session.developerId, variantId);
+    result = await archiveProjectUnitVariant(session.developerId, variantId, session.accountId);
   } catch (error) {
-    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to delete this variant.")}`);
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to archive this variant.")}`);
   }
   if (result?.error) {
     redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(result.error.message)}`);
   }
   revalidatePath("/developer/projects");
-  redirect(`/developer/projects?project=${projectId}`);
+  redirect(`/developer/projects?project=${projectId}&section=inventory&inventory=archived&success=${encodeURIComponent("Variant archived and retained.")}`);
+}
+
+async function restoreVariantAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_inventory");
+  const projectId = formData.get("projectId")?.toString();
+  const variantId = formData.get("variantId")?.toString();
+  if (!projectId || !variantId) return;
+  let result;
+  try {
+    result = await restoreProjectUnitVariant(session.developerId, variantId);
+  } catch (error) {
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to restore this variant.")}`);
+  }
+  if (result?.error) redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(result.error.message)}`);
+  revalidatePath("/developer/projects");
+  redirect(`/developer/projects?project=${projectId}&section=inventory&inventory=archived&success=${encodeURIComponent("Variant restored to active inventory.")}`);
 }
 
 async function importTypeWithVariantsAction(formData: FormData) {
   "use server";
-  const session = await requireDeveloperSession();
+  const session = await requireDeveloperCapability("manage_inventory");
   const projectId = formData.get("projectId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString() || undefined;
   const payloadRaw = formData.get("payload")?.toString();
   if (!projectId || !payloadRaw) return;
+  if (!phaseId) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Choose a release phase before importing inventory.")}`);
+  }
 
   let payload: {
     baseType: string;
@@ -2218,57 +2752,233 @@ async function importTypeWithVariantsAction(formData: FormData) {
 
   if (!payload?.baseType || !payload.variants?.length) return;
 
-  const importedPrices = payload.variants
-    .map((variant) => variant.price)
-    .filter((value): value is number => typeof value === "number" && value > 0);
-  if (!importedPrices.length) {
-    redirect(`/developer/projects?project=${projectId}`);
+  const strictNumericFields = ["bedrooms", "bathrooms", "areaMin", "areaMax", "downPayment", "installmentYears", "stockCount"] as const;
+  const invalidVariant = payload.variants.some((variant) => {
+    if (!variant || typeof variant !== "object" || typeof variant.price !== "number" || !Number.isFinite(variant.price) || variant.price <= 0) return true;
+    if (strictNumericFields.some((field) => variant[field] != null && (typeof variant[field] !== "number" || !Number.isFinite(variant[field])))) return true;
+    if (variant.bedrooms != null && (!Number.isInteger(variant.bedrooms) || variant.bedrooms < 0)) return true;
+    if (variant.bathrooms != null && (!Number.isInteger(variant.bathrooms) || variant.bathrooms < 0)) return true;
+    if (variant.areaMin != null && variant.areaMin < 0) return true;
+    if (variant.areaMax != null && (variant.areaMax < 0 || variant.areaMax < (variant.areaMin ?? 0))) return true;
+    if (variant.downPayment != null && (variant.downPayment < 0 || variant.downPayment > 100)) return true;
+    if (variant.installmentYears != null && variant.installmentYears <= 0) return true;
+    return variant.stockCount != null && (!Number.isInteger(variant.stockCount) || variant.stockCount < 0);
+  });
+  if (invalidVariant) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent("Every imported variant needs a valid price and consistent numeric ranges. No rows were saved.")}`);
   }
 
-  const inferredCategory = inferCategoryFromType(payload.baseType);
-  const { data, error } = await upsertProjectUnitType(session.developerId, projectId, {
-    category: inferredCategory,
-    label: payload.baseType,
-    minPrice: Math.min(...importedPrices),
-    maxPrice: Math.max(...importedPrices),
-    unitAreaMin: (() => {
-      const values = payload?.variants.map((variant) => variant.areaMin).filter((value): value is number => typeof value === "number");
-      return values.length ? Math.min(...values) : undefined;
-    })(),
-    unitAreaMax: (() => {
-      const values = payload?.variants
-        .flatMap((variant) => [variant.areaMax, variant.areaMin])
-        .filter((value): value is number => typeof value === "number");
-      return values.length ? Math.max(...values) : undefined;
-    })(),
+  const { data, error } = await importDeveloperProjectInventory(session.developerId, projectId, phaseId, session.accountId, {
+    baseType: payload.baseType,
+    category: inferCategoryFromType(payload.baseType),
     finishingStatus: payload.finishingStatus,
     description: payload.description,
+    variants: payload.variants.map((variant) => ({
+      ...variant,
+      price: variant.price as number,
+    })),
   });
-  if (error || !data?.id) {
-    redirect(`/developer/projects?project=${projectId}`);
+  if (error || !data) {
+    redirect(`/developer/projects?project=${projectId}&section=inventory&error=${encodeURIComponent(error?.message ?? "Unable to import this inventory batch. No rows were saved.")}`);
+  }
+
+  revalidatePath("/developer/projects");
+  redirect(`/developer/projects?project=${projectId}&section=inventory&phase=${phaseId}&success=${encodeURIComponent("Inventory imported atomically to the selected release phase.")}`);
+}
+
+function parseJsonObject<T extends Record<string, unknown>>(value: FormDataEntryValue | null): T | null {
+  if (typeof value !== "string" || value.length > 1_000_000) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as T : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseJsonRows(value: FormDataEntryValue | null): Array<Record<string, unknown>> | null {
+  if (typeof value !== "string" || value.length > 1_000_000) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed) || parsed.length > 500 || parsed.some((row) => !row || typeof row !== "object" || Array.isArray(row))) return null;
+    return parsed as Array<Record<string, unknown>>;
+  } catch {
+    return null;
+  }
+}
+
+function inventoryActionError(projectId: string, message: string) {
+  return `${projectPortalHref(projectId, "section=inventory")}&error=${encodeURIComponent(message)}`;
+}
+
+async function markProjectReadyAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  if (!projectId) return;
+  const result = await markDeveloperProjectReady(session.developerId, projectId, session.accountId);
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, "section=overview")}&success=${encodeURIComponent("Project marked ready. Review the checklist before submitting.")}`);
+}
+
+async function submitProjectForReviewAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  if (!projectId) return;
+  const result = await submitDeveloperProjectForReview(session.developerId, projectId, session.accountId);
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, "section=overview")}&success=${encodeURIComponent("Project submitted for admin review.")}`);
+}
+
+async function bulkInventoryAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_inventory");
+  const projectId = formData.get("projectId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString();
+  const rows = parseJsonRows(formData.get("rows"));
+  const dryRun = formData.get("dryRun")?.toString() === "true";
+  if (!projectId || !phaseId || !rows) {
+    if (projectId) redirect(inventoryActionError(projectId, "Select a release phase and provide valid inventory rows."));
     return;
   }
+  const result = await bulkUpdateDeveloperInventory(session.developerId, projectId, phaseId, session.accountId, rows, dryRun);
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  const errors = Array.isArray(result.data?.errors) ? result.data.errors.length : 0;
+  if (errors) redirect(inventoryActionError(projectId, `${errors} inventory row(s) failed validation. No invalid rows were written.`));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, `section=inventory&phase=${phaseId}`)}&success=${encodeURIComponent(dryRun ? "Dry run passed. Review the rows, then submit again in commit mode." : "Inventory rows saved as pending changes.")}`);
+}
 
-  for (const variant of payload.variants) {
-    if (!variant.price || variant.price <= 0) continue;
-    await upsertProjectUnitVariant(session.developerId, data.id, {
-      category: inferredCategory,
-      label: payload.baseType,
-      minPrice: variant.price,
-      maxPrice: variant.price,
-      bedrooms: variant.bedrooms,
-      bathrooms: variant.bathrooms,
-      hasGarden: variant.hasGarden,
-      hasRoof: variant.hasRoof,
-      unitAreaMin: variant.areaMin,
-      unitAreaMax: variant.areaMax,
-      downPaymentPercent: variant.downPayment,
-      installmentYears: variant.installmentYears,
-      stockCount: variant.stockCount,
-      description: variant.description,
-      amenities: variant.amenities,
-    });
+async function importInventoryRowsAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_inventory");
+  const projectId = formData.get("projectId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString();
+  const rows = parseJsonRows(formData.get("rows"));
+  const dryRun = formData.get("dryRun")?.toString() !== "false";
+  if (!projectId || !phaseId || !rows) {
+    if (projectId) redirect(inventoryActionError(projectId, "Select a release phase and provide valid import rows."));
+    return;
   }
+  const rowIds = rows.map((row) => typeof row.id === "string" && row.id.trim() ? row.id.trim() : null);
+  if (rowIds.some(Boolean) && rowIds.some((id) => !id)) {
+    redirect(inventoryActionError(projectId, "Do not mix existing inventory IDs with new import rows."));
+  }
+  const result = rowIds.every(Boolean)
+    ? await bulkUpdateDeveloperInventory(session.developerId, projectId, phaseId, session.accountId, rows, dryRun)
+    : await importDeveloperInventoryRows(session.developerId, projectId, phaseId, session.accountId, rows, dryRun);
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  const errors = Array.isArray(result.data?.errors) ? result.data.errors.length : 0;
+  if (errors) redirect(inventoryActionError(projectId, `${errors} import row(s) failed validation. Fix the row errors and try again.`));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, `section=inventory&phase=${phaseId}`)}&success=${encodeURIComponent(dryRun ? "Server dry run passed. Submit the import again in commit mode." : "Inventory imported as pending changes.")}`);
+}
 
-  redirect(`/developer/projects?project=${projectId}`);
+async function holdInventoryAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_inventory");
+  const projectId = formData.get("projectId")?.toString();
+  const propertyId = formData.get("propertyId")?.toString();
+  const expiresAt = formData.get("expiresAt")?.toString();
+  const holderType = formData.get("holderType")?.toString() || "internal";
+  const holderReference = formData.get("holderReference")?.toString() || null;
+  if (!projectId || !propertyId || !expiresAt) {
+    if (projectId) redirect(inventoryActionError(projectId, "A future hold expiry is required."));
+    return;
+  }
+  const result = await createDeveloperInventoryHold(session.developerId, propertyId, session.accountId, expiresAt, holderType, holderReference);
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, "section=inventory")}&success=${encodeURIComponent("Inventory hold created atomically.")}`);
+}
+
+async function releaseInventoryHoldAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_inventory");
+  const projectId = formData.get("projectId")?.toString();
+  const holdId = formData.get("holdId")?.toString();
+  const nextState = formData.get("nextState")?.toString() === "converted" ? "converted" as const : "released" as const;
+  if (!projectId || !holdId) return;
+  const result = await releaseDeveloperInventoryHold(session.developerId, holdId, session.accountId, nextState);
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, "section=inventory")}&success=${encodeURIComponent(nextState === "converted" ? "Hold converted to contracted inventory." : "Inventory hold released.")}`);
+}
+
+async function restoreInventoryVersionAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_inventory");
+  const projectId = formData.get("projectId")?.toString();
+  const versionId = formData.get("versionId")?.toString();
+  if (!projectId || !versionId) return;
+  const result = await restoreDeveloperInventoryVersion(session.developerId, versionId, session.accountId);
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, "section=overview")}&success=${encodeURIComponent("Version restored to a draft. Review and submit the changes again.")}`);
+}
+
+async function saveInventoryFilterAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_inventory");
+  const projectId = formData.get("projectId")?.toString();
+  const name = formData.get("name")?.toString().trim();
+  const filter = parseJsonObject(formData.get("filter"));
+  if (!projectId || !name || !filter) {
+    if (projectId) redirect(inventoryActionError(projectId, "Enter a filter name before saving."));
+    return;
+  }
+  const result = await saveDeveloperInventoryFilter(session.developerId, session.accountId, name, filter);
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, "section=inventory")}&success=${encodeURIComponent("Inventory filter saved.")}`);
+}
+
+async function saveProjectTemplateAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  const name = formData.get("name")?.toString().trim();
+  const description = formData.get("description")?.toString().trim() || null;
+  const payload = parseJsonObject(formData.get("payload"));
+  if (!projectId || !name || !payload) {
+    if (projectId) redirect(inventoryActionError(projectId, "Provide a template name and valid project payload."));
+    return;
+  }
+  const result = await saveDeveloperProjectTemplate(session.developerId, session.accountId, {
+    templateType: "project",
+    name,
+    description,
+    payload,
+    sourceProjectId: projectId,
+  });
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, "section=settings")}&success=${encodeURIComponent("Project template saved.")}`);
+}
+
+async function cloneProjectTemplateAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const templateId = formData.get("templateId")?.toString();
+  const name = formData.get("name")?.toString().trim() || null;
+  if (!templateId) return;
+  const result = await cloneDeveloperProjectFromTemplate(session.developerId, session.accountId, templateId, name);
+  if (result.error || !result.data) redirect(`/developer/projects?error=${encodeURIComponent(result.error?.message ?? "Unable to clone project template.")}`);
+  revalidatePath("/developer/projects");
+  redirect(`/developer/projects?project=${result.data}&success=${encodeURIComponent("Project cloned as a draft.")}`);
+}
+
+async function resolveFeedbackAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  const feedbackId = formData.get("feedbackId")?.toString();
+  if (!projectId || !feedbackId) return;
+  const result = await resolveDeveloperPublicationFeedback(session.developerId, feedbackId, session.accountId);
+  if (result.error) redirect(inventoryActionError(projectId, result.error.message));
+  revalidatePath("/developer/projects");
+  redirect(`${projectPortalHref(projectId, "section=overview")}&success=${encodeURIComponent("Publication feedback marked resolved.")}`);
 }

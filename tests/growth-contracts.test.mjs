@@ -77,6 +77,9 @@ test("Growth migration is additive, transactional, and versioned", () => {
   assert.doesNotMatch(migration, /drop policy if exists %I on public\.%I/);
   assert.match(migration, /growth-demo-verified[\s\S]*'draft'/);
   assert.match(migration, /Demo welcome experience[\s\S]*false[\s\S]*demo_batch/);
+  assert.match(migration, /entity_id_value uuid;/);
+  assert.doesNotMatch(migration, /\n\s+entity_id uuid;/);
+  assert.match(migration, /A clearly marked Growth demonstration tier\./);
   assert.match(migration, /p_batch := nullif\(btrim\(p_batch\), ''\)/);
   assert.match(migration, /batch_key = p_batch and status = 'active'/);
   assert.doesNotMatch(migration, /related_entity_id = any\(campaign_ids\)/);

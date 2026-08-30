@@ -31,6 +31,18 @@ export type SalesClaimEntry = {
   eoiDocument?: string | null;
   cilDocument?: string | null;
   reservationDocument?: string | null;
+  paymentReference?: string | null;
+  paymentProofUrl?: string | null;
+  paymentAmount?: string | null;
+  paymentAmountConfirmed?: boolean;
+  paymentRecordedBy?: string | null;
+  paymentRecordedAt?: string | null;
+  paymentApprovedBy?: string | null;
+  paymentApprovedAt?: string | null;
+  paymentApprovalNotes?: string | null;
+  isDemo: boolean;
+  demoBatch?: string | null;
+  isOverdue: boolean;
 };
 
 type StageRow = {
@@ -44,6 +56,17 @@ type StageRow = {
   payload: StagePayload | null;
   sales_claim_document: string | null;
   attachments: string[] | null;
+  payment_reference: string | null;
+  payment_proof_url: string | null;
+  payment_amount: string | number | null;
+  payment_amount_confirmed: boolean | null;
+  payment_recorded_by: string | null;
+  payment_recorded_at: string | null;
+  payment_approved_by: string | null;
+  payment_approved_at: string | null;
+  payment_approval_notes: string | null;
+  is_demo: boolean;
+  demo_batch: string | null;
 };
 
 type AgentProfile = {
@@ -59,15 +82,21 @@ type FeedbackPayload = StagePayload & {
 
 import { supabaseServer } from "./supabaseServer";
 
-export async function fetchSalesClaims(limit = 50): Promise<SalesClaimEntry[]> {
-  const { data, error } = await supabaseServer
+export type DealDataMode = "live" | "demo" | "all";
+
+export async function fetchSalesClaims(limit = 50, mode: DealDataMode = "live"): Promise<SalesClaimEntry[]> {
+  let query = supabaseServer
     .from("deal_stage_entries")
     .select(
-      "id, agent_id, property_name, developer_name, status, created_at, updated_at, payload, sales_claim_document, attachments",
+      "id, agent_id, property_name, developer_name, status, created_at, updated_at, payload, sales_claim_document, attachments, payment_reference, payment_proof_url, payment_amount, payment_amount_confirmed, payment_recorded_by, payment_recorded_at, payment_approved_by, payment_approved_at, payment_approval_notes, is_demo, demo_batch",
     )
     .eq("stage", "SalesClaim")
     .order("created_at", { ascending: false })
     .limit(limit);
+  if (mode === "live") query = query.eq("is_demo", false);
+  if (mode === "demo") query = query.eq("is_demo", true);
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Failed to load sales claims", error);
@@ -127,6 +156,20 @@ export async function fetchSalesClaims(limit = 50): Promise<SalesClaimEntry[]> {
         ["reservation_document", "reservation_doc", "reservationDocument", "reservation"],
         attachments,
       ),
+      paymentReference: row.payment_reference ?? null,
+      paymentProofUrl: row.payment_proof_url ?? null,
+      paymentAmount: row.payment_amount == null ? null : String(row.payment_amount),
+      paymentAmountConfirmed: Boolean(row.payment_amount_confirmed),
+      paymentRecordedBy: row.payment_recorded_by ?? null,
+      paymentRecordedAt: row.payment_recorded_at ?? null,
+      paymentApprovedBy: row.payment_approved_by ?? null,
+      paymentApprovedAt: row.payment_approved_at ?? null,
+      paymentApprovalNotes: row.payment_approval_notes ?? null,
+      isDemo: Boolean(row.is_demo),
+      demoBatch: row.demo_batch ?? null,
+      isOverdue:
+        !["Paid", "Rejected"].includes(row.status) &&
+        new Date(row.updated_at ?? row.created_at).getTime() < Date.now() - 48 * 60 * 60 * 1000,
     };
   });
 }

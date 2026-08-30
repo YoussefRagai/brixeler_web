@@ -58,10 +58,25 @@ function removeLocalValue(key: string) {
   }
 }
 
-export function ProjectWizard({ action, children, developerId }: { action: WizardAction; children: ReactNode; developerId: string }) {
+function normalizeProjectName(value: string) {
+  return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+}
+
+export function ProjectWizard({
+  action,
+  children,
+  developerId,
+  existingProjectNames = [],
+}: {
+  action: WizardAction;
+  children: ReactNode;
+  developerId: string;
+  existingProjectNames?: string[];
+}) {
   const [activeStep, setActiveStep] = useState(0);
   const [draftRestored, setDraftRestored] = useState(false);
   const [error, setError] = useState("");
+  const [duplicateNameWarning, setDuplicateNameWarning] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   const draftKey = `${PROJECT_WIZARD_DRAFT_KEY}:${developerId}`;
 
@@ -116,11 +131,23 @@ export function ProjectWizard({ action, children, developerId }: { action: Wizar
     }
   };
 
+  const checkDuplicateName = () => {
+    const value = (formRef.current?.elements.namedItem("name") as HTMLInputElement | null)?.value ?? "";
+    const normalizedName = normalizeProjectName(value);
+    setDuplicateNameWarning(Boolean(normalizedName) && existingProjectNames.some((name) => normalizeProjectName(name) === normalizedName));
+  };
+
+  const handleInput = () => {
+    persistDraft();
+    checkDuplicateName();
+  };
+
   const clearDraft = () => {
     removeLocalValue(draftKey);
     removeLocalValue(`${draftKey}:step`);
     formRef.current?.reset();
     setDraftRestored(false);
+    setDuplicateNameWarning(false);
     setActiveStep(0);
     setError("");
   };
@@ -164,6 +191,8 @@ export function ProjectWizard({ action, children, developerId }: { action: Wizar
     removeLocalValue(`${draftKey}:step`);
   };
 
+  const describedBy = [error ? "project-wizard-error" : null, duplicateNameWarning ? "project-wizard-duplicate" : null].filter(Boolean).join(" ") || undefined;
+
   return (
     <div className="project-wizard overflow-hidden rounded-3xl border border-black/5 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.05)]" data-active-step={steps[activeStep].id}>
       <div className="border-b border-black/5 bg-neutral-50/70 p-3 sm:px-5">
@@ -206,7 +235,8 @@ export function ProjectWizard({ action, children, developerId }: { action: Wizar
       </div>
 
       {error ? <p id="project-wizard-error" role="alert" aria-live="assertive" className="mx-5 mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 sm:mx-7">{error}</p> : null}
-      <form id="project-creator" ref={formRef} action={action} onSubmit={submit} onInput={persistDraft} onChange={persistDraft} aria-describedby={error ? "project-wizard-error" : undefined} className="space-y-4 p-5 sm:p-7">
+      {duplicateNameWarning ? <p id="project-wizard-duplicate" role="status" className="mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 sm:mx-7">A project with this name already exists. Choose a distinct name before saving.</p> : null}
+      <form id="project-creator" ref={formRef} action={action} onSubmit={submit} onInput={handleInput} onChange={handleInput} aria-describedby={describedBy} className="space-y-4 p-5 sm:p-7">
         <div className="mx-auto max-w-4xl">{children}</div>
         <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white/95 p-3 shadow-lg shadow-black/10 backdrop-blur">
           <button

@@ -9,11 +9,17 @@
     "lint": "eslint",
     "test:contracts": "node --experimental-strip-types --test tests/contracts.test.mjs",
     "test:growth": "node --experimental-strip-types --test tests/growth-contracts.test.mjs",
+    "test:workspace-deals": "node --experimental-strip-types --test tests/workspace-deals-contracts.test.mjs",
+    "test:people": "node --experimental-strip-types --test tests/people-contracts.test.mjs",
+    "test:inventory": "node --experimental-strip-types --test tests/inventory-contracts.test.mjs",
+    "test:shared-ui": "node --experimental-strip-types --test tests/shared-ui-contracts.test.mjs",
+    "test:developer-phases": "node --experimental-strip-types --test tests/developer-phases-contracts.test.mjs",
+    "test:developer-operations": "node --experimental-strip-types --test tests/developer-team-rbac-contracts.test.mjs tests/developer-operations-contracts.test.mjs tests/developer-security-fixes.test.mjs",
     "test:database": "./scripts/test-database-reliability.sh",
     "types:database": "./scripts/generate-database-types.sh check",
     "security:deps": "npm audit --audit-level=high",
     "security:shannon": "./scripts/security/run-shannon.sh",
-    "security:all": "npm run security:deps && npm run lint && npm run test:contracts && npm run test:growth && npm run build",
+    "security:all": "npm run security:deps && npm run lint && npm run test:contracts && npm run test:growth && npm run test:workspace-deals && npm run test:people && npm run test:inventory && npm run test:shared-ui && npm run test:developer-phases && npm run test:developer-operations && npm run build",
     "release:check": "npm run security:all"
   },
   "dependencies": {

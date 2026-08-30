@@ -3,10 +3,11 @@ import Link from "next/link";
 export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<{ error?: string; message?: string }>;
 }) {
   const resolved = (await searchParams) ?? {};
   const error = resolved?.error;
+  const message = resolved?.message;
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f8f8f8] px-4 text-[#050505]">
       <div className="w-full max-w-md rounded-3xl border border-black/5 bg-white p-8 shadow-xl shadow-black/5">
@@ -22,6 +23,11 @@ export default async function AdminLoginPage({
             className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
           >
             {decodeURIComponent(error)}
+          </div>
+        ) : null}
+        {message ? (
+          <div role="status" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {decodeURIComponent(message)}
           </div>
         ) : null}
         <form action="/api/admin-login" method="post" className="space-y-4">

@@ -32,6 +32,21 @@ jobs:
       - name: Contract tests
         run: npm run test:contracts
 
+      - name: Growth contracts
+        run: npm run test:growth
+
+      - name: Workspace and deal contracts
+        run: npm run test:workspace-deals
+
+      - name: People contracts
+        run: npm run test:people
+
+      - name: Inventory contracts
+        run: npm run test:inventory
+
+      - name: Shared UI contracts
+        run: npm run test:shared-ui
+
       - name: Build
         run: npm run build
 

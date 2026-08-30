@@ -1560,7 +1560,7 @@ as $$
 declare
   before_data jsonb;
   after_data jsonb;
-  entity_id uuid;
+  entity_id_value uuid;
   version_value integer;
   actor_id uuid;
   actor_text text := nullif(current_setting('request.jwt.claim.sub', true), '');
@@ -1569,11 +1569,11 @@ begin
   if tg_op = 'DELETE' then
     before_data := to_jsonb(old);
     after_data := null;
-    entity_id := old.id;
+    entity_id_value := old.id;
   else
     before_data := case when tg_op = 'UPDATE' then to_jsonb(old) else null end;
     after_data := to_jsonb(new);
-    entity_id := new.id;
+    entity_id_value := new.id;
   end if;
   begin
     actor_id := actor_text::uuid;
@@ -1621,7 +1621,7 @@ begin
     entity_type, entity_id, action, version, actor_admin_id, before_data, after_data, metadata
   ) values (
     entity_type_value,
-    entity_id,
+    entity_id_value,
     lower(tg_op),
     version_value,
     actor_id,
@@ -1634,7 +1634,7 @@ begin
       entity_type, entity_id, version, snapshot, changed_by_admin, changed_by, change_type
     ) values (
       entity_type_value,
-      entity_id,
+      entity_id_value,
       coalesce(version_value, 1),
       after_data,
       actor_id,
@@ -2626,7 +2626,7 @@ begin
   values (demo_gift_rule, demo_gift, 'deals_count', 'all_time', '>=', 1, '{}'::jsonb, false, demo_audience, 'draft', 'not_required', null, null, demo_admin, demo_admin, true, demo_batch)
   on conflict (id) do update set gift_id = excluded.gift_id, audience_id = excluded.audience_id, lifecycle_state = excluded.lifecycle_state, is_active = false, is_demo = true, demo_batch = excluded.demo_batch, updated_by_admin = excluded.updated_by_admin;
   insert into public.tiers(id, name, name_ar, level, icon_url, description, is_active, benefit_type, benefit_value, lifecycle_state, approval_status, audience_id, created_by_admin, updated_by_admin, is_demo, demo_batch)
-  values (demo_tier, 'Demo Momentum', 'زخم تجريبي', 9001, 'https://placehold.co/128x128/png?text=Tier', false, 'none', null, 'draft', 'not_required', demo_audience, demo_admin, demo_admin, true, demo_batch)
+  values (demo_tier, 'Demo Momentum', 'زخم تجريبي', 9001, 'https://placehold.co/128x128/png?text=Tier', 'A clearly marked Growth demonstration tier.', false, 'none', null, 'draft', 'not_required', demo_audience, demo_admin, demo_admin, true, demo_batch)
   on conflict (id) do update set audience_id = excluded.audience_id, lifecycle_state = excluded.lifecycle_state, is_active = false, is_demo = true, demo_batch = excluded.demo_batch, updated_by_admin = excluded.updated_by_admin;
   insert into public.badges(id, name, name_ar, description, icon_url, badge_type, unlock_criteria, is_active, display_order, expires_in_days, audience_id, lifecycle_state, is_repeatable, visibility, priority, is_revocable, metadata, is_demo, demo_batch, created_by_admin, updated_by_admin)
   values (demo_badge, 'Demo First Win', 'أول نجاح تجريبي', 'A clearly marked Growth demonstration badge.', 'https://placehold.co/128x128/png?text=Badge', 'special', jsonb_build_object('type', 'rule'), false, 9001, null, demo_audience, 'draft', false, 'public', 9001, true, '{}'::jsonb, true, demo_batch, demo_admin, demo_admin)
