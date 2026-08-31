@@ -35,10 +35,23 @@ type DeveloperProject = {
   id: string;
   name: string;
   description?: string | null;
+  is_demo?: boolean | null;
   approval_status?: string | null;
+  lifecycle_state?: string | null;
+  published_at?: string | null;
   rejection_reason?: string | null;
   launch_status?: string | null;
-  project_unit_types?: Array<unknown> | null;
+  project_unit_types?: Array<{
+    phase_id?: string | null;
+    archived_at?: string | null;
+  }> | null;
+  developer_project_phases?: Array<{
+    id: string;
+    approval_status?: string | null;
+    lifecycle_state?: string | null;
+    published_at?: string | null;
+    archived_at?: string | null;
+  }> | null;
 };
 
 type QueueItem = {
@@ -95,7 +108,7 @@ export default async function DeveloperDashboardPage({ searchParams }: { searchP
     projects: projectRecords,
     projectUpdatedAt,
   });
-  const metrics = canViewPortfolio ? getDisplayMetrics(stats, developerListings, contactRequests) : { active: 0, hidden: 0, pending: 0, inquiries: contactRequests.length };
+  const metrics = canViewPortfolio ? getDisplayMetrics(stats, developerListings, projectRecords, profile, contactRequests) : { active: 0, hidden: 0, pending: 0, inquiries: contactRequests.length };
   const salesSlaAttention = contactRequests.filter((lead) => isSlaOverdue(lead.sla_due_at, lead.status)).length;
   const developerNotifications = (notificationResult.data ?? []) as Array<{
     id: string;
@@ -348,18 +361,46 @@ function ProjectRow({ project }: { project: DeveloperProject }) {
 function getDisplayMetrics(
   stats: Awaited<ReturnType<typeof fetchDeveloperStats>>,
   listings: DeveloperListing[],
+  projects: DeveloperProject[],
+  developer: Awaited<ReturnType<typeof fetchDeveloperProfile>>,
   contactRequests: DeveloperSalesLead[],
 ) {
-  const active = listings.filter((listing) => isLiveListing(listing)).length;
-  const hidden = listings.filter((listing) => listing.visibility === "hidden").length;
+  const projectsById = new Map(projects.map((project) => [project.id, project]));
+  const developerIsPublished = Boolean(
+    developer?.is_active &&
+    !developer.is_demo &&
+    developer.lifecycle_state === "published" &&
+    developer.published_at,
+  );
+  const active = listings.filter((listing) => isMobileVisibleListing(listing, projectsById, developerIsPublished)).length;
+  const hidden = listings.filter((listing) => !isMobileVisibleListing(listing, projectsById, developerIsPublished)).length;
   const pending = listings.filter((listing) => ["pending", "rejected"].includes(listing.status.toLowerCase())).length;
   const inquiries = contactRequests.filter((request) => !["won", "lost"].includes(request.status)).length;
   return {
-    active: stats.listings > 0 ? stats.listings : active,
-    hidden: stats.hidden > 0 ? stats.hidden : hidden,
-    pending: stats.pending > 0 ? stats.pending : pending,
+    active,
+    hidden,
+    pending,
     inquiries: stats.inquiries > 0 ? stats.inquiries : inquiries,
   };
+}
+
+function isMobileVisibleListing(listing: DeveloperListing, projectsById: Map<string, DeveloperProject>, developerIsPublished: boolean) {
+  if (!developerIsPublished || listing.is_demo || listing.archived_at || !listing.published_at || !isLiveListing(listing)) return false;
+  if (listing.availability_state && !["available", "released"].includes(listing.availability_state)) return false;
+  if (listing.expires_at && new Date(listing.expires_at).getTime() <= Date.now()) return false;
+  if (!listing.project_id) return true;
+  const project = projectsById.get(listing.project_id);
+  if (!project || project.is_demo || project.approval_status !== "approved" || project.lifecycle_state !== "published" || !project.published_at) return false;
+  if (!listing.phase_id) return true;
+  const phase = project.developer_project_phases?.find((item) => item.id === listing.phase_id);
+  return Boolean(
+    phase &&
+    !phase.archived_at &&
+    phase.approval_status === "approved" &&
+    phase.lifecycle_state === "published" &&
+    phase.published_at &&
+    project.project_unit_types?.some((unitType) => unitType.phase_id === phase.id && !unitType.archived_at),
+  );
 }
 
 function buildActionQueue({

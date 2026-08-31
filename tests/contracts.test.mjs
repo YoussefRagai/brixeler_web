@@ -228,6 +228,8 @@ test("developer operations console and portal use reviewed, recoverable workflow
   assert.match(adminPage, /count: "exact"/);
   assert.match(adminPage, /\.range\(developerOffset/);
   assert.match(adminPage, /developer_profile_revisions/);
+  assert.doesNotMatch(adminPage, /pageHref=\{/);
+  assert.doesNotMatch(adminConsole, /pageHref\?:\s*\(page:\s*number\)\s*=>/);
   assert.doesNotMatch(adminConsole, /JSON\.stringify\(entry\.metadata/);
   assert.match(adminConsole, /Public profile review/);
   assert.match(reviewRoute, /hasAdminRole\(admin\.roles, \["developers_admin", "super_admin"\]\)/);

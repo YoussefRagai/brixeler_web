@@ -851,14 +851,6 @@ export default async function DevelopersPage({
     };
   });
 
-  const buildPageHref = (page: number) => {
-    const next = new URLSearchParams();
-    if (developerSearch) next.set("developerSearch", developerSearch);
-    if (developerFilter !== "all") next.set("developerFilter", developerFilter);
-    next.set("developerPage", String(page));
-    return `/developers?${next.toString()}`;
-  };
-
   return (
     <AdminLayout
       title="Developer operations"
@@ -927,7 +919,6 @@ export default async function DevelopersPage({
             search={developerSearch}
             pagination={{ page: data.developerPage, pageSize: data.developerPageSize, total: data.developerTotal, hasNext: data.developerHasNext }}
             availability={data.availability}
-            pageHref={buildPageHref}
           />
 
           <section id="developer-invite" className="scroll-mt-6 rounded-3xl border border-black/5 bg-white p-4 shadow-xl shadow-black/5 sm:p-6">

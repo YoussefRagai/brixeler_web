@@ -60,3 +60,18 @@ test("developer navigation is capability aware", async () => {
   assert.match(layout, /capability: "manage_integrations"/);
   assert.match(brandRoute, /developerRoleCapabilities\(session\.role\)/);
 });
+
+test("developer overview counts the same inventory the mobile app can actually see", async () => {
+  const dashboard = await readFile(new URL("../src/app/developer/page.tsx", import.meta.url), "utf8");
+
+  assert.match(dashboard, /isMobileVisibleListing/);
+  assert.match(dashboard, /project\.approval_status !== "approved"/);
+  assert.match(dashboard, /project\.lifecycle_state !== "published"/);
+  assert.match(dashboard, /phase\.approval_status === "approved"/);
+  assert.match(dashboard, /phase\.lifecycle_state === "published"/);
+  assert.match(dashboard, /developer\?\.is_active/);
+  assert.match(dashboard, /developer\.lifecycle_state === "published"/);
+  assert.match(dashboard, /project\.project_unit_types\?\.some/);
+  assert.match(dashboard, /\["available", "released"\]\.includes\(listing\.availability_state\)/);
+  assert.doesNotMatch(dashboard, /active:\s*stats\.listings > 0/);
+});

@@ -144,7 +144,6 @@ type Props = {
   search?: string;
   pagination?: { page: number; pageSize: number; total: number; hasNext: boolean };
   availability?: Partial<DeveloperDataAvailability>;
-  pageHref?: (page: number) => string;
 };
 
 const tabs = ["Overview", "Members", "Projects", "Listings"] as const;
@@ -325,7 +324,6 @@ export function AdminDevelopersTable({
   search = "",
   pagination = { page: 1, pageSize: developers.length || 25, total: developers.length, hasNext: false },
   availability = {},
-  pageHref,
 }: Props) {
   const router = useRouter();
   const publicationContractAvailable = availability.publicationContract ?? false;
@@ -382,7 +380,6 @@ export function AdminDevelopersTable({
   }, [developers, filter, publicationContractAvailable]);
 
   const pageLink = (page: number) => {
-    if (pageHref) return pageHref(page);
     const params = new URLSearchParams();
     if (search) params.set("developerSearch", search);
     if (filter && filter !== "all") params.set("developerFilter", filter);

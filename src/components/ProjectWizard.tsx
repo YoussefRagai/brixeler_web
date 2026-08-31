@@ -74,6 +74,7 @@ export function ProjectWizard({
   existingProjectNames?: string[];
 }) {
   const [activeStep, setActiveStep] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [draftRestored, setDraftRestored] = useState(false);
   const [error, setError] = useState("");
   const [duplicateNameWarning, setDuplicateNameWarning] = useState(false);
@@ -137,9 +138,16 @@ export function ProjectWizard({
     setDuplicateNameWarning(Boolean(normalizedName) && existingProjectNames.some((name) => normalizeProjectName(name) === normalizedName));
   };
 
-  const handleInput = () => {
+  const handleInput = (event: React.FormEvent<HTMLFormElement>) => {
     persistDraft();
     checkDuplicateName();
+    const panel = (event.target as Element | null)?.closest<HTMLElement>("[data-wizard-panel]");
+    const panelIndex = panel ? steps.findIndex((step) => step.id === panel.dataset.wizardPanel) : -1;
+    if (!panel || panelIndex < 0) return;
+    const controls = Array.from(panel.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea"));
+    if (controls.some((control) => !control.checkValidity())) {
+      setCompletedSteps((current) => current.filter((step) => step < panelIndex));
+    }
   };
 
   const clearDraft = () => {
@@ -149,6 +157,7 @@ export function ProjectWizard({
     setDraftRestored(false);
     setDuplicateNameWarning(false);
     setActiveStep(0);
+    setCompletedSteps([]);
     setError("");
   };
 
@@ -173,6 +182,7 @@ export function ProjectWizard({
       return;
     }
     setError("");
+    setCompletedSteps((current) => current.includes(activeStep) ? current : [...current, activeStep]);
     changeStep(activeStep + 1);
   };
 
@@ -209,15 +219,25 @@ export function ProjectWizard({
         <ol className="mt-3 grid grid-cols-5 gap-1" aria-label="Project setup steps">
           {steps.map((step, index) => {
             const active = index === activeStep;
-            const complete = index < activeStep;
+            const complete = completedSteps.includes(index);
+            const locked = index > activeStep + 1 && !complete;
             return (
               <li key={step.id}>
                 <button
                   type="button"
-                  onClick={() => changeStep(index)}
+                  onClick={() => {
+                    if (locked) return;
+                    if (index === activeStep + 1 && !complete) {
+                      moveForward();
+                      return;
+                    }
+                    changeStep(index);
+                  }}
+                  disabled={locked}
                   aria-current={active ? "step" : undefined}
+                  aria-label={`${index + 1} ${step.label}: ${step.hint}${locked ? " (complete earlier steps first)" : ""}`}
                   className={`w-full rounded-xl border px-2 py-2 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/60 sm:px-3 sm:text-left ${
-                    active ? "border-black bg-black text-white" : "border-black/10 bg-white text-neutral-700 hover:border-black/30"
+                    active ? "border-black bg-black text-white" : "border-black/10 bg-white text-neutral-700 hover:border-black/30 disabled:cursor-not-allowed disabled:opacity-45"
                   }`}
                 >
                   <span className="flex items-center justify-center gap-2 text-xs font-semibold sm:justify-start">

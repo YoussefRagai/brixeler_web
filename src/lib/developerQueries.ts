@@ -114,6 +114,7 @@ export type DeveloperListing = {
   phase_id?: string | null;
   developer_id?: string | null;
   listed_by_agent_id?: string | null;
+  availability_state?: DeveloperInventoryAvailability | null;
   is_demo: boolean;
   quality_issues?: string[];
   quality_score?: number | null;
@@ -128,7 +129,7 @@ export async function fetchDeveloperListings(developerId: string, options?: { li
     let query = supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, unit_area, approval_status, is_active, is_demo, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id, phase_id, developer_id, listed_by_agent_id, quality_issues, quality_score, publication_checklist, archived_at, archived_by_developer_account_id",
+        "id, property_name, price, unit_area, approval_status, is_active, is_demo, updated_at, inquiries_count, expires_at, published_at, renewal_status, sale_type, project_id, phase_id, developer_id, listed_by_agent_id, availability_state, quality_issues, quality_score, publication_checklist, archived_at, archived_by_developer_account_id",
       )
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
@@ -156,6 +157,7 @@ export async function fetchDeveloperListings(developerId: string, options?: { li
       phase_id: row.phase_id ?? null,
       developer_id: row.developer_id ?? null,
       listed_by_agent_id: row.listed_by_agent_id ?? null,
+      availability_state: (row.availability_state as DeveloperInventoryAvailability | null | undefined) ?? "available",
       quality_issues: Array.isArray(row.quality_issues) ? row.quality_issues : [],
       quality_score: row.quality_score == null ? null : Number(row.quality_score),
       publication_checklist: row.publication_checklist ?? null,
@@ -2044,7 +2046,7 @@ export async function fetchDeveloperProfile(developerId: string) {
     const id = assertDeveloperId(developerId);
     const { data, error } = await supabaseServer
       .from("developers")
-      .select("id, name, logo_url, description")
+      .select("id, name, logo_url, description, is_active, is_demo, lifecycle_state, published_at")
       .eq("id", id)
       .single();
     if (error) throw error;

@@ -24,3 +24,13 @@ test("developer media fields support picker, drag-and-drop, and safe URL entry",
   assert.match(field, /acceptsFile/);
   assert.match(field, /aria-live="polite"/);
 });
+
+test("project wizard cannot mark skipped invalid steps complete", () => {
+  const wizard = readFileSync(new URL("../src/components/ProjectWizard.tsx", import.meta.url), "utf8");
+
+  assert.match(wizard, /const \[completedSteps, setCompletedSteps\]/);
+  assert.match(wizard, /const complete = completedSteps\.includes\(index\)/);
+  assert.match(wizard, /const locked = index > activeStep \+ 1 && !complete/);
+  assert.match(wizard, /if \(index === activeStep \+ 1 && !complete\)[\s\S]*moveForward\(\)/);
+  assert.doesNotMatch(wizard, /const complete = index < activeStep/);
+});
