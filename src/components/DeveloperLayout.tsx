@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { clsx } from "clsx";
-import { Menu, X } from "lucide-react";
+import { FolderKanban, Menu, Plus, X } from "lucide-react";
 import type { DeveloperImpersonationMarker } from "@/lib/developerImpersonation";
 import type { DeveloperPortalBrand } from "@/lib/developerPortalBrand";
 import type { DeveloperCapability } from "@/lib/developerRbac";
@@ -27,14 +27,6 @@ type DeveloperSidebarProject = {
   launchStatus?: string | null;
 };
 
-type ProjectStatusKey = "new_release" | "upcoming" | "live";
-
-const projectStatusSections: Array<{ key: ProjectStatusKey; label: string }> = [
-  { key: "new_release", label: "New Release" },
-  { key: "upcoming", label: "Upcoming" },
-  { key: "live", label: "Live" },
-];
-
 const fallbackBrand: DeveloperPortalBrand = {
   name: "Brixeler Partners",
   logoUrl: null,
@@ -42,12 +34,6 @@ const fallbackBrand: DeveloperPortalBrand = {
   pendingReview: false,
   role: null,
   capabilities: [],
-};
-
-const normalizeLaunchStatus = (value?: string | null): ProjectStatusKey => {
-  if (value === "new_release" || value === "new_launch") return "new_release";
-  if (value === "upcoming") return "upcoming";
-  return "live";
 };
 
 interface Props {
@@ -61,13 +47,10 @@ interface Props {
 
 export function DeveloperLayout({ title, description, actions, children, impersonation, onboarding = false }: Props) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<DeveloperSidebarProject[]>([]);
   const [brand, setBrand] = useState<DeveloperPortalBrand | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const activeProjectId = searchParams.get("project");
-  const activeStatusParam = searchParams.get("status");
-  const activeStatus = activeStatusParam ? normalizeLaunchStatus(activeStatusParam) : null;
+  const projectsActive = pathname.startsWith("/developer/projects");
 
   useEffect(() => {
     if (onboarding) {
@@ -105,10 +88,6 @@ export function DeveloperLayout({ title, description, actions, children, imperso
     };
   }, []);
 
-  const groupedProjects = projectStatusSections.map((section) => ({
-    ...section,
-    projects: projects.filter((project) => normalizeLaunchStatus(project.launchStatus) === section.key),
-  }));
   const displayBrand = brand ?? fallbackBrand;
   const visibleNavItems = onboarding
     ? navItems.filter((item) => item.href === "/developer/profile")
@@ -156,51 +135,13 @@ export function DeveloperLayout({ title, description, actions, children, imperso
             );
           })}
           {!onboarding && canUseProjects ? <div className="pt-3">
-            <p className="text-xs uppercase tracking-[0.3em] text-neutral-400">Projects</p>
-            <div className="mt-2 space-y-3">
-              {groupedProjects.map((section) => {
-                const sectionActive = pathname === "/developer/projects" && activeStatus === section.key && !activeProjectId;
-                return (
-                  <div key={section.key} className="space-y-1">
-                    <Link
-                      href={`/developer/projects?status=${section.key}`}
-                      aria-current={sectionActive ? "page" : undefined}
-                      className={clsx(
-                        "block rounded-2xl px-4 py-2 text-xs font-semibold transition",
-                        sectionActive
-                          ? "text-black hover:bg-black/5"
-                          : "text-neutral-500 hover:bg-black/5 hover:text-black",
-                      )}
-                    >
-                      {section.label}
-                    </Link>
-                    {section.projects.map((project) => {
-                      const isActive = pathname === "/developer/projects" && activeProjectId === project.id;
-                      return (
-                        <Link
-                          key={project.id}
-                          href={`/developer/projects?status=${section.key}&project=${project.id}`}
-                          aria-current={isActive ? "page" : undefined}
-                          className={clsx(
-                            "ml-3 block rounded-2xl px-4 py-2 text-xs transition",
-                            isActive
-                              ? "bg-black text-white"
-                              : "text-neutral-500 hover:bg-black/5 hover:text-black",
-                          )}
-                        >
-                          {project.name}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-              {canCreateProjects ? <Link
-                href="/developer/projects?create=1"
-                className="block rounded-2xl border border-dashed border-black/10 px-4 py-2 text-xs text-neutral-500 hover:border-black/30 hover:text-black"
-              >
-                + Add Project
-              </Link> : null}
+            <div className={clsx("flex items-center gap-1 rounded-2xl p-1", projectsActive ? "bg-black text-white" : "text-neutral-500 hover:bg-black/5 hover:text-black")}>
+              <Link href="/developer/projects" aria-current={projectsActive ? "page" : undefined} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium">
+                <FolderKanban aria-hidden="true" size={17} />
+                <span>Projects</span>
+                <span className={clsx("ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold", projectsActive ? "bg-white/15 text-white" : "bg-black/5 text-neutral-500")}>{projects.length}</span>
+              </Link>
+              {canCreateProjects ? <Link href="/developer/projects?create=1" aria-label="Add project" className={clsx("grid size-8 shrink-0 place-items-center rounded-xl", projectsActive ? "hover:bg-white/15" : "hover:bg-black/5")}><Plus aria-hidden="true" size={15} /></Link> : null}
             </div>
           </div> : null}
         </nav>
@@ -265,24 +206,10 @@ export function DeveloperLayout({ title, description, actions, children, imperso
                   })}
                 </div>
                 {canUseProjects ? <div className="space-y-1">
-                  <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-neutral-400">Projects</p>
-                  {projectStatusSections.map((section) => {
-                    const isActive = pathname === "/developer/projects" && activeStatus === section.key && !activeProjectId;
-                    return (
-                      <Link
-                        key={`mobile-status-${section.key}`}
-                        href={`/developer/projects?status=${section.key}`}
-                        onClick={() => setMobileMenuOpen(false)}
-                        aria-current={isActive ? "page" : undefined}
-                        className={clsx(
-                          "block rounded-xl px-3 py-2.5 text-sm transition-colors",
-                          isActive ? "bg-black text-white" : "text-neutral-700 hover:bg-black/5 hover:text-black",
-                        )}
-                      >
-                        {section.label}
-                      </Link>
-                    );
-                  })}
+                  <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-neutral-400">Portfolio</p>
+                  <Link href="/developer/projects" onClick={() => setMobileMenuOpen(false)} aria-current={projectsActive ? "page" : undefined} className={clsx("flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors", projectsActive ? "bg-black text-white" : "text-neutral-700 hover:bg-black/5 hover:text-black")}>
+                    <span>Projects</span><span className="rounded-full bg-black/5 px-2 py-0.5 text-xs">{projects.length}</span>
+                  </Link>
                   {canCreateProjects ? <Link href="/developer/projects?create=1" onClick={() => setMobileMenuOpen(false)} className="mt-2 block rounded-xl border border-dashed border-black/15 px-3 py-2.5 text-sm font-semibold text-neutral-700 hover:border-black/30 hover:text-black">
                     + Add project
                   </Link> : null}

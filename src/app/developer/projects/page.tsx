@@ -1,7 +1,10 @@
 import { revalidatePath } from "next/cache";
+import { DownPaymentStages } from "@/components/DownPaymentStages";
+import { parseDownPaymentStages, parseLineItems, validDeliveryDate } from "@/lib/projectMerchandising";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { ArrowLeft, CalendarDays, ChevronRight, CircleAlert, ImagePlus, Layers3, MoreHorizontal, Smartphone } from "lucide-react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { DeveloperProjectRequestTabs } from "@/components/DeveloperProjectRequestTabs";
 import { DeveloperProjectPhaseBoard } from "@/components/DeveloperProjectPhaseBoard";
@@ -19,6 +22,7 @@ import { MobilePreviewButton } from "@/components/MobilePreviewButton";
 import { DeveloperMediaField } from "@/components/DeveloperMediaField";
 import { VariantOutdoorFields } from "@/components/VariantOutdoorFields";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
+import { DeveloperProjectPortfolioBoard, type DeveloperPortfolioProject } from "@/components/DeveloperProjectPortfolioBoard";
 import { currentDeveloperImpersonation, hasDeveloperCapability, requireDeveloperCapability, requireDeveloperSession } from "@/lib/developerAuth";
 import {
   archiveDeveloperProject,
@@ -127,6 +131,7 @@ const normalizeTypeForCategory = (category: PropertyCategory, value?: string | n
 };
 
 const AMENITIES = [
+  { slug: "ev_charger", label: "EV Charger" },
   { slug: "garden", label: "Garden" },
   { slug: "roof", label: "Has Roof" },
   { slug: "bicycle", label: "Bicycle Lanes" },
@@ -221,7 +226,7 @@ type ProjectReadinessInput = ProjectPublicationInput & {
   quality_issues?: string[] | null;
 };
 
-type WorkspaceSection = "overview" | "inventory" | "commercial" | "requests" | "settings";
+type WorkspaceSection = "overview" | "phases" | "inventory" | "commercial" | "requests" | "settings";
 
 const getProjectPublicationStatus = (project: ProjectPublicationInput) => {
   if (project.lifecycle_state === "archived") return { label: "Archived", tone: "bg-neutral-200 text-neutral-700" };
@@ -303,7 +308,8 @@ const shouldShowInventoryUnitType = (unit: {
 const toPlanNumber = (value?: string | null) => {
   if (!value || !value.trim()) return null;
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  if (!Number.isFinite(parsed)) throw new Error("Enter a valid payment plan number.");
+  return parsed;
 };
 
 const isExcelTemplateFile = (file: File) => file.name.trim().toLowerCase().endsWith(".xlsx");
@@ -320,10 +326,11 @@ const asLimitedTimeOffers = (value: unknown): LimitedTimeOffer[] =>
 
 const formatPlanSummary = (plan: StructuredPaymentPlan) => {
   const down = plan.down_payment_percent != null ? `${plan.down_payment_percent}% upfront` : null;
+  const stages = plan.down_payment_stages?.map((stage) => `${stage.percent}% after ${stage.after_months} months`).join(" + ");
   const years = plan.installment_years != null ? `rest over ${plan.installment_years} years` : null;
   const frequency = plan.payment_frequency ? `${plan.payment_frequency.toLowerCase()} payments` : null;
   const discount = plan.discount_percent ? `${plan.discount_percent}% discount` : null;
-  return [plan.title, down, years, frequency, discount].filter(Boolean).join(" · ");
+  return [plan.title, down, stages, years, frequency, discount].filter(Boolean).join(" · ");
 };
 
 export default async function DeveloperProjectsPage({
@@ -386,7 +393,7 @@ export default async function DeveloperProjectsPage({
     typeof resolvedSearchParams?.success === "string" ? decodeFeedback(resolvedSearchParams.success) : null;
   const clearProjectDraft = resolvedSearchParams?.draft === "clear";
   const requestedSection = typeof resolvedSearchParams?.section === "string" ? resolvedSearchParams.section : null;
-  const requestedWorkspaceSection: WorkspaceSection = requestedSection === "inventory" || requestedSection === "commercial" || requestedSection === "settings"
+  const requestedWorkspaceSection: WorkspaceSection = requestedSection === "phases" || requestedSection === "inventory" || requestedSection === "commercial" || requestedSection === "settings"
     ? requestedSection
     : "overview";
   const workspaceSection: WorkspaceSection = canManageProjects ? requestedWorkspaceSection : "inventory";
@@ -456,6 +463,51 @@ export default async function DeveloperProjectsPage({
       .map((project) => normalizeProjectName(project.name))
       .filter((name, index, names) => name && names.indexOf(name) !== index),
   );
+  const portfolioProjects: DeveloperPortfolioProject[] = statusFilteredProjects.map((project) => {
+    const readiness = getProjectReadiness(project);
+    const publication = getProjectPublicationStatus(project);
+    const heroMedia = (project.hero_media as ProjectMedia | null) ?? null;
+    const imageUrl = heroMedia?.heroImageUrl ?? heroMedia?.hero_image_url ?? (Array.isArray(heroMedia?.images) ? heroMedia.images[0] : null) ?? null;
+    const phases = (project.developer_project_phases ?? []).filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived").length;
+    const activeUnitTypes = (project.project_unit_types ?? []).filter((unit) => !unit.archived_at);
+    const stockCount = activeUnitTypes.reduce((total, unit) => total + (unit.project_unit_variants ?? []).filter((variant) => !variant.archived_at).reduce((variantTotal, variant) => variantTotal + Math.max(0, Number(variant.stock_count ?? 0)), 0), 0);
+    const publicationAttention = publication.label === "Changes requested";
+    const blocker = publicationAttention
+      ? "Review requested changes"
+      : readiness.missing.length
+        ? `Missing ${readiness.missing[0].toLocaleLowerCase()}`
+        : null;
+    const publicationState: DeveloperPortfolioProject["publicationState"] = publication.label === "Published to mobile"
+      ? "published"
+      : publicationAttention
+        ? "attention"
+        : "review";
+    const nextAction = blocker
+      ? blocker
+      : publication.label === "Published to mobile"
+        ? "Live on mobile"
+        : publication.label === "Submitted for review"
+          ? "Awaiting admin review"
+          : "Submit for publication";
+    return {
+      id: project.id,
+      name: project.name,
+      imageUrl,
+      logoUrl: project.project_logo_url ?? null,
+      launchStatus: normalizeLaunchStatus(project.launch_status),
+      publicationLabel: publication.label,
+      publicationState,
+      readiness: readiness.score,
+      phases,
+      inventoryCount: stockCount || activeUnitTypes.length,
+      inventoryLabel: stockCount ? "units" : "unit types",
+      summary: [project.location, project.project_types?.slice(0, 2).join(" · ")].filter(Boolean).join(" · ") || getLaunchStatusLabel(project.launch_status),
+      nextAction,
+      blocker,
+      updatedLabel: "Project details are up to date",
+      isDemo: Boolean(project.is_demo),
+    };
+  });
   const selectedReadiness = selectedProject ? getProjectReadiness(selectedProject) : null;
   const selectedPublication = selectedProject ? getProjectPublicationStatus(selectedProject) : null;
   const selectedHeroMedia = selectedProject?.hero_media as ProjectMedia | null | undefined;
@@ -483,7 +535,7 @@ export default async function DeveloperProjectsPage({
   return (
     <DeveloperLayout
       title={selectedProjectId && selectedProject ? selectedProject.name : "Projects"}
-      description={selectedProjectId ? "Project portal · phases, inventory, and publication" : "Keep launch briefs, media, and talking points up to date for agents."}
+      description={selectedProjectId ? "Project portal · phases, inventory, and publication" : "Portfolio and mobile publication readiness."}
       impersonation={impersonation}
     >
       {clearProjectDraft ? <LocalStorageCleanup storageKey={`${PROJECT_WIZARD_DRAFT_KEY}:${session.developerId}`} /> : null}
@@ -556,6 +608,9 @@ export default async function DeveloperProjectsPage({
                 <Field label="CH fees" name="chFees" type="number" min="0" step="0.01" placeholder="250000" defaultValue={templateProject?.ch_fees ?? ""} />
               </div>
               <Field label="Location" name="location" placeholder="North Coast, Ras El Hekma" defaultValue={templateProject?.location ?? ""} />
+              <Field as="textarea" label="Project selling points" name="sellingPoints" placeholder="One selling point per line" maxLength={15050} defaultValue={templateProject?.selling_points?.join("\n") ?? ""} />
+              <Field label="Expected delivery date" name="deliveryDate" type="date" defaultValue={templateProject?.delivery_date ?? ""} />
+              <Field as="textarea" label="Additional project facilities" name="customFacilities" placeholder="One facility per line; shared amenities are selected in the Amenities step." defaultValue={templateProject?.amenities?.filter((value: string) => !AMENITIES.some((item) => item.slug === value)).join("\n") ?? ""} />
               </div>
               <div data-wizard-panel="commercial" className="space-y-4">
               <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
@@ -589,6 +644,7 @@ export default async function DeveloperProjectsPage({
                             ))}
                           </select>
                         </label>
+                        <DownPaymentStages prefix={`paymentPlan${index}`} stages={plan?.down_payment_stages} />
                       </details>
                     );
                   })}
@@ -619,6 +675,7 @@ export default async function DeveloperProjectsPage({
                     </select>
                   </label>
                 </div>
+                <DownPaymentStages prefix="offer0" stages={templateOfferDefaults[0]?.down_payment_stages} />
               </details>
               </div>
               <div data-wizard-panel="launch" className="space-y-4">
@@ -686,7 +743,7 @@ export default async function DeveloperProjectsPage({
               <DeveloperMediaField label="Project brochure (PDF)" fileName="project_brochure" urlName="project_brochure_url" accept="application/pdf" />
               <DeveloperMediaField label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" />
               <DeveloperMediaField label="Voice notes" fileName="voice_notes" urlName="voice_note_urls" accept="audio/*" multiple />
-              <DeveloperMediaField label="Project videos" fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple />
+              <DeveloperMediaField label="HD project videos" description="Upload originals or paste hosted HD video URLs." fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple />
               <DeveloperMediaField label="Inventory template" description="Upload the filled Brixeler .xlsx template or paste a hosted file URL." fileName="project_inventory" urlName="project_inventory_url" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
               </div>
               <div data-wizard-panel="amenities" className="space-y-4">
@@ -774,83 +831,58 @@ export default async function DeveloperProjectsPage({
 
       {!showCreateWizard && setupStep !== "types" && selectedProjectId ? (
         <section className="space-y-4">
-          <header id="project-overview" className="scroll-mt-24 rounded-3xl border border-black/5 bg-white p-4 sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs uppercase tracking-[0.25em] text-neutral-500">Project workspace</p>
-                  {selectedPublication ? <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${selectedPublication.tone}`}>{selectedPublication.label}</span> : null}
-                  {selectedProject?.is_demo ? <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">Demo</span> : null}
+          <header id="project-overview" className="relative scroll-mt-24 overflow-hidden rounded-[1.75rem] border border-black/5 bg-[#ece7dc]">
+            {selectedHeroImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={selectedHeroImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            ) : null}
+            <div className={`absolute inset-0 ${selectedHeroImage ? "bg-gradient-to-r from-black/80 via-black/55 to-black/15" : "bg-[radial-gradient(circle_at_90%_20%,rgba(255,255,255,0.9),transparent_42%)]"}`} />
+            <div className={`relative p-4 sm:p-6 ${selectedHeroImage ? "text-white" : "text-neutral-950"}`}>
+              <Link href="/developer/projects" className={`inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur ${selectedHeroImage ? "bg-white/15 text-white hover:bg-white/25" : "bg-white/75 text-neutral-700 hover:bg-white"}`}>
+                <ArrowLeft aria-hidden="true" size={14} /> Back to projects
+              </Link>
+              <div className="mt-10 flex flex-wrap items-end justify-between gap-4 sm:mt-14">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className={`grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl border ${selectedHeroImage ? "border-white/25 bg-white/90" : "border-black/10 bg-white"}`}>
+                    {selectedProject?.project_logo_url ?? profile?.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={selectedProject?.project_logo_url ?? profile!.logo_url!} alt={`${selectedProject?.name ?? profile?.name ?? "Developer"} logo`} className="size-12 object-contain" />
+                    ) : <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">Logo</span>}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{selectedProject?.name ?? "Project portal"}</h2>
+                      {selectedProject?.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-800">Demo</span> : null}
+                    </div>
+                    <p className={`mt-1 text-sm ${selectedHeroImage ? "text-white/70" : "text-neutral-600"}`}>{selectedProject?.location ?? getLaunchStatusLabel(selectedProject?.launch_status)}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {selectedPublication ? <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${selectedPublication.tone}`}>{selectedPublication.label}</span> : null}
+                      {selectedReadiness ? <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${selectedHeroImage ? "bg-white/15 text-white" : "bg-white/80 text-neutral-700"}`}>{selectedReadiness.score}% mobile ready</span> : null}
+                    </div>
+                  </div>
                 </div>
-                <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-[#050505]">
-                  {selectedProject?.name ?? "Project analytics"}
-                </h2>
-                <p className="mt-1 line-clamp-2 max-w-3xl text-sm text-neutral-500">
-                  {selectedProject?.description ?? "Live telemetry for the selected project."}
-                </p>
-                {selectedProject?.rejection_reason ? <p className="mt-2 text-xs text-rose-700">Reviewer note: {selectedProject.rejection_reason}</p> : null}
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 font-semibold text-neutral-700">Launch status: {getLaunchStatusLabel(selectedProject?.launch_status)}</span>
-                  {selectedProject?.launch_date ? <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 text-neutral-600">Launch date: {selectedProject.launch_date.slice(0, 10)}</span> : null}
-                  {selectedReadiness ? <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1.5 font-semibold text-neutral-700">Mobile readiness: {selectedReadiness.score}%</span> : null}
-                </div>
-              </div>
-              <div className="flex max-w-full flex-wrap items-center justify-end gap-2 sm:gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-neutral-50">
-                  {selectedProject?.project_logo_url ?? profile?.logo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={selectedProject?.project_logo_url ?? profile!.logo_url!}
-                      alt={`${selectedProject?.name ?? profile?.name ?? "Developer"} logo`}
-                      className="h-10 w-10 object-contain"
-                    />
-                  ) : (
-                    <span className="text-[10px] uppercase tracking-[0.2em] text-neutral-400">Logo</span>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <MobilePreviewButton
-                    formId={`project-preview-${selectedProjectId}`}
-                    titleField="name"
-                    bodyField="description"
-                    typeField="launchStatus"
-                    label="Preview mobile"
-                    initialDraft={{
-                      title: selectedProject?.name ?? "Project preview",
-                      body: selectedProject?.description ?? "Add a project description to preview the mobile card.",
-                      type: getLaunchStatusLabel(selectedProject?.launch_status),
-                    }}
-                    imageUrl={selectedHeroImage}
-                  />
-                  {canManageProjects && selectedProject?.lifecycle_state === "archived" ? (
-                    <form action={restoreProjectAction}>
-                      <input type="hidden" name="projectId" value={selectedProjectId} />
-                      <ConfirmSubmitButton className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:opacity-50" confirmMessage="Restore this project to your active workspace? It will return to draft review before becoming visible again." pendingLabel="Restoring…">
-                        Restore project
-                      </ConfirmSubmitButton>
-                    </form>
-                  ) : canManageProjects ? (
-                    <form action={archiveProjectAction}>
-                      <input type="hidden" name="projectId" value={selectedProjectId} />
-                      <ConfirmSubmitButton className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 disabled:opacity-50" confirmMessage="Archive this project? Its inventory and leads will be retained and it will be hidden from active workspaces." pendingLabel="Archiving…">
-                        Archive project
-                      </ConfirmSubmitButton>
-                    </form>
-                  ) : null}
-                  <a href={INVENTORY_TEMPLATE_PATH} download className="hidden rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black sm:inline-flex">Download template</a>
-                  <ProjectImportPanel projectId={selectedProjectId} phaseId={selectedPhaseId} onImportAction={importTypeWithVariantsAction} />
+                <div className="flex items-center gap-2">
+                  {!selectedReadiness?.hasHero && canManageProjects ? <a href={`/developer/projects?project=${selectedProjectId}&section=settings&settings=1#project-media`} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-black px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800"><ImagePlus aria-hidden="true" size={15} /> Add hero media</a> : null}
+                  <details className="relative">
+                    <summary aria-label="More project actions" className={`grid size-10 cursor-pointer list-none place-items-center rounded-full ${selectedHeroImage ? "bg-white/15 text-white hover:bg-white/25" : "bg-white/80 text-neutral-700 hover:bg-white"}`}><MoreHorizontal aria-hidden="true" size={18} /></summary>
+                    <div className="absolute right-0 z-20 mt-2 w-48 rounded-2xl border border-black/10 bg-white p-2 text-xs text-neutral-700 shadow-xl">
+                      <a href={INVENTORY_TEMPLATE_PATH} download className="block rounded-xl px-3 py-2 hover:bg-neutral-50">Download inventory template</a>
+                      {canManageProjects && selectedProject?.lifecycle_state === "archived" ? <form action={restoreProjectAction}><input type="hidden" name="projectId" value={selectedProjectId} /><ConfirmSubmitButton className="w-full rounded-xl px-3 py-2 text-left text-emerald-700 hover:bg-emerald-50" confirmMessage="Restore this project to your active workspace? It will return to draft review before becoming visible again." pendingLabel="Restoring…">Restore project</ConfirmSubmitButton></form> : canManageProjects ? <form action={archiveProjectAction}><input type="hidden" name="projectId" value={selectedProjectId} /><ConfirmSubmitButton className="w-full rounded-xl px-3 py-2 text-left text-amber-700 hover:bg-amber-50" confirmMessage="Archive this project? Its inventory and leads will be retained and it will be hidden from active workspaces." pendingLabel="Archiving…">Archive project</ConfirmSubmitButton></form> : null}
+                    </div>
+                  </details>
                 </div>
               </div>
             </div>
-            <nav aria-label="Project sections" className="mt-4 grid grid-cols-2 gap-1 border-t border-black/5 pt-3 text-xs font-semibold sm:flex sm:overflow-x-auto">
-              {canManageProjects ? <a className={`rounded-full px-3 py-2 text-center sm:shrink-0 ${workspaceSection === "overview" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=overview#project-overview`}>Overview</a> : null}
-              <a className={`rounded-full px-3 py-2 text-center sm:shrink-0 ${workspaceSection === "inventory" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=inventory#project-inventory`}>Inventory</a>
-              {canManageProjects ? <a className={`rounded-full px-3 py-2 text-center sm:shrink-0 ${workspaceSection === "commercial" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=commercial#project-commercial`}>Commercial</a> : null}
-              {canManageProjects ? <a className={`rounded-full px-3 py-2 text-center sm:shrink-0 ${workspaceSection === "settings" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=settings&settings=1#project-settings`}>Settings</a> : null}
+            <nav aria-label="Project sections" className="relative grid grid-cols-3 gap-1 border-t border-black/5 bg-white/95 p-2 text-xs font-semibold backdrop-blur sm:flex sm:overflow-x-auto">
+              {canManageProjects ? <a aria-current={workspaceSection === "overview" ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-center sm:shrink-0 ${workspaceSection === "overview" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=overview#project-overview`}>Overview</a> : null}
+              {canManageProjects ? <a aria-current={workspaceSection === "phases" ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-center sm:shrink-0 ${workspaceSection === "phases" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=phases#project-phases`}>Phases</a> : null}
+              <a aria-current={workspaceSection === "inventory" ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-center sm:shrink-0 ${workspaceSection === "inventory" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=inventory#project-inventory`}>Inventory</a>
+              {canManageProjects ? <a aria-current={workspaceSection === "commercial" ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-center sm:shrink-0 ${workspaceSection === "commercial" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=commercial#project-commercial`}>Commercial</a> : null}
+              {canManageProjects ? <a aria-current={workspaceSection === "settings" ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-center sm:shrink-0 ${workspaceSection === "settings" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&section=settings&settings=1#project-settings`}>Settings</a> : null}
             </nav>
           </header>
 
-          <DeveloperProjectPhaseBoard
+          {workspaceSection === "phases" ? <DeveloperProjectPhaseBoard
             projectId={selectedProjectId}
             phases={selectedProjectPhases}
             selectedPhaseId={selectedPhaseId}
@@ -859,11 +891,13 @@ export default async function DeveloperProjectsPage({
             updateAction={updateProjectPhaseAction}
             archiveAction={archiveProjectPhaseAction}
             restoreAction={restoreProjectPhaseAction}
-            hrefForPhase={(phaseId) => `/developer/projects/${selectedProjectId}?section=inventory${phaseId ? `&phase=${phaseId}` : ""}#project-phases`}
+            hrefForPhase={(phaseId) => `/developer/projects/${selectedProjectId}?section=phases${phaseId ? `&phase=${phaseId}` : ""}#project-phases`}
             canManagePhases={canManageProjects}
-          />
+            unitTypeSummaries={selectedProject?.project_unit_types ?? []}
+            hrefForInventory={(phaseId) => `/developer/projects?project=${selectedProjectId}&section=inventory&phase=${phaseId}#project-inventory`}
+          /> : null}
 
-          {selectedReadiness ? (
+          {workspaceSection === "settings" && selectedReadiness ? (
             <DeveloperPublicationWorkflow
               projectId={selectedProjectId}
               status={selectedProject?.publication_status ?? (selectedProject?.approval_status === "rejected" ? "changes_requested" : selectedProject?.approval_status === "approved" ? "approved" : "draft")}
@@ -875,6 +909,9 @@ export default async function DeveloperProjectsPage({
 
           {workspaceSection === "inventory" ? (
             <>
+              <nav aria-label="Inventory phase" className="flex flex-wrap gap-2 rounded-2xl border border-black/5 bg-white p-3">
+                {activeProjectPhases.map((phase) => <a key={phase.id} aria-current={phase.id === selectedPhaseId ? "page" : undefined} href={`/developer/projects?project=${selectedProjectId}&section=inventory&phase=${phase.id}`} className={`rounded-xl border px-3 py-2 text-xs font-semibold ${phase.sales_status === "selling" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-black/10 bg-neutral-50 text-neutral-600"} ${phase.id === selectedPhaseId ? "ring-2 ring-black ring-offset-2" : ""}`}>{phase.name} · {phase.sales_status === "selling" ? "Currently selling" : (phase.sales_status ?? "upcoming").replaceAll("_", " ")}</a>)}
+              </nav>
               <DeveloperInventoryGrid
                 projectId={selectedProjectId}
                 phaseId={selectedPhaseId}
@@ -890,67 +927,80 @@ export default async function DeveloperProjectsPage({
             </>
           ) : null}
 
-          {workspaceSection === "overview" || workspaceSection === "settings" ? (
-            <>
-              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Project impact summary">
-                {[
-                  ["Phases", impactSummary?.phase_count ?? 0],
-                  ["Unit types", impactSummary?.unit_type_count ?? 0],
-                  ["Inventory rows", impactSummary?.property_count ?? 0],
-                  ["Active holds", impactSummary?.active_hold_count ?? 0],
-                ].map(([label, value]) => <div key={label} className="rounded-2xl border border-black/5 bg-white p-4"><p className="text-xs uppercase tracking-[0.2em] text-neutral-500">{label}</p><p className="mt-2 text-2xl font-semibold text-neutral-950">{value}</p></div>)}
-              </section>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <DeveloperPublicationFeedbackPanel projectId={selectedProjectId} feedback={projectFeedback} resolveAction={resolveFeedbackAction} />
-                <DeveloperActivityTimeline activities={projectActivity} />
+          {workspaceSection === "overview" && selectedReadiness ? (
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_21rem]" aria-label="Project command overview">
+              <div className="overflow-hidden rounded-[1.6rem] border border-black/5 bg-white">
+                <div className="p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-neutral-400">Next release</p>
+                      <h3 className="mt-1 text-lg font-semibold tracking-tight text-neutral-950">{selectedPhase ? `${selectedPhase.phase_order}. ${selectedPhase.name}` : "Create the first phase"}</h3>
+                    </div>
+                    <a href={`/developer/projects?project=${selectedProjectId}&section=phases#project-phases`} className="inline-flex min-h-9 items-center gap-1 rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-black/25">Open phase <ChevronRight aria-hidden="true" size={14} /></a>
+                  </div>
+                  {selectedPhase ? (
+                    <div className="mt-4 grid gap-3 rounded-2xl bg-[#f7f4ee] p-4 sm:grid-cols-3">
+                      <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-white text-neutral-700"><CalendarDays aria-hidden="true" size={17} /></span><div><p className="text-[10px] uppercase tracking-[0.18em] text-neutral-400">Launch</p><p className="mt-0.5 text-sm font-semibold text-neutral-800">{selectedPhase.launch_date?.slice(0, 10) ?? "Date not set"}</p></div></div>
+                      <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-white text-neutral-700"><Layers3 aria-hidden="true" size={17} /></span><div><p className="text-[10px] uppercase tracking-[0.18em] text-neutral-400">Unit types</p><p className="mt-0.5 text-sm font-semibold text-neutral-800">{inventoryCounts[selectedPhase.id] ?? 0} assigned</p></div></div>
+                      <div><p className="text-[10px] uppercase tracking-[0.18em] text-neutral-400">Release state</p><span className="mt-1 inline-flex rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-neutral-700">{getLaunchStatusLabel(selectedPhase.launch_status)}</span></div>
+                    </div>
+                  ) : <p className="mt-4 rounded-2xl border border-dashed border-black/10 bg-neutral-50 p-4 text-sm text-neutral-500">A phase keeps its launch details and inventory together.</p>}
+                </div>
+
+                <div className="border-t border-black/5 p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-neutral-900">Recent changes</h3><span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">Latest {Math.min(projectActivity.length, 3)}</span></div>
+                  {projectActivity.length ? <ol className="mt-3 divide-y divide-black/5">{projectActivity.slice(0, 3).map((activity) => <li key={activity.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-neutral-800">{activity.action.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}</p><p className="mt-0.5 text-xs text-neutral-400">{activity.entity_type.replace(/_/g, " ")}</p></div><time className="shrink-0 text-[10px] text-neutral-400" dateTime={activity.created_at}>{new Date(activity.created_at).toLocaleDateString()}</time></li>)}</ol> : <p className="mt-3 rounded-2xl bg-neutral-50 p-4 text-xs text-neutral-500">No project changes recorded yet.</p>}
+                </div>
+
+                <div className="grid grid-cols-3 divide-x divide-black/5 border-t border-black/5 bg-neutral-50/70">
+                  <a href={`/developer/projects?project=${selectedProjectId}&section=inventory#project-inventory`} className="p-3 hover:bg-white sm:p-4"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-neutral-400">Inventory</p><p className="mt-1 text-xs font-semibold text-neutral-800">{impactSummary?.property_count ?? 0} active units</p></a>
+                  <a href={`/developer/projects?project=${selectedProjectId}&section=commercial#project-commercial`} className="p-3 hover:bg-white sm:p-4"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-neutral-400">Commercial</p><p className="mt-1 text-xs font-semibold text-neutral-800">{asStructuredPlans(selectedProject?.payment_plan_templates).length} plans · {asLimitedTimeOffers(selectedProject?.limited_time_offers).length} offers</p></a>
+                  <div className="p-3 sm:p-4"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-neutral-400">Publication</p><p className="mt-1 truncate text-xs font-semibold text-neutral-800">{selectedPublication?.label ?? "Draft"}</p></div>
+                </div>
               </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <DeveloperVersionHistory projectId={selectedProjectId} versions={projectVersions} restoreAction={restoreInventoryVersionAction} />
-                <DeveloperTemplateManager
-                  projectId={selectedProjectId}
-                  projectName={selectedProject!.name}
-                  projectPayload={{
-                    name: selectedProject!.name,
-                    description: selectedProject!.description,
-                    location: selectedProject!.location,
-                    hero_media: selectedProject!.hero_media,
-                    voice_notes: selectedProject!.voice_notes,
-                    video_links: selectedProject!.video_links,
-                    amenities: selectedProject!.amenities,
-                    payment_plans: selectedProject!.payment_plans,
-                    payment_plan_templates: selectedProject!.payment_plan_templates,
-                    limited_time_offers: selectedProject!.limited_time_offers,
-                    launch_status: selectedProject!.launch_status,
-                    launch_date: selectedProject!.launch_date,
-                    project_types: selectedProject!.project_types,
-                    phases: selectedProjectPhases.map((phase) => ({ ...phase, unit_types: (selectedProject!.project_unit_types ?? []).filter((unit) => unit.phase_id === phase.id) })),
-                  }}
-                  templates={projectTemplates}
-                  saveAction={saveProjectTemplateAction}
-                  cloneAction={cloneProjectTemplateAction}
-                />
-              </div>
-            </>
+
+              <aside className="rounded-[1.6rem] border border-black/5 bg-white p-4 sm:p-5" aria-label="Mobile publication readiness">
+                <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-neutral-400">Ready for mobile?</p><p className="mt-1 text-2xl font-semibold text-neutral-950">{selectedReadiness.score}%</p></div><span className="grid size-11 place-items-center rounded-2xl bg-black text-white"><Smartphone aria-hidden="true" size={20} /></span></div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={selectedReadiness.score} aria-label="Mobile readiness score"><span className={`block h-full rounded-full ${selectedReadiness.score >= 80 ? "bg-emerald-500" : selectedReadiness.score >= 50 ? "bg-amber-400" : "bg-rose-400"}`} style={{ width: `${selectedReadiness.score}%` }} /></div>
+                {selectedReadiness.missing.length ? <div className="mt-4 flex gap-3 rounded-2xl bg-amber-50 p-3 text-amber-900"><CircleAlert aria-hidden="true" className="mt-0.5 shrink-0" size={17} /><div><p className="text-xs font-semibold">Next blocker</p><p className="mt-1 text-xs leading-5">Add {selectedReadiness.missing[0].toLocaleLowerCase()} to continue toward mobile publication.</p></div></div> : <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-xs font-medium text-emerald-800">All local readiness checks are complete.</p>}
+                <div className="mt-5 rounded-2xl border border-black/10 bg-[#f7f4ee] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">Mobile card</p>
+                  <div className="mt-3 overflow-hidden rounded-xl bg-white shadow-sm">
+                    {selectedHeroImage ? <div className="h-24 bg-cover bg-center" style={{ backgroundImage: `url(${selectedHeroImage})` }} /> : <div className="grid h-20 place-items-center bg-neutral-100 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">Hero media needed</div>}
+                    <div className="p-3"><p className="truncate text-sm font-semibold text-neutral-900">{selectedProject?.name}</p><p className="mt-1 truncate text-xs text-neutral-500">{selectedProject?.location ?? selectedProject?.description}</p></div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <MobilePreviewButton formId={`project-preview-${selectedProjectId}`} titleField="name" bodyField="description" typeField="launchStatus" label="Preview mobile" initialDraft={{ title: selectedProject?.name ?? "Project preview", body: selectedProject?.description ?? "Add a project description to preview the mobile card.", type: getLaunchStatusLabel(selectedProject?.launch_status) }} imageUrl={selectedHeroImage} />
+                  {!selectedReadiness.missing.length ? <form action={submitProjectForReviewAction}><input type="hidden" name="projectId" value={selectedProjectId} /><button type="submit" className="min-h-10 rounded-full bg-black px-4 py-2 text-xs font-semibold text-white">Submit for review</button></form> : null}
+                </div>
+              </aside>
+              {projectFeedback.length ? <div className="xl:col-span-2"><DeveloperPublicationFeedbackPanel projectId={selectedProjectId} feedback={projectFeedback} resolveAction={resolveFeedbackAction} /></div> : null}
+              <details className="rounded-2xl border border-black/5 bg-white p-4 xl:col-span-2">
+                <summary className="cursor-pointer text-sm font-semibold">Project information & materials</summary>
+                <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+                  <div><p className="text-neutral-500">{[selectedProject?.location, selectedProject?.acres != null ? `${selectedProject.acres} acres` : null, selectedProject?.footprint != null ? `${selectedProject.footprint}% footprint` : null].filter(Boolean).join(" · ")}</p><p className="mt-2">Delivery: {selectedProject?.delivery_date ?? "Not set"}</p><p className="mt-2 text-neutral-600">{selectedProject?.amenities?.map((value: string) => AMENITIES.find((item) => item.slug === value)?.label ?? value).join(" · ") || "No shared facilities yet"}</p></div>
+                  <ul className="list-inside list-disc text-neutral-600">{selectedProject?.selling_points?.map((point: string) => <li key={point}>{point}</li>)}</ul>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">{[{label:"Brochure",url:selectedHeroMedia?.brochureUrl},{label:"Masterplan",url:selectedHeroMedia?.masterplanUrl},...(selectedProject?.video_links ?? []).map((url: string,index: number)=>({label:`HD video ${index+1}`,url}))].filter((item)=>item.url && normalizeHttpMediaUrl(item.url)).map((item)=><a key={`${item.label}-${item.url}`} target="_blank" rel="noopener noreferrer" className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold" href={item.url}>{item.label}</a>)}</div>
+              </details>
+            </section>
           ) : null}
 
-          {selectedReadiness ? (
-            <section className="grid gap-4 rounded-3xl border border-black/5 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] sm:p-5" aria-label="Project publication readiness">
-              <div>
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Mobile readiness</p>
-                  <span className="dashboard-number text-sm font-semibold text-neutral-900">{selectedReadiness.score}%</span>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={selectedReadiness.score} aria-label="Mobile readiness score">
-                  <span className={`block h-full rounded-full ${selectedReadiness.score >= 80 ? "bg-emerald-500" : selectedReadiness.score >= 50 ? "bg-amber-400" : "bg-rose-400"}`} style={{ width: `${selectedReadiness.score}%` }} />
-                </div>
-                <p className="mt-2 text-xs text-neutral-500">Completeness is based on the project fields and unit data currently in your workspace.</p>
-              </div>
-              <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3 text-xs text-neutral-600">
-                <p className="font-semibold text-neutral-800">{selectedPublication?.label ?? "Publication status unavailable"}</p>
-                <p className="mt-1">Launch status ({getLaunchStatusLabel(selectedProject?.launch_status)}) is a marketing label. Publication is a separate reviewed mobile state.</p>
-                {selectedReadiness.missing.length ? <p className="mt-2 text-amber-800">Still needed: {selectedReadiness.missing.join(", ")}</p> : <p className="mt-2 text-emerald-700">All local readiness checks are complete. Submit changes for review when ready.</p>}
-              </div>
-            </section>
+          {workspaceSection === "settings" ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <DeveloperActivityTimeline activities={projectActivity} />
+              <DeveloperVersionHistory projectId={selectedProjectId} versions={projectVersions} restoreAction={restoreInventoryVersionAction} />
+              <DeveloperTemplateManager
+                projectId={selectedProjectId}
+                projectName={selectedProject!.name}
+                projectPayload={{ name: selectedProject!.name, selling_points: selectedProject!.selling_points, delivery_date: selectedProject!.delivery_date, description: selectedProject!.description, location: selectedProject!.location, hero_media: selectedProject!.hero_media, voice_notes: selectedProject!.voice_notes, video_links: selectedProject!.video_links, amenities: selectedProject!.amenities, payment_plans: selectedProject!.payment_plans, payment_plan_templates: selectedProject!.payment_plan_templates, limited_time_offers: selectedProject!.limited_time_offers, launch_status: selectedProject!.launch_status, launch_date: selectedProject!.launch_date, project_types: selectedProject!.project_types, phases: selectedProjectPhases.map((phase) => ({ ...phase, unit_types: (selectedProject!.project_unit_types ?? []).filter((unit) => unit.phase_id === phase.id) })) }}
+                templates={projectTemplates}
+                saveAction={saveProjectTemplateAction}
+                cloneAction={cloneProjectTemplateAction}
+              />
+              <DeveloperPublicationFeedbackPanel projectId={selectedProjectId} feedback={projectFeedback} resolveAction={resolveFeedbackAction} />
+            </div>
           ) : null}
 
           <details id="project-settings" open={showProjectSettings} hidden={!showProjectSettings} className="scroll-mt-24 rounded-2xl border border-black/5 bg-neutral-50/80 p-4">
@@ -965,6 +1015,9 @@ export default async function DeveloperProjectsPage({
                   <input type="hidden" name="projectId" value={selectedProjectId} />
                   <Field label="Project name" name="name" placeholder="Marina Vista Residences" required defaultValue={selectedProject?.name ?? ""} />
                   <Field label="Location" name="location" placeholder="North Coast, Ras El Hekma" defaultValue={selectedProject?.location ?? ""} />
+                  <Field as="textarea" label="Project selling points" name="sellingPoints" placeholder="One selling point per line" maxLength={15050} defaultValue={selectedProject?.selling_points?.join("\n") ?? ""} />
+                  <Field label="Expected delivery date" name="deliveryDate" type="date" defaultValue={selectedProject?.delivery_date ?? ""} />
+                  <Field as="textarea" label="Additional project facilities" name="customFacilities" placeholder="One facility per line" defaultValue={selectedProject?.amenities?.filter((value: string) => !AMENITIES.some((item) => item.slug === value)).join("\n") ?? ""} />
                   <Field
                     as="textarea"
                     label="Description"
@@ -978,7 +1031,7 @@ export default async function DeveloperProjectsPage({
                     <Field label="Maintenance" name="maintenance" type="number" min="0" step="0.01" placeholder="8" defaultValue={selectedProject?.maintenance ?? ""} />
                     <Field label="CH fees" name="chFees" type="number" min="0" step="0.01" placeholder="250000" defaultValue={selectedProject?.ch_fees ?? ""} />
                   </div>
-                  <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
+                  <div id="commercial-settings" className="scroll-mt-28 rounded-2xl border border-black/10 bg-neutral-50 p-4">
                     <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Original payment plans</p>
                     <div className="mt-4 space-y-3">
                       {(() => {
@@ -1008,6 +1061,7 @@ export default async function DeveloperProjectsPage({
                                   ))}
                                 </select>
                               </label>
+                              <DownPaymentStages prefix={`paymentPlan${index}`} stages={plan?.down_payment_stages} />
                             </div>
                           );
                         });
@@ -1039,6 +1093,7 @@ export default async function DeveloperProjectsPage({
                                 ))}
                               </select>
                             </label>
+                            <div className="md:col-span-5"><DownPaymentStages prefix="offer0" stages={offer?.down_payment_stages} /></div>
                           </>
                         );
                       })()}
@@ -1119,19 +1174,21 @@ export default async function DeveloperProjectsPage({
                     accept="image/*"
                     currentValue={selectedProject?.project_logo_url ?? null}
                   />
-                  <DeveloperMediaField
-                    label="Project images"
-                    description="Upload, drop, or paste image URLs to refresh the project gallery."
-                    fileName="project_images"
-                    urlName="project_image_urls"
-                    accept="image/*"
-                    multiple
-                    currentValue={phaseHeroImageFromMedia((selectedProject?.hero_media as ProjectMedia | null) ?? null)}
-                  />
+                  <div id="project-media" className="scroll-mt-28">
+                    <DeveloperMediaField
+                      label="Project images"
+                      description="Upload, drop, or paste image URLs to refresh the project gallery."
+                      fileName="project_images"
+                      urlName="project_image_urls"
+                      accept="image/*"
+                      multiple
+                      currentValue={phaseHeroImageFromMedia((selectedProject?.hero_media as ProjectMedia | null) ?? null)}
+                    />
+                  </div>
                   <DeveloperMediaField label="Project brochure (PDF)" fileName="project_brochure" urlName="project_brochure_url" accept="application/pdf" currentValue={(selectedProject?.hero_media as ProjectMedia | null)?.brochureUrl ?? null} />
-                  <DeveloperMediaField label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" />
+                  <DeveloperMediaField label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" currentValue={selectedHeroMedia?.masterplanUrl ?? null} />
                   <DeveloperMediaField label="Voice notes" fileName="voice_notes" urlName="voice_note_urls" accept="audio/*" multiple currentValue={selectedProject?.voice_notes?.length ? `${selectedProject.voice_notes.length} existing notes` : null} />
-                  <DeveloperMediaField label="Project videos" fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple currentValue={selectedProject?.video_links?.length ? `${selectedProject.video_links.length} existing videos` : null} />
+                  <DeveloperMediaField label="HD project videos" description="Upload originals or paste hosted HD video URLs." fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple currentValue={selectedProject?.video_links?.length ? `${selectedProject.video_links.length} existing videos` : null} />
                   <DeveloperMediaField label="Inventory template" description={selectedProject?.inventory_url ? "Replace with a new .xlsx upload or hosted URL. Current template is retained when both stay blank." : "Upload the filled Brixeler .xlsx template or paste a hosted file URL."} fileName="project_inventory" urlName="project_inventory_url" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" currentValue={selectedProject?.inventory_url ? "Current template available" : null} />
                   <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3">
                     <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add amenities</p>
@@ -1210,7 +1267,11 @@ export default async function DeveloperProjectsPage({
         </div>
       ) : null}
 
-      {!showCreateWizard && setupStep !== "types" ? (
+      {!showCreateWizard && setupStep !== "types" && !selectedProjectId ? (
+        <DeveloperProjectPortfolioBoard projects={portfolioProjects} canCreateProjects={canManageProjects} archived={showArchivedProjects} />
+      ) : null}
+
+      {!showCreateWizard && setupStep !== "types" && selectedProjectId && (workspaceSection === "inventory" || workspaceSection === "commercial") ? (
         <section className="space-y-3">
         {!selectedProjectId ? <header className="flex items-center justify-between">
           <div>
@@ -1238,8 +1299,8 @@ export default async function DeveloperProjectsPage({
             const publicationStatus = getProjectPublicationStatus(project);
             const readiness = getProjectReadiness(project);
             return (
-            <article key={project.id} className="rounded-2xl border border-black/5 bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
+            <article key={project.id} className="contents">
+              <div className="hidden">
                 <div>
                   <p className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Project record{project.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold tracking-wider text-amber-800">Demo</span> : null}</p>
                   <h3 className="mt-2 text-lg font-semibold tracking-tight text-neutral-950">{project.name}</h3>
@@ -1257,11 +1318,11 @@ export default async function DeveloperProjectsPage({
                   </ConfirmSubmitButton>
                 </form>
               </div>
-              <div className="mt-4">
+              <div className="hidden">
                 <div className="flex items-center justify-between gap-2 text-xs text-neutral-500"><span>Mobile readiness</span><span className="dashboard-number font-semibold text-neutral-800">{readiness.score}%</span></div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-100"><span className={`block h-full rounded-full ${readiness.score >= 80 ? "bg-emerald-500" : readiness.score >= 50 ? "bg-amber-400" : "bg-rose-400"}`} style={{ width: `${readiness.score}%` }} /></div>
               </div>
-              <div>
+              <div className="hidden">
               {(() => {
                 const heroMedia = (project.hero_media as ProjectMedia | null) ?? null;
                 const imageCount = Array.isArray(heroMedia?.images) ? heroMedia?.images.length : 0;
@@ -1308,17 +1369,18 @@ export default async function DeveloperProjectsPage({
               </div>
               </div>
               {selectedProjectId ? <>
-              <details id={selectedProjectId === project.id ? "project-commercial" : undefined} hidden={selectedProjectId === project.id && workspaceSection !== "overview" && workspaceSection !== "commercial"} className="scroll-mt-24 mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3" open={workspaceSection === "overview" || workspaceSection === "commercial"}>
-                <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Commercial</summary>
+              <details id={selectedProjectId === project.id ? "project-commercial" : undefined} hidden={workspaceSection !== "commercial"} className="scroll-mt-24 rounded-[1.6rem] border border-black/5 bg-white p-4 sm:p-5" open>
+                <summary className="cursor-pointer list-none text-sm font-semibold text-neutral-900">Commercial terms</summary>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-neutral-500">The plans and offers agents see for this project.</p><a href={`/developer/projects?project=${project.id}&section=settings&settings=1#commercial-settings`} className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-black/25">Edit commercial terms</a></div>
                 {asStructuredPlans(project.payment_plan_templates).length ? (
                   <>
-                  <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Payment plans</p>
-                  <div className="mt-2 space-y-1 text-xs text-neutral-600">
+                  <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-400">Payment plans</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {asStructuredPlans(project.payment_plan_templates).slice(0, 3).map((plan, index) => (
-                      <p key={`${project.id}-plan-${index}`}>{formatPlanSummary(plan)}</p>
+                      <p key={`${project.id}-plan-${index}`} className="rounded-2xl bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">{formatPlanSummary(plan)}</p>
                     ))}
                     {asLimitedTimeOffers(project.limited_time_offers).map((offer, index) => (
-                      <p key={`${project.id}-offer-${index}`} className="font-semibold text-amber-700">
+                      <p key={`${project.id}-offer-${index}`} className="rounded-2xl bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800">
                         Limited offer: {formatPlanSummary(offer)}
                       </p>
                     ))}
@@ -1328,7 +1390,7 @@ export default async function DeveloperProjectsPage({
                   <p className="mt-2 text-xs text-neutral-500">No payment plans added yet. Open Settings to add the commercial terms agents should use.</p>
                 )}
               </details>
-              <div hidden={selectedProjectId === project.id && workspaceSection !== "overview" && workspaceSection !== "inventory"}>
+              <div hidden={workspaceSection !== "inventory"}>
               <DeveloperProjectRequestTabs
                 showRequests={false}
                 requestCount={0}
@@ -1980,6 +2042,11 @@ async function upsertProjectAction(formData: FormData) {
   const projectTypes = parseProjectTypes(formData.get("projectTypes")?.toString());
   const launchStatus = normalizeLaunchStatus(formData.get("launchStatus")?.toString().trim() || "live");
   const launchDate = formData.get("launchDate")?.toString().trim() || null;
+  const deliveryDate = formData.get("deliveryDate")?.toString().trim() || null;
+  let sellingPoints: string[];
+  try { sellingPoints = parseLineItems(formData.get("sellingPoints")?.toString() ?? "", "Selling points"); }
+  catch (error) { redirect(`${invalidTarget}&error=${encodeURIComponent((error as Error).message)}`); }
+  if (!validDeliveryDate(deliveryDate ?? "")) redirect(`${invalidTarget}&error=${encodeURIComponent("Enter a valid delivery date.")}`);
   const eoiValueApt = parseOptionalNumber(formData.get("eoiValueApt")?.toString());
   const eoiValueVilla = parseOptionalNumber(formData.get("eoiValueVilla")?.toString());
   if (footprint != null && (footprint < 0 || footprint > 100)) {
@@ -1997,33 +2064,42 @@ async function upsertProjectAction(formData: FormData) {
     .getAll("projectAmenities")
     .map((value) => value.toString())
     .filter(Boolean);
-  const paymentPlanTemplates = [0, 1, 2]
+  try { amenities.push(...parseLineItems(formData.get("customFacilities")?.toString() ?? "", "Facilities")); }
+  catch (error) { redirect(`${invalidTarget}&error=${encodeURIComponent((error as Error).message)}`); }
+  let paymentPlanTemplates: StructuredPaymentPlan[];
+  let limitedTimeOffers: LimitedTimeOffer[];
+  try {
+  paymentPlanTemplates = [0, 1, 2]
     .map((index) => {
       const title = formData.get(`paymentPlanTitle_${index}`)?.toString().trim() || null;
       const downPayment = toPlanNumber(formData.get(`paymentPlanDown_${index}`)?.toString());
       const years = toPlanNumber(formData.get(`paymentPlanYears_${index}`)?.toString());
       const discount = toPlanNumber(formData.get(`paymentPlanDiscount_${index}`)?.toString());
       const frequency = formData.get(`paymentPlanFrequency_${index}`)?.toString().trim() || null;
-      if (!title && downPayment == null && years == null && discount == null) return null;
+      const stages = parseDownPaymentStages(formData, `paymentPlan${index}`, downPayment);
+      if (!title && downPayment == null && years == null && discount == null && !stages.length) return null;
       return {
         title,
         down_payment_percent: downPayment,
+        down_payment_stages: stages,
         installment_years: years,
         discount_percent: discount,
         payment_frequency: frequency,
       } satisfies StructuredPaymentPlan;
     })
     .filter(Boolean) as StructuredPaymentPlan[];
-  const limitedTimeOffers = [0]
+  limitedTimeOffers = [0]
     .map((index) => {
       const offerTitle = formData.get(`offerTitle_${index}`)?.toString().trim() || null;
       const downPayment = toPlanNumber(formData.get(`offerDown_${index}`)?.toString());
       const years = toPlanNumber(formData.get(`offerYears_${index}`)?.toString());
       const discount = toPlanNumber(formData.get(`offerDiscount_${index}`)?.toString());
       const frequency = formData.get(`offerFrequency_${index}`)?.toString().trim() || null;
-      if (!offerTitle && downPayment == null && years == null && discount == null) return null;
+      const stages = parseDownPaymentStages(formData, `offer${index}`, downPayment);
+      if (!offerTitle && downPayment == null && years == null && discount == null && !stages.length) return null;
       return {
         offer_title: offerTitle,
+        down_payment_stages: stages,
         title: offerTitle,
         down_payment_percent: downPayment,
         installment_years: years,
@@ -2032,6 +2108,7 @@ async function upsertProjectAction(formData: FormData) {
       } satisfies LimitedTimeOffer;
     })
     .filter(Boolean) as LimitedTimeOffer[];
+  } catch (error) { redirect(`${invalidTarget}&error=${encodeURIComponent((error as Error).message)}`); }
   const paymentPlans =
     paymentPlanTemplates.map((plan) => formatPlanSummary(plan)).filter(Boolean).join("\n") ||
     undefined;
@@ -2181,6 +2258,8 @@ async function upsertProjectAction(formData: FormData) {
     limited_time_offers: limitedTimeOffers,
     launch_status: launchStatus,
     launch_date: launchDate,
+    delivery_date: deliveryDate,
+    selling_points: sellingPoints,
     eoi_value_apt: eoiValueApt,
     eoi_value_villa: eoiValueVilla,
     ch_fees: chFees,
@@ -2190,7 +2269,7 @@ async function upsertProjectAction(formData: FormData) {
     hero_media: heroMediaUpdated ? heroMedia : undefined,
     voice_notes: voiceNoteUrls?.length ? voiceNoteUrls : undefined,
     video_links: videoUrls?.length ? videoUrls : undefined,
-    amenities: amenities.length ? amenities : undefined,
+    amenities,
   });
   if (!error && data?.id) {
     const commissionResult = await upsertProjectCommissionRule({
@@ -2277,7 +2356,12 @@ function phaseFormValues(formData: FormData) {
   const launchStatus = formData.get("phaseLaunchStatus")?.toString().trim() || "upcoming";
   const launchDate = formData.get("phaseLaunchDate")?.toString().trim() || null;
   const pastedHero = formData.get("phaseHeroImageUrl")?.toString().trim() ?? "";
-  return { name, description, phaseOrder, launchStatus, launchDate, pastedHero };
+  const pastedMasterplan = formData.get("phaseMasterplanUrl")?.toString().trim() ?? "";
+  const deliveryDate = formData.get("phaseDeliveryDate")?.toString().trim() || null;
+  const salesStatus = formData.get("phaseSalesStatus")?.toString() || "upcoming";
+  return { name, description, phaseOrder, launchStatus, launchDate, pastedHero, pastedMasterplan, deliveryDate, salesStatus,
+    facilitiesRaw: formData.get("phaseFacilities")?.toString() ?? "",
+    sellingPointsRaw: formData.get("phaseSellingPoints")?.toString() ?? "" };
 }
 
 function validatePhaseForm(values: ReturnType<typeof phaseFormValues>) {
@@ -2286,6 +2370,11 @@ function validatePhaseForm(values: ReturnType<typeof phaseFormValues>) {
   if (!["upcoming", "new_launch", "live"].includes(values.launchStatus)) return "Choose a valid phase launch status.";
   if (values.launchDate && Number.isNaN(Date.parse(`${values.launchDate}T00:00:00`))) return "Enter a valid phase launch date.";
   if (values.pastedHero && !normalizeHttpMediaUrl(values.pastedHero)) return "Phase image URLs must use http:// or https://.";
+  if (values.pastedMasterplan && !normalizeHttpMediaUrl(values.pastedMasterplan)) return "Phase masterplan URLs must use http:// or https://.";
+  if (!["upcoming", "selling", "sold_out", "paused"].includes(values.salesStatus)) return "Choose a valid phase sales status.";
+  if (!validDeliveryDate(values.deliveryDate ?? "")) return "Enter a valid phase delivery date.";
+  try { parseLineItems(values.facilitiesRaw, "Facilities"); parseLineItems(values.sellingPointsRaw, "Selling points"); }
+  catch (error) { return (error as Error).message; }
   return null;
 }
 
@@ -2303,7 +2392,14 @@ async function createProjectPhaseAction(formData: FormData) {
   const pastedHero = normalizeHttpMediaUrl(values.pastedHero);
   const uploadedObjects: Array<{ bucket: string; url: string }> = [];
   let heroImageUrl = pastedHero;
+  let masterplanUrl = normalizeHttpMediaUrl(values.pastedMasterplan);
   try {
+    const masterplan = formData.get("phaseMasterplan");
+    if (isFile(masterplan)) {
+      if (masterplan.type !== "application/pdf" && !masterplan.type.startsWith("image/")) throw new Error("A phase masterplan must be an image or PDF.");
+      masterplanUrl = await uploadFileToBucket({ bucket: STORAGE_BUCKETS.projectBrochures, pathPrefix: `developers/${session.developerId}/projects/${projectId}/phases/masterplans`, file: masterplan });
+      uploadedObjects.push({ bucket: STORAGE_BUCKETS.projectBrochures, url: masterplanUrl });
+    }
     const uploaded = await uploadPhaseHeroImage(formData, projectId, session.developerId);
     if (uploaded) {
       uploadedObjects.push({ bucket: STORAGE_BUCKETS.projectImages, url: uploaded });
@@ -2320,6 +2416,11 @@ async function createProjectPhaseAction(formData: FormData) {
     launchStatus: values.launchStatus,
     launchDate: values.launchDate,
     heroMedia: heroImageUrl ? { heroImageUrl } : {},
+    facilities: parseLineItems(values.facilitiesRaw, "Facilities"),
+    sellingPoints: parseLineItems(values.sellingPointsRaw, "Selling points"),
+    deliveryDate: values.deliveryDate,
+    salesStatus: values.salesStatus as "upcoming" | "selling" | "sold_out" | "paused",
+    masterplanUrl,
   });
   if (result.error || !result.data) {
     await removeUploadedStorageObjects(uploadedObjects);
@@ -2349,7 +2450,14 @@ async function updateProjectPhaseAction(formData: FormData) {
   const pastedHero = normalizeHttpMediaUrl(values.pastedHero);
   const uploadedObjects: Array<{ bucket: string; url: string }> = [];
   let heroImageUrl = pastedHero || currentHero;
+  let masterplanUrl = normalizeHttpMediaUrl(values.pastedMasterplan) || current.masterplan_url || null;
   try {
+    const masterplan = formData.get("phaseMasterplan");
+    if (isFile(masterplan)) {
+      if (masterplan.type !== "application/pdf" && !masterplan.type.startsWith("image/")) throw new Error("A phase masterplan must be an image or PDF.");
+      masterplanUrl = await uploadFileToBucket({ bucket: STORAGE_BUCKETS.projectBrochures, pathPrefix: `developers/${session.developerId}/projects/${projectId}/phases/${phaseId}/masterplan`, file: masterplan });
+      uploadedObjects.push({ bucket: STORAGE_BUCKETS.projectBrochures, url: masterplanUrl });
+    }
     const uploaded = await uploadPhaseHeroImage(formData, projectId, session.developerId);
     if (uploaded) {
       uploadedObjects.push({ bucket: STORAGE_BUCKETS.projectImages, url: uploaded });
@@ -2366,6 +2474,11 @@ async function updateProjectPhaseAction(formData: FormData) {
     launchStatus: values.launchStatus,
     launchDate: values.launchDate,
     heroMedia: heroImageUrl ? { ...(current.hero_media && typeof current.hero_media === "object" ? current.hero_media : {}), heroImageUrl } : {},
+    facilities: parseLineItems(values.facilitiesRaw, "Facilities"),
+    sellingPoints: parseLineItems(values.sellingPointsRaw, "Selling points"),
+    deliveryDate: values.deliveryDate,
+    salesStatus: values.salesStatus as "upcoming" | "selling" | "sold_out" | "paused",
+    masterplanUrl,
   });
   if (result.error || !result.data) {
     await removeUploadedStorageObjects(uploadedObjects);

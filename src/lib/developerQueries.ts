@@ -1,4 +1,5 @@
 import { supabaseServer } from "./supabaseServer";
+import { validateDownPaymentSchedule } from "./projectMerchandising";
 
 type ProjectMediaPayload = Record<string, unknown> | null | undefined;
 
@@ -11,6 +12,11 @@ export type DeveloperProjectPhase = {
   hero_media?: Record<string, unknown> | null;
   launch_status?: string | null;
   launch_date?: string | null;
+  facilities?: string[] | null;
+  selling_points?: string[] | null;
+  delivery_date?: string | null;
+  sales_status?: "upcoming" | "selling" | "sold_out" | "paused" | null;
+  masterplan_url?: string | null;
   is_default?: boolean;
   lifecycle_state?: string | null;
   approval_status?: string | null;
@@ -77,6 +83,7 @@ export type ProjectUnitVariant = {
 export type StructuredPaymentPlan = {
   title?: string | null;
   down_payment_percent?: number | null;
+  down_payment_stages?: Array<{ percent: number; after_months: number }>;
   installment_years?: number | null;
   discount_percent?: number | null;
   payment_frequency?: string | null;
@@ -807,7 +814,7 @@ export async function fetchDeveloperProjects(developerId: string, options?: { li
     const id = assertDeveloperId(developerId);
     let query = supabaseServer
       .from("developer_projects")
-      .select("id, name, description, project_logo_url, amenities, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, is_demo, approval_status, rejection_reason, lifecycle_state, published_at, publication_status, publication_feedback, ready_at, submitted_at, submitted_by_account_id, approved_at, approved_by_admin_id, changes_requested_at, publication_checklist, quality_issues, quality_score, developer_project_phases(id, project_id, name, phase_order, description, hero_media, launch_status, launch_date, is_default, lifecycle_state, approval_status, published_at, publication_status, publication_feedback, ready_at, submitted_at, submitted_by_account_id, approved_at, approved_by_admin_id, changes_requested_at, archived_at, archived_by_account_id), project_unit_types(id, project_id, phase_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, archived_at, archived_by_account_id, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, has_garden, has_roof, garden_area_sqm, roof_area_sqm, finishing_status, delivery_date, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, layout_options, down_payment_percent, installment_years, stock_count, description, amenities, archived_at, archived_by_account_id))")
+      .select("id, name, description, project_logo_url, amenities, selling_points, delivery_date, hero_media, voice_notes, video_links, location, acres, footprint, maintenance, payment_plans, payment_plan_templates, limited_time_offers, launch_status, launch_date, eoi_value_apt, eoi_value_villa, ch_fees, project_types, inventory_url, is_demo, approval_status, rejection_reason, lifecycle_state, published_at, publication_status, publication_feedback, ready_at, submitted_at, submitted_by_account_id, approved_at, approved_by_admin_id, changes_requested_at, publication_checklist, quality_issues, quality_score, developer_project_phases(id, project_id, name, phase_order, description, hero_media, launch_status, launch_date, facilities, selling_points, delivery_date, sales_status, masterplan_url, is_default, lifecycle_state, approval_status, published_at, publication_status, publication_feedback, ready_at, submitted_at, submitted_by_account_id, approved_at, approved_by_admin_id, changes_requested_at, archived_at, archived_by_account_id), project_unit_types(id, project_id, phase_id, category, label, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, finishing_status, hero_image_url, description, archived_at, archived_by_account_id, project_unit_variants(id, project_unit_type_id, category, label, bedrooms, bathrooms, has_garden, has_roof, garden_area_sqm, roof_area_sqm, finishing_status, delivery_date, min_price, max_price, unit_area_min, unit_area_max, land_area_min, land_area_max, layout_options, down_payment_percent, installment_years, stock_count, description, amenities, archived_at, archived_by_account_id))")
       .eq("developer_id", id)
       .order("updated_at", { ascending: false });
     if (options?.limit) query = query.limit(Math.min(Math.max(options.limit, 1), 500));
@@ -1413,10 +1420,19 @@ export async function upsertDeveloperProject(
     voice_notes?: string[];
     video_links?: string[];
     amenities?: string[];
+    selling_points?: string[];
+    delivery_date?: string | null;
   },
 ) {
   const id = assertDeveloperId(developerId);
   const { id: projectId, ...projectPayload } = payload;
+  try {
+    for (const plan of [...(payload.payment_plan_templates ?? []), ...(payload.limited_time_offers ?? [])]) {
+      validateDownPaymentSchedule(plan.down_payment_percent, plan.down_payment_stages ?? []);
+    }
+  } catch (error) {
+    return { error: error instanceof Error ? error : new Error("Invalid down-payment schedule."), data: null };
+  }
   if (!payload.name.trim() || payload.name.trim().length < 3) {
     return { error: new Error("Add a project name with at least 3 characters."), data: null };
   }
@@ -1507,7 +1523,7 @@ export async function fetchDeveloperProjectPhases(developerId: string, projectId
   if (!ownsProject) return [];
   const { data, error } = await supabaseServer
     .from("developer_project_phases")
-    .select("id, project_id, name, phase_order, description, hero_media, launch_status, launch_date, is_default, lifecycle_state, approval_status, published_at, archived_at, archived_by_account_id, updated_at")
+    .select("id, project_id, name, phase_order, description, hero_media, launch_status, launch_date, facilities, selling_points, delivery_date, sales_status, masterplan_url, is_default, lifecycle_state, approval_status, published_at, archived_at, archived_by_account_id, updated_at")
     .eq("project_id", projectId)
     .order("phase_order", { ascending: true });
   if (error) {
@@ -1524,6 +1540,11 @@ type DeveloperProjectPhasePayload = {
   launchStatus?: string | null;
   launchDate?: string | null;
   heroMedia?: Record<string, unknown> | null;
+  facilities?: string[];
+  sellingPoints?: string[];
+  deliveryDate?: string | null;
+  salesStatus?: "upcoming" | "selling" | "sold_out" | "paused";
+  masterplanUrl?: string | null;
 };
 
 function phaseRpcError(error: { message?: string } | null | undefined) {
@@ -1548,6 +1569,11 @@ export async function createDeveloperProjectPhase(
     p_launch_status: payload.launchStatus ?? "upcoming",
     p_launch_date: payload.launchDate ?? null,
     p_hero_media: payload.heroMedia ?? {},
+    p_facilities: payload.facilities,
+    p_selling_points: payload.sellingPoints,
+    p_delivery_date: payload.deliveryDate,
+    p_sales_status: payload.salesStatus,
+    p_masterplan_url: payload.masterplanUrl,
   });
   return { data: (data ?? null) as DeveloperProjectPhase | null, error: phaseRpcError(error) };
 }
@@ -1570,6 +1596,11 @@ export async function updateDeveloperProjectPhase(
     p_launch_status: payload.launchStatus ?? "upcoming",
     p_launch_date: payload.launchDate ?? null,
     p_hero_media: payload.heroMedia ?? {},
+    p_facilities: payload.facilities,
+    p_selling_points: payload.sellingPoints,
+    p_delivery_date: payload.deliveryDate,
+    p_sales_status: payload.salesStatus,
+    p_masterplan_url: payload.masterplanUrl,
   });
   return { data: (data ?? null) as DeveloperProjectPhase | null, error: phaseRpcError(error) };
 }
