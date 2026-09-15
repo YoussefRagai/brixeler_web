@@ -153,9 +153,6 @@ export default async function DeveloperDashboardPage({ searchParams }: { searchP
               <Link href="/developer/support" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 px-5 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10">
                 Get support <ArrowUpRight aria-hidden="true" size={16} />
               </Link>
-              {session.role === "developer_super_admin" ? <Link href="/developer/integrations" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 px-5 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10">
-                Integrations <ArrowUpRight aria-hidden="true" size={16} />
-              </Link> : null}
             </div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4">

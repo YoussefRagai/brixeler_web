@@ -1,6 +1,7 @@
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { AdminLayout } from "@/components/AdminLayout";
 import { GrowthAudienceStudio } from "@/components/GrowthAudienceStudio";
+import { GrowthApprovalControls } from "@/components/GrowthApprovalControls";
 import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -11,6 +12,7 @@ type AudienceRow = {
   description: string | null;
   definition: { match?: string; conditions?: unknown[] } | null;
   lifecycle_state: string;
+  approval_status: string;
   version: number;
   start_at: string | null;
   end_at: string | null;
@@ -20,7 +22,7 @@ type AudienceRow = {
 export default async function GrowthAudiencesPage() {
   const ui = await buildAdminUi(["marketing_admin"]);
   const { data } = ui.hasAccess
-    ? await supabaseServer.from("growth_audiences").select("id, name, name_ar, description, definition, lifecycle_state, version, start_at, end_at, updated_at").order("updated_at", { ascending: false })
+    ? await supabaseServer.from("growth_audiences").select("id, name, name_ar, description, definition, lifecycle_state, approval_status, version, start_at, end_at, updated_at").order("updated_at", { ascending: false })
     : { data: [] };
   const audiences = (data ?? []) as AudienceRow[];
 
@@ -47,6 +49,8 @@ export default async function GrowthAudiencesPage() {
                   {audience.description ? <p className="mt-3 text-sm text-neutral-600">{audience.description}</p> : null}
                   <p className="mt-3 text-xs text-neutral-500">{audience.definition?.conditions?.length ?? 0} conditions · Match {audience.definition?.match === "any" ? "any" : "all"}</p>
                   <p className="mt-1 text-xs text-neutral-400">Updated {new Date(audience.updated_at).toLocaleString()}</p>
+                  <details className="mt-3 text-xs text-neutral-600"><summary className="cursor-pointer">Review audience conditions</summary><pre className="mt-2 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(audience.definition, null, 2)}</pre></details>
+                  <GrowthApprovalControls entityType="audience" entityId={audience.id} expectedVersion={audience.version} status={audience.approval_status} canApprove={ui.roles.includes("super_admin")} />
                 </article>
               ))}
               {!audiences.length ? <p className="rounded-2xl border border-dashed border-black/10 p-6 text-sm text-neutral-500 lg:col-span-2">No reusable audiences yet. Preview and save the first one above.</p> : null}

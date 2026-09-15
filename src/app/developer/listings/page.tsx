@@ -126,10 +126,17 @@ function ListingActions({ listing, archived }: { listing: DeveloperListing; arch
   return <div className="flex flex-wrap justify-end gap-2"><Link className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" href={`/developer/listings/${listing.id}`}>Edit</Link><form action={toggleVisibilityAction}><input type="hidden" name="listingId" value={listing.id} /><input type="hidden" name="visibility" value={listing.visibility === "public" ? "hidden" : "public"} /><button className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" type="submit">{listing.visibility === "public" ? "Hide" : "Restore visibility"}</button></form>{listing.status === "approved" && listing.renewal_status !== "awaiting_admin" && listing.renewal_status !== "active" ? <form action={requestRenewalAction}><input type="hidden" name="listingId" value={listing.id} /><button className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold hover:border-black/30" type="submit">Renew</button></form> : null}<form action={archiveListingAction}><input type="hidden" name="listingId" value={listing.id} /><ConfirmSubmitButton className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-50" confirmMessage="Archive this listing? It will be hidden and retained so you can restore visibility later." pendingLabel="Archiving…">Archive</ConfirmSubmitButton></form></div>;
 }
 
+function listingPublicationLabel(listing: DeveloperListing) {
+  if (listing.archived_at) return "Archived";
+  if (listing.status === "approved" && listing.published_at) return listing.is_demo ? "Publication approved · demo hidden" : "Publication approved";
+  if (listing.status === "approved") return "Approved · awaiting publish";
+  return listing.status === "rejected" ? "Changes requested" : "Pending review";
+}
+
 function StatusBadge({ listing }: { listing: DeveloperListing }) {
-  const publication = listing.archived_at ? "Archived" : listing.status === "approved" && listing.published_at ? listing.visibility === "public" ? "Published to mobile" : "Published · hidden" : listing.status === "approved" ? "Approved · awaiting publish" : listing.status === "rejected" ? "Changes requested" : "Pending review";
+  const publication = listingPublicationLabel(listing);
   const publicationTone = listing.status === "approved" && listing.published_at ? "bg-emerald-50 text-emerald-700" : listing.status === "rejected" ? "bg-rose-50 text-rose-700" : listing.status === "approved" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700";
-  const visibility = listing.visibility === "public" ? "Visible to agents" : "Hidden · restorable";
+  const visibility = listing.is_demo ? "Demo · hidden from agents" : listing.visibility === "public" ? "Visibility enabled · subject to mobile eligibility" : "Hidden · restorable";
   const readiness = listing.quality_score != null ? `Readiness ${Math.round(listing.quality_score)}%` : listing.quality_issues?.length ? `${listing.quality_issues.length} checks need attention` : null;
   return <div className="flex flex-col items-start gap-1"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${publicationTone}`}>{publication}</span><span className="text-[11px] font-medium text-neutral-500">{visibility}{listing.renewal_status === "awaiting_admin" ? " · Renewal pending" : ""}</span>{readiness ? <span className="text-[11px] text-neutral-400">{readiness}</span> : null}</div>;
 }
@@ -147,7 +154,7 @@ async function toggleVisibilityAction(formData: FormData) {
   const { error } = await toggleListingVisibility(session.developerId, listingId, visibility);
   revalidatePath("/developer/listings");
   if (error) redirect(`/developer/listings?view=developer&error=${encodeURIComponent(error.message)}`);
-  redirect(`/developer/listings?view=developer&success=${encodeURIComponent(visibility === "hidden" ? "Listing hidden from the mobile catalog." : "Listing restored to the mobile catalog.")}`);
+  redirect(`/developer/listings?view=developer&success=${encodeURIComponent(visibility === "hidden" ? "Listing hidden from the mobile catalog." : "Listing visibility enabled. Mobile eligibility still applies.")}`);
 }
 
 async function archiveListingAction(formData: FormData) {

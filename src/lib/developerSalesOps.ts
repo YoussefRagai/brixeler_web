@@ -85,6 +85,7 @@ export type DeveloperFunnel = {
 };
 
 export type DeveloperSupportTicket = {
+  unread_for_developer?: boolean;
   id: string;
   developer_id: string;
   created_by_account_id: string;
@@ -99,72 +100,6 @@ export type DeveloperSupportTicket = {
   resolved_at: string | null;
   created_at: string;
   updated_at: string;
-};
-
-export type DeveloperIntegrationSummary = {
-  credentials: Array<{
-    id: string;
-    name: string;
-    key_prefix: string;
-    scopes: string[];
-    last_used_at: string | null;
-    expires_at: string | null;
-    revoked_at: string | null;
-    created_at: string;
-  }>;
-  webhooks: Array<{
-    id: string;
-    name: string;
-    endpoint_url: string;
-    events: string[];
-    status: string;
-    last_success_at: string | null;
-    last_failure_at: string | null;
-    failure_count: number;
-    created_at: string;
-  }>;
-  schedules: Array<{
-    id: string;
-    name: string;
-    source_kind: string;
-    source_label: string;
-    cadence: string;
-    timezone: string;
-    enabled: boolean;
-    dry_run_default: boolean;
-    idempotency_strategy: string;
-    conflict_strategy: string;
-    last_run_at: string | null;
-    next_run_at: string | null;
-    created_at: string;
-  }>;
-  mappings: Array<{
-    id: string;
-    schedule_id: string;
-    source_field: string;
-    target_field: string;
-    transform: string | null;
-    is_required: boolean;
-  }>;
-  syncRuns: Array<{
-    id: string;
-    schedule_id: string;
-    mode: string;
-    status: string;
-    idempotency_key: string;
-    source_checksum: string | null;
-    rows_seen: number;
-    rows_created: number;
-    rows_updated: number;
-    rows_skipped: number;
-    conflict_count: number;
-    error_summary: string | null;
-    metadata: Record<string, unknown>;
-    started_at: string | null;
-    finished_at: string | null;
-    created_at: string;
-  }>;
-  pendingWebhookDeliveries: number;
 };
 
 type LeadFilters = {
@@ -367,31 +302,12 @@ export async function fetchDeveloperFunnel(
 export async function fetchDeveloperSupportTickets(developerId: string): Promise<DeveloperSupportTicket[]> {
   const { data, error } = await supabaseServer
     .from("developer_support_tickets")
-    .select("id, developer_id, created_by_account_id, subject, category, priority, description, status, assigned_to_account_id, last_message_preview, last_message_at, resolved_at, created_at, updated_at")
+    .select("id, developer_id, created_by_account_id, subject, category, priority, description, status, assigned_to_account_id, last_message_preview, last_message_at, resolved_at, created_at, updated_at, unread_for_developer")
     .eq("developer_id", developerId)
     .order("updated_at", { ascending: false })
     .limit(100);
   if (error) return [];
   return (data ?? []) as DeveloperSupportTicket[];
-}
-
-export async function fetchDeveloperIntegrations(developerId: string): Promise<DeveloperIntegrationSummary> {
-  const [credentials, webhooks, schedules, mappings, syncRuns, deliveries] = await Promise.all([
-    supabaseServer.from("developer_api_credentials").select("id, name, key_prefix, scopes, last_used_at, expires_at, revoked_at, created_at").eq("developer_id", developerId).order("created_at", { ascending: false }),
-    supabaseServer.from("developer_webhook_endpoints").select("id, name, endpoint_url, events, status, last_success_at, last_failure_at, failure_count, created_at").eq("developer_id", developerId).order("created_at", { ascending: false }),
-    supabaseServer.from("developer_import_schedules").select("id, name, source_kind, source_label, cadence, timezone, enabled, dry_run_default, idempotency_strategy, conflict_strategy, last_run_at, next_run_at, created_at").eq("developer_id", developerId).order("created_at", { ascending: false }),
-    supabaseServer.from("developer_integration_field_mappings").select("id, schedule_id, source_field, target_field, transform, is_required").eq("developer_id", developerId).order("source_field", { ascending: true }),
-    supabaseServer.from("developer_sync_runs").select("id, schedule_id, mode, status, idempotency_key, source_checksum, rows_seen, rows_created, rows_updated, rows_skipped, conflict_count, error_summary, metadata, started_at, finished_at, created_at").eq("developer_id", developerId).order("created_at", { ascending: false }).limit(100),
-    supabaseServer.from("developer_webhook_deliveries").select("id", { count: "exact", head: true }).eq("developer_id", developerId).eq("status", "pending"),
-  ]);
-  return {
-    credentials: credentials.error ? [] : (credentials.data ?? []) as DeveloperIntegrationSummary["credentials"],
-    webhooks: webhooks.error ? [] : (webhooks.data ?? []) as DeveloperIntegrationSummary["webhooks"],
-    schedules: schedules.error ? [] : (schedules.data ?? []) as DeveloperIntegrationSummary["schedules"],
-    mappings: mappings.error ? [] : (mappings.data ?? []) as DeveloperIntegrationSummary["mappings"],
-    syncRuns: syncRuns.error ? [] : (syncRuns.data ?? []) as DeveloperIntegrationSummary["syncRuns"],
-    pendingWebhookDeliveries: deliveries.error ? 0 : Number(deliveries.count ?? 0),
-  };
 }
 
 export async function updateDeveloperSalesLead(input: {

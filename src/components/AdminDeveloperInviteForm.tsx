@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { useActionState } from "react";
 
 export type DeveloperInviteActionState = {
@@ -33,10 +33,20 @@ type Props = {
 
 const initialState: DeveloperInviteActionState = { status: "idle", message: "" };
 
+const initialFormValues = {
+  developerName: "",
+  contactEmail: "",
+  contactPhone: "",
+  memberEmail: "",
+  demoBatch: "",
+};
+
+type InviteFormValues = typeof initialFormValues;
+
 export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Props) {
-  const [state, formAction, pending] = useActionState(action, initialState);
   const [existingDeveloperId, setExistingDeveloperId] = useState("");
   const [isDemo, setIsDemo] = useState(false);
+  const [formValues, setFormValues] = useState<InviteFormValues>(initialFormValues);
   const requestIdSeed = useId();
   const requestIdInputRef = useRef<HTMLInputElement>(null);
   const requestIdRef = useRef<string | null>(null);
@@ -46,9 +56,27 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
     if (requestIdInputRef.current) requestIdInputRef.current.value = requestIdSeed;
   }, [requestIdSeed]);
 
-  useEffect(() => {
-    if (state.status === "success") resetRequestId();
-  }, [resetRequestId, state.status]);
+  const resetForm = useCallback(() => {
+    resetRequestId();
+    setFormValues(initialFormValues);
+    setExistingDeveloperId("");
+    setIsDemo(false);
+  }, [resetRequestId]);
+
+  const actionWithReset = useCallback(
+    async (previousState: DeveloperInviteActionState, formData: FormData) => {
+      const nextState = await action(previousState, formData);
+      if (nextState.status === "success") resetForm();
+      return nextState;
+    },
+    [action, resetForm],
+  );
+  const [state, formAction, pending] = useActionState(actionWithReset, initialState);
+
+  const updateFormValue = (field: keyof InviteFormValues, value: string) => {
+    resetRequestId();
+    setFormValues((current) => ({ ...current, [field]: value }));
+  };
 
   const prepareRequest = (event: React.FormEvent<HTMLFormElement>) => {
     const requestId = requestIdRef.current ?? crypto.randomUUID();
@@ -111,8 +139,8 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           <select
             name="demoBatch"
             required
-            defaultValue=""
-            onChange={resetRequestId}
+            value={formValues.demoBatch}
+            onChange={(event) => updateFormValue("demoBatch", event.target.value)}
             className="rounded-2xl border border-amber-300 bg-white px-3 py-2 text-[#050505]"
           >
             <option value="" disabled>
@@ -132,7 +160,8 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           name="developerName"
           required={isCreating}
           disabled={!isCreating}
-          onChange={resetRequestId}
+          value={formValues.developerName}
+          onChange={(event) => updateFormValue("developerName", event.target.value)}
           placeholder="Atlas Developments"
           className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505] disabled:bg-black/[0.03] disabled:text-neutral-400"
         />
@@ -143,7 +172,8 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           type="email"
           name="contactEmail"
           disabled={!isCreating}
-          onChange={resetRequestId}
+          value={formValues.contactEmail}
+          onChange={(event) => updateFormValue("contactEmail", event.target.value)}
           placeholder="partners@developer.com"
           className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505] disabled:bg-black/[0.03] disabled:text-neutral-400"
         />
@@ -153,7 +183,8 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
         <input
           name="contactPhone"
           disabled={!isCreating}
-          onChange={resetRequestId}
+          value={formValues.contactPhone}
+          onChange={(event) => updateFormValue("contactPhone", event.target.value)}
           placeholder="+20 100 000 0000"
           className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505] disabled:bg-black/[0.03] disabled:text-neutral-400"
         />
@@ -164,7 +195,8 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           type="email"
           name="memberEmail"
           required
-          onChange={resetRequestId}
+          value={formValues.memberEmail}
+          onChange={(event) => updateFormValue("memberEmail", event.target.value)}
           placeholder="member@developer.com"
           className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505]"
         />

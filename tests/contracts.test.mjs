@@ -248,7 +248,7 @@ test("developer operations console and portal use reviewed, recoverable workflow
 test("developer onboarding is server-gated and unlocks on a complete submitted profile", () => {
   const auth = readFileSync(new URL("../src/lib/developerAuth.ts", import.meta.url), "utf8");
   const profile = readFileSync(new URL("../src/app/developer/profile/page.tsx", import.meta.url), "utf8");
-  const layout = readFileSync(new URL("../src/components/DeveloperLayout.tsx", import.meta.url), "utf8");
+  const clientLayout = readFileSync(new URL("../src/components/DeveloperLayoutClient.tsx", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../supabase/migrations/20260830104000_developer_onboarding_and_branding.sql", import.meta.url), "utf8");
 
   assert.match(auth, /hasCompletedDeveloperProfile/);
@@ -256,8 +256,8 @@ test("developer onboarding is server-gated and unlocks on a complete submitted p
   assert.match(auth, /status === "pending" \|\| status === "approved"/);
   assert.match(profile, /allowIncompleteProfile: true/);
   assert.match(profile, /logo_url/);
-  assert.match(layout, /const visibleNavItems = onboarding/);
-  assert.match(layout, /item\.href === "\/developer\/profile"/);
+  assert.match(clientLayout, /const visibleNavItems = onboarding/);
+  assert.match(clientLayout, /item\.href === "\/developer\/profile"/);
   assert.match(migration, /add column if not exists slogan/);
   assert.match(migration, /A developer logo is required to complete onboarding/);
   assert.match(migration, /to service_role/);

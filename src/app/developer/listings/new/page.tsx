@@ -84,7 +84,8 @@ async function createListingAction(formData: FormData) {
   const deliveryDate = formData.get("deliveryDate")?.toString() || null;
   const finishingStatus = formData.get("finishingStatus")?.toString() ?? "finished";
   const amenitiesRaw = formData.get("amenities")?.toString() ?? "";
-  const returnQuery = `saleType=${encodeURIComponent(saleType)}`;
+  const returnQuery = new URLSearchParams({ saleType });
+  if (selectedProjectId) returnQuery.set("project", selectedProjectId);
 
   if (!name || name.length < 3 || !description || !SALE_TYPES.includes(saleType) || !Number.isFinite(price) || price < 100000 || !Number.isFinite(bedrooms) || bedrooms < 0 || !Number.isFinite(bathrooms) || bathrooms < 0 || !Number.isFinite(unitArea) || unitArea < 10 || !Number.isFinite(installmentYears) || installmentYears <= 0 || !Number.isFinite(downPayment) || downPayment < 0 || downPayment > 100 || (monthlyInstallmentValue && (!Number.isFinite(monthlyInstallmentRaw) || monthlyInstallmentRaw < 0)) || (!selectedProjectId && !createProjectName)) {
     redirect(`/developer/listings/new?${returnQuery}&error=${encodeURIComponent("Check the required listing, project, and payment fields.")}`);
@@ -122,7 +123,10 @@ async function createListingAction(formData: FormData) {
   });
   if (error) {
     await removeUploadedStorageObjects(media.uploadedObjects);
-    redirect(`/developer/listings/new?${returnQuery}&error=${encodeURIComponent(error.message)}`);
+    returnQuery.set("project", projectId ?? "");
+    returnQuery.set("retryProject", "1");
+    returnQuery.set("error", `${error.message} Your project was retained. Retry with this project; reselect any uploaded files.`);
+    redirect(`/developer/listings/new?${returnQuery}`);
   }
   redirect(saleType === "resale" ? `/developer/listings?view=developer&clearDraft=resale&success=${encodeURIComponent("Resale submitted for review. Approval and mobile publication are separate steps.")}` : `/developer/listings?clearDraft=developer_sale&success=${encodeURIComponent("Listing submitted for review. Approval and mobile publication are separate steps.")}`);
 }

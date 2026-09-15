@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { csvCell } from "@/lib/csv";
 import { DeveloperCapabilityError, requireDeveloperCapability } from "@/lib/developerAuth";
 import {
   fetchDeveloperSalesLeads,
@@ -9,11 +10,6 @@ import {
 export const dynamic = "force-dynamic";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function csvCell(value: unknown) {
-  const text = value == null ? "" : String(value);
-  return `"${text.replaceAll('"', '""')}"`;
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

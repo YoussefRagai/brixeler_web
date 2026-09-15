@@ -64,7 +64,7 @@ export function GiftMobilePreview({
         <div dir={isArabic ? "rtl" : "ltr"} className="px-3 pb-4 pt-5 text-left">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400">{isArabic ? "هديتك الجديدة" : "A new reward"}</p>
           <div className="mt-3 overflow-hidden rounded-2xl bg-[#111] text-white">
-            <div className="relative flex min-h-24 items-end overflow-hidden bg-[radial-gradient(circle_at_78%_12%,#e8bd6b,transparent_40%),linear-gradient(135deg,#191919,#3b372e)] p-4">
+            <div data-dashboard-surface="dark" className="relative flex min-h-24 items-end overflow-hidden bg-[radial-gradient(circle_at_78%_12%,#e8bd6b,transparent_40%),linear-gradient(135deg,#191919,#3b372e)] p-4">
               {iconUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={iconUrl} alt="" className="absolute right-3 top-3 h-12 w-12 rounded-xl object-cover opacity-90" />

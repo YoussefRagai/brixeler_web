@@ -4,6 +4,7 @@ import { getDeveloperSession, type DeveloperSession } from "./developerSession";
 import { getDeveloperImpersonation, type DeveloperImpersonationMarker } from "./developerImpersonation";
 import { findDeveloperAccountByUser } from "./developerQueries";
 import { supabaseServer } from "./supabaseServer";
+import { isDeveloperImpersonationAuthorized } from "./developerImpersonationAuth";
 import {
   DEVELOPER_CAPABILITIES,
   DEVELOPER_ROLES,
@@ -96,7 +97,8 @@ export async function hasCompletedDeveloperProfile(developerId: string) {
 
 export async function currentDeveloperSession(): Promise<DeveloperSession | null> {
   const store = await cookies();
-  return getDeveloperSession(store);
+  const session = getDeveloperSession(store);
+  return session && await isDeveloperImpersonationAuthorized(session) ? session : null;
 }
 
 export async function currentDeveloperImpersonation(): Promise<DeveloperImpersonationMarker | null> {

@@ -495,7 +495,7 @@ export function RewardsRuleBuilder({
               <li key={step.id}>
                 <button type="button" onClick={() => { if (index <= activeStep) { setPreviewError(null); setActiveStep(index); } }} aria-current={isCurrent ? "step" : undefined} className={`flex min-h-[58px] w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${isCurrent ? "border-[#dff579] bg-[#dff579] text-[#11120f]" : "border-white/10 bg-white/5 text-white/65 hover:border-white/25"}`}>
                   <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold ${isCurrent ? "bg-[#11120f] text-[#dff579]" : isComplete ? "bg-white/15 text-[#dff579]" : "bg-white/10 text-white/55"}`}>{isComplete ? <Check aria-hidden="true" size={14} /> : step.number}</span>
-                  <span className="min-w-0"><span className="block text-xs font-semibold">{step.title}</span><span className={`mt-0.5 block text-[10px] leading-4 ${isCurrent ? "text-[#11120f]/65" : "text-white/45"}`}>{step.description}</span></span>
+                  <span className="min-w-0"><span className="block text-xs font-semibold">{step.title}</span><span className={`mt-0.5 block text-[10px] leading-4 ${isCurrent ? "text-[#394116]" : "text-white/75"}`}>{step.description}</span></span>
                 </button>
               </li>
             );

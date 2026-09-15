@@ -7,7 +7,6 @@ if [ -z "${BRIXELER_DATABASE_URL:-}" ]; then
 fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-psql "$BRIXELER_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f "$script_dir/../supabase/tests/reliability_contracts.sql"
-psql "$BRIXELER_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f "$script_dir/../supabase/tests/developer_portal_contracts.sql"
-psql "$BRIXELER_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f "$script_dir/../supabase/tests/developer_project_phases_contracts.sql"
-psql "$BRIXELER_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f "$script_dir/../supabase/tests/developer_team_rbac_contracts.sql"
+for suite in "$script_dir"/../supabase/tests/*.sql; do
+  psql "$BRIXELER_DATABASE_URL" -X -v ON_ERROR_STOP=1 -f "$suite"
+done

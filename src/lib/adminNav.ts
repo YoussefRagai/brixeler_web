@@ -14,6 +14,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/gifts/claims", label: "Gift Claims", icon: "gifts", section: "Growth", roles: ["super_admin", "marketing_admin"] },
   { href: "/rewards", label: "Tiers & Badges", icon: "rewards", section: "Growth", roles: ["super_admin", "marketing_admin"] },
   { href: "/analytics", label: "Analytics", icon: "analytics", section: "Growth", roles: ["super_admin"] },
+  { href: "/analytics/app", label: "App usage", icon: "analytics", section: "Growth", roles: ["super_admin"] },
   { href: "/notifications", label: "Notifications", icon: "notifications", section: "Growth", roles: ["super_admin", "marketing_admin"] },
   { href: "/content", label: "Content", icon: "content", section: "Growth", roles: ["super_admin", "marketing_admin"] },
   {

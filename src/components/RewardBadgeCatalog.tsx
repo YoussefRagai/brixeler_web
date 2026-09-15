@@ -62,7 +62,7 @@ export function RewardBadgeCatalog({ badges, canApprove = false }: { badges: Bad
                 </div>
                 <p className="mt-3 border-t border-black/10 pt-2 text-[10px] leading-4 text-neutral-500">{categoryCopy[category] || "A reward category for your growth programme."}</p>
                 <div className="mt-2 flex items-start justify-between gap-2">
-                  <GrowthApprovalControls entityType="badge" entityId={badge.id} status={badge.approval_status ?? "not_required"} canApprove={canApprove} />
+                  <GrowthApprovalControls entityType="badge" entityId={badge.id} expectedVersion={badge.version ?? 1} status={badge.approval_status ?? "not_required"} canApprove={canApprove} />
                   <GrowthVersionHistory entityType="badge" entityId={badge.id} currentVersion={badge.version ?? 1} />
                 </div>
               </article>

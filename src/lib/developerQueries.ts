@@ -228,7 +228,7 @@ export async function fetchDeveloperListing(listingId: string, developerId: stri
     const { data, error } = await supabaseServer
       .from("properties")
       .select(
-        "id, property_name, price, description, amenities, photos, specific_location, expires_at, renewal_status, property_type, sale_type, bedrooms, bathrooms, unit_area, down_payment_percentage, installment_years, monthly_installment, delivery_date, finishing_status, floor_plan_url, video_tour_url, project_id, phase_id, approval_status, is_active, is_demo, published_at, quality_issues, quality_score, publication_checklist, archived_at, archived_by_developer_account_id"
+        "id, property_name, price, description, amenities, photos, specific_location, expires_at, renewal_status, property_type, sale_type, bedrooms, bathrooms, unit_area, down_payment_percentage, installment_years, monthly_installment, delivery_date, finishing_status, floor_plan_url, video_tour_url, project_id, phase_id, approval_status, is_active, is_demo, published_at, availability_state, quality_issues, quality_score, publication_checklist, archived_at, archived_by_developer_account_id"
       )
       .eq("developer_id", id)
       .is("listed_by_agent_id", null)
@@ -1691,7 +1691,7 @@ export async function upsertProjectUnitType(
     landAreaMax?: number;
     finishingStatus?: string;
     description?: string;
-    heroImageUrl?: string;
+    heroImageUrl?: string | null;
   },
 ) {
   const developer = assertDeveloperId(developerId);
@@ -1730,7 +1730,7 @@ export async function upsertProjectUnitType(
       installment_years: null,
       stock_count: null,
       finishing_status: payload.finishingStatus ?? null,
-      hero_image_url: payload.heroImageUrl ?? null,
+      ...(payload.heroImageUrl !== undefined ? { hero_image_url: payload.heroImageUrl } : {}),
       description: payload.description ?? null,
   };
   if (payload.id) {

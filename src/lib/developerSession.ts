@@ -3,6 +3,8 @@ import type { DeveloperRole } from "./developerRbac";
 
 const COOKIE_NAME = "brixeler_dev_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+export const IMPERSONATION_MAX_AGE = 60 * 60 * 4;
+const SESSION_VERSION = 2;
 
 const sessionSecret = process.env.DEVELOPER_SESSION_SECRET ?? "";
 
@@ -21,6 +23,7 @@ export type DeveloperSession = {
   developerName?: string | null;
   userId: string;
   issuedAt: number;
+  impersonation?: { grantHash: string; adminId: string; adminAuthUserId: string };
 };
 
 function signPayload(payload: string) {
@@ -31,7 +34,7 @@ function signPayload(payload: string) {
 }
 
 function encodeSession(session: DeveloperSession) {
-  const payload = Buffer.from(JSON.stringify(session)).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ ...session, sessionVersion: SESSION_VERSION })).toString("base64url");
   const signature = signPayload(payload);
   return `${payload}.${signature}`;
 }
@@ -49,17 +52,26 @@ function decodeSession(value: string | undefined | null): DeveloperSession | nul
   }
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (!parsed?.developerId || !parsed?.userId || !Number.isFinite(parsed.issuedAt)) {
+    // Older cookies cannot distinguish password login from impersonation.
+    // Reject them once rather than allowing an old impersonation to bypass revocation.
+    if (parsed?.sessionVersion !== SESSION_VERSION || !parsed?.developerId || !parsed?.userId || !Number.isFinite(parsed.issuedAt)) {
       return null;
     }
-    if (parsed.issuedAt > Date.now() || Date.now() - parsed.issuedAt > SESSION_MAX_AGE * 1000) {
+    if (parsed.impersonation !== undefined && (
+      !parsed.impersonation || typeof parsed.impersonation !== "object"
+      || !/^[a-f0-9]{64}$/.test(parsed.impersonation.grantHash)
+      || typeof parsed.impersonation.adminId !== "string" || !parsed.impersonation.adminId
+      || typeof parsed.impersonation.adminAuthUserId !== "string" || !parsed.impersonation.adminAuthUserId
+      || typeof parsed.accountId !== "string" || !parsed.accountId
+    )) return null;
+    const maxAge = parsed.impersonation ? IMPERSONATION_MAX_AGE : SESSION_MAX_AGE;
+    if (parsed.issuedAt > Date.now() || Date.now() - parsed.issuedAt >= maxAge * 1000) {
       return null;
     }
     return {
       ...parsed,
-      // Sessions issued before the profile-review release did not embed the
-      // membership id. requireDeveloperSession rehydrates it from the active
-      // membership row so existing users are not forced to sign in again.
+      // Authorization rehydrates the active membership instead of trusting
+      // optimistic membership or role data carried in a normal login cookie.
       accountId: typeof parsed.accountId === "string" ? parsed.accountId : "",
       role: typeof parsed.role === "string" ? parsed.role : null,
     } as DeveloperSession;
@@ -97,7 +109,7 @@ export function setDeveloperSession(store: CookieWriter, session: DeveloperSessi
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: SESSION_MAX_AGE,
+      maxAge: session.impersonation ? IMPERSONATION_MAX_AGE : SESSION_MAX_AGE,
       path: "/",
     });
     return;
@@ -107,7 +119,7 @@ export function setDeveloperSession(store: CookieWriter, session: DeveloperSessi
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: SESSION_MAX_AGE,
+      maxAge: session.impersonation ? IMPERSONATION_MAX_AGE : SESSION_MAX_AGE,
       path: "/",
     });
     return;

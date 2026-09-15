@@ -396,17 +396,21 @@ export function parseApprovalInput(payload: unknown): GrowthValidationResult<{
   entity_id: string;
   decision: "approved" | "rejected";
   rejection_reason: string | null;
+  expected_version: number;
 }> {
   if (!isRecord(payload)) return { ok: false, error: "Approval payload must be an object" };
   const entityType = payload.entity_type;
   if (!["audience", "gift", "gift_rule", "admin_rule", "tier", "badge", "notification_campaign"].includes(String(entityType))) return { ok: false, error: "Invalid approval entity type" };
   if (!isGrowthUuid(payload.entity_id)) return { ok: false, error: "entity_id must be a UUID" };
+  if (typeof payload.expected_version !== "number" || !Number.isSafeInteger(payload.expected_version) || payload.expected_version < 1) {
+    return { ok: false, error: "expected_version must be a positive safe integer. Refresh the item before reviewing it." };
+  }
   const decision = payload.decision === "approve" ? "approved" : payload.decision === "reject" ? "rejected" : payload.decision;
   if (decision !== "approved" && decision !== "rejected") return { ok: false, error: "decision must be approve or reject" };
   const reason = text(payload.rejection_reason ?? payload.reason, "rejection_reason", 1000);
   if (!reason.ok) return reason;
   if (decision === "rejected" && !reason.value) return { ok: false, error: "rejection_reason is required when rejecting" };
-  return { ok: true, value: { entity_type: entityType as "audience" | "gift" | "gift_rule" | "admin_rule" | "tier" | "badge" | "notification_campaign", entity_id: payload.entity_id, decision: decision as "approved" | "rejected", rejection_reason: reason.value } };
+  return { ok: true, value: { entity_type: entityType as "audience" | "gift" | "gift_rule" | "admin_rule" | "tier" | "badge" | "notification_campaign", entity_id: payload.entity_id, decision: decision as "approved" | "rejected", rejection_reason: reason.value, expected_version: payload.expected_version } };
 }
 
 export async function readGrowthJson(request: Request): Promise<GrowthValidationResult<Record<string, unknown>>> {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getMobileUserFromRequest } from "@/lib/mobileSession";
-import { checkWhatsAppVerification, isTwilioVerifyConfigured } from "@/lib/twilioVerify";
+import { checkWhatsAppVerification, isTwilioVerifyConfigured, TwilioVerifyError } from "@/lib/twilioVerify";
 
 const phonePattern = /^\+[1-9]\d{9,14}$/;
 const codePattern = /^\d{4,10}$/;
@@ -52,6 +52,10 @@ export async function POST(request: Request) {
   try {
     verification = await checkWhatsAppVerification(phone, code);
   } catch (error) {
+    console.error("Twilio WhatsApp verification check failed", {
+      code: error instanceof TwilioVerifyError ? error.code : null,
+      status: error instanceof TwilioVerifyError ? error.status : null,
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to verify WhatsApp code." },
       { status: 502 },
@@ -66,17 +70,23 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
-  const { error: updateError } = await supabaseServer
+  const { data: updatedProfile, error: updateError } = await supabaseServer
     .from("users_profile")
     .update({
       phone_verified: true,
       phone_verified_at: now,
       verification_rejection_reason: null,
     })
-    .eq("id", session.user.id);
+    .eq("id", session.user.id)
+    .eq("phone", profile.phone)
+    .select("id")
+    .maybeSingle();
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+  if (!updatedProfile) {
+    return NextResponse.json({ error: "Your phone number has changed. Start a new verification request." }, { status: 409 });
   }
 
   return NextResponse.json({ success: true, phoneVerified: true });

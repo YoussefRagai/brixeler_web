@@ -7,6 +7,7 @@ import {
 } from "@/lib/developerImpersonation";
 import { getDeveloperPortalUrl, getRequestBaseUrl } from "@/lib/requestUrl";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { isActiveImpersonationIssuer } from "@/lib/developerImpersonationAuth";
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -31,6 +32,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/developer/login?error=Invalid+or+expired+impersonation+link", developerPortalUrl));
   }
 
+  if (!(await isActiveImpersonationIssuer(grant.admin_id, grant.admin_auth_user_id))) {
+    return NextResponse.redirect(new URL("/developer/login?error=Administrator+access+revoked", developerPortalUrl));
+  }
+
   const { data: account, error } = await supabaseServer
     .from("developer_accounts")
     .select("id, developer_id, auth_user_id, status")
@@ -51,6 +56,11 @@ export async function GET(request: NextRequest) {
     developerName: grant.developer_name ?? null,
     userId: grant.impersonated_user_id,
     issuedAt: Date.now(),
+    impersonation: {
+      grantHash: hashDeveloperImpersonationToken(token ?? ""),
+      adminId: grant.admin_id,
+      adminAuthUserId: grant.admin_auth_user_id,
+    },
   });
   setDeveloperImpersonation(response.cookies, {
     adminId: grant.admin_id,

@@ -4,10 +4,17 @@ import {
   clearDeveloperImpersonation,
   getDeveloperImpersonation,
 } from "@/lib/developerImpersonation";
-import { clearDeveloperSession } from "@/lib/developerSession";
+import { clearDeveloperSession, getDeveloperSession } from "@/lib/developerSession";
+import { supabaseServer } from "@/lib/supabaseServer";
 import { getAdminPortalUrl, getRequestBaseUrl } from "@/lib/requestUrl";
 
 export async function POST(request: NextRequest) {
+  const session = getDeveloperSession(request.cookies);
+  if (session?.impersonation) {
+    const { error } = await supabaseServer.from("developer_impersonation_grants")
+      .delete().eq("token_hash", session.impersonation.grantHash);
+    if (error) return NextResponse.json({ error: "Unable to end impersonation. Please retry." }, { status: 503 });
+  }
   const marker = getDeveloperImpersonation(request.cookies);
   const baseUrl = getRequestBaseUrl(request);
   const adminPortalUrl = getAdminPortalUrl(baseUrl);

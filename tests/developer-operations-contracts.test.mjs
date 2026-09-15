@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -53,12 +54,37 @@ test("contact PII is isolated from the project-manager project portal", async ()
 
 test("developer navigation is capability aware", async () => {
   const layout = await read("src/components/DeveloperLayout.tsx");
+  const clientLayout = await read("src/components/DeveloperLayoutClient.tsx");
   const brandRoute = await read("src/app/api/developer/brand/route.ts");
-  assert.match(layout, /visibleNavItems/);
-  assert.match(layout, /capability: "manage_team"/);
-  assert.match(layout, /capability: "view_contacts"/);
-  assert.match(layout, /capability: "manage_integrations"/);
+  assert.match(clientLayout, /visibleNavItems/);
+  assert.match(clientLayout, /capability: "manage_team"/);
+  assert.match(clientLayout, /capability: "view_contacts"/);
+  assert.match(layout, /DeveloperLayoutClient/);
+  assert.doesNotMatch(layout, /developer\/integrations/);
+  assert.doesNotMatch(clientLayout, /developer\/integrations/);
   assert.match(brandRoute, /developerRoleCapabilities\(session\.role\)/);
+});
+
+test("optional developer integration surfaces are removed", async () => {
+  const dashboard = await read("src/app/developer/page.tsx");
+  const salesOps = await read("src/lib/developerSalesOps.ts");
+  const removedPaths = [
+    "src/app/developer/integrations/page.tsx",
+    "src/components/DeveloperIntegrationsCenter.tsx",
+    "src/app/api/developer/integrations/credentials/[credentialId]/route.ts",
+    "src/app/api/developer/integrations/credentials/route.ts",
+    "src/app/api/developer/integrations/mappings/route.ts",
+    "src/app/api/developer/integrations/schedules/[scheduleId]/route.ts",
+    "src/app/api/developer/integrations/schedules/route.ts",
+    "src/app/api/developer/integrations/sync-runs/route.ts",
+    "src/app/api/developer/integrations/webhooks/[webhookId]/route.ts",
+    "src/app/api/developer/integrations/webhooks/route.ts",
+    "src/app/api/developer/integrations/webhooks/test/route.ts",
+    "src/app/api/internal/developer-webhooks/route.ts",
+  ];
+  for (const path of removedPaths) assert.equal(existsSync(new URL(`../${path}`, import.meta.url)), false, `obsolete surface remains: ${path}`);
+  assert.doesNotMatch(dashboard, /developer\/integrations|Integrations/);
+  assert.doesNotMatch(salesOps, /DeveloperIntegrationSummary|fetchDeveloperIntegrations|developer_(api_credentials|webhook_endpoints|import_schedules|sync_runs)/);
 });
 
 test("developer overview counts the same inventory the mobile app can actually see", async () => {

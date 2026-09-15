@@ -1,77 +1,79 @@
-import type { DeveloperPublicationStatus } from "@/lib/developerQueries";
+import { Check, ChevronRight } from "lucide-react";
+import { ProjectWorkflowSubmitButton } from "@/components/ProjectWorkflowSubmitButton";
 
 type ServerAction = (formData: FormData) => void | Promise<void>;
-
 type Props = {
   projectId: string;
-  status?: DeveloperPublicationStatus | string | null;
+  phaseId?: string | null;
+  status?: string | null;
   readiness: { score: number; missing: string[] };
   markReadyAction: ServerAction;
   submitAction: ServerAction;
+  isDemo?: boolean;
 };
 
-const STEPS: Array<{ key: DeveloperPublicationStatus; label: string }> = [
-  { key: "draft", label: "Draft" },
-  { key: "ready", label: "Ready" },
-  { key: "submitted", label: "Submitted" },
-  { key: "changes_requested", label: "Changes requested" },
-  { key: "approved", label: "Approved" },
-  { key: "published", label: "Published" },
-];
-
-const statusIndex = (status?: string | null) => {
-  const index = STEPS.findIndex((step) => step.key === status);
-  return index < 0 ? 0 : index;
+const STATES: Record<string, { label: string; stage: number; message: string }> = {
+  draft: { label: "Draft", stage: 0, message: "Complete the checklist, then send this project to the Brixeler team." },
+  ready: { label: "Ready to submit", stage: 0, message: "Your project is prepared. Submit it when you are ready for review." },
+  submitted: { label: "With the review team", stage: 1, message: "Your project has been submitted. Feedback will appear here; no need to submit again." },
+  changes_requested: { label: "Changes requested", stage: 0, message: "Address the review feedback below, then resubmit your project." },
+  approved: { label: "Approved", stage: 1, message: "Review is complete. Publication is managed by the Brixeler team." },
+  published: { label: "Published", stage: 2, message: "Project publication is approved. Customer visibility also depends on company, phase, and inventory eligibility." },
+  archived: { label: "Archived", stage: 0, message: "Restore this project before preparing it for review." },
 };
 
-export function DeveloperPublicationWorkflow({
-  projectId,
-  status,
-  readiness,
-  markReadyAction,
-  submitAction,
-}: Props) {
-  const activeIndex = statusIndex(status);
+export function DeveloperPublicationWorkflow({ projectId, phaseId, status, readiness, markReadyAction, submitAction, isDemo = false }: Props) {
+  // Unknown states are display-only: never offer a transition we cannot explain.
+  const state = STATES[status ?? "draft"] ?? { label: "Status unavailable", stage: 0, message: "Refresh the project before submitting it for review." };
+  const canPrepare = ["draft", "ready", "changes_requested"].includes(status ?? "draft");
   const blocked = readiness.missing.length > 0;
+  const score = Number.isFinite(readiness.score) ? Math.max(0, Math.min(100, readiness.score)) : 0;
+  const issueHref = (issue: string) => {
+    const key = issue.toLowerCase();
+    const section = /unit|inventory|price|area/.test(key) ? "inventory&inventoryView=types" : /phase/.test(key) ? "phases" : "settings";
+    const anchor = /hero|media|image/.test(key) ? "project-media" : section.startsWith("inventory") ? "project-inventory" : section === "phases" ? "project-phases" : "project-settings";
+    return `/developer/projects/${projectId}?section=${section}${phaseId ? `&phase=${encodeURIComponent(phaseId)}` : ""}#${anchor}`;
+  };
+
   return (
     <section className="rounded-3xl border border-black/5 bg-white p-4 sm:p-5" aria-label="Publication workflow">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Publication workflow</p>
-          <h3 className="mt-1 text-lg font-semibold text-neutral-950">One explicit path to mobile</h3>
-          <p className="mt-1 max-w-2xl text-xs text-neutral-500">Draft content locally, verify the readiness checklist, submit for admin review, and publish only after approval.</p>
+          <h3 className="text-lg font-semibold text-neutral-950">Review & publication</h3>
+          <p className="mt-1 max-w-2xl text-sm text-neutral-500">{state.message}</p>
         </div>
-        <span className="rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-700">Current: {(status ?? "draft").replace(/_/g, " ")}</span>
+        <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${status === "changes_requested" ? "bg-amber-50 text-amber-800" : "bg-neutral-100 text-neutral-700"}`}>{isDemo && status === "published" ? "Published · demo hidden" : state.label}</span>
       </div>
-      <ol className="mt-5 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {STEPS.map((step, index) => {
-          const isCurrent = index === activeIndex;
-          const complete = index < activeIndex && !(status === "changes_requested" && index >= 3);
-          return (
-            <li key={step.key} className={`rounded-2xl border px-3 py-3 ${isCurrent ? "border-black bg-black text-white" : complete ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-black/10 bg-neutral-50 text-neutral-500"}`}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em]">{index + 1}</p>
-              <p className="mt-1 text-xs font-semibold">{step.label}</p>
-            </li>
-          );
-        })}
+      <ol className="mt-5 grid grid-cols-3 gap-2" aria-label="Publication stages">
+        {["Prepare", "Admin review", "Publication"].map((label, index) => (
+          <li key={label} aria-current={index === state.stage ? "step" : undefined} className={`flex items-center gap-2 rounded-xl border px-3 py-3 text-xs font-semibold ${index === state.stage ? "border-black bg-black text-white" : "border-black/10 text-neutral-500"}`}>
+            {index < state.stage ? <Check size={14} aria-hidden="true" /> : <span aria-hidden="true">{index + 1}</span>}{label}
+          </li>
+        ))}
       </ol>
-      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3">
-          <div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-neutral-700">Readiness checklist</span><span className="font-bold text-neutral-900">{readiness.score}%</span></div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white"><span className={`block h-full rounded-full ${readiness.score >= 80 ? "bg-emerald-500" : readiness.score >= 50 ? "bg-amber-400" : "bg-rose-400"}`} style={{ width: `${readiness.score}%` }} /></div>
-          {blocked ? <p className="mt-2 text-xs text-amber-800">Still needed: {readiness.missing.join(", ")}</p> : <p className="mt-2 text-xs text-emerald-700">All local checks are complete. Server validation will run again before transition.</p>}
+      {isDemo ? <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Demo project — hidden from customers, including after approval.</p> : null}
+      <div className="mt-4 rounded-2xl border border-black/10 p-4">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <h4 className="font-semibold text-neutral-900">Before you submit</h4>
+          <span className="text-xs text-neutral-500">{blocked ? `${readiness.missing.length} to complete` : "Checks complete"}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <form action={markReadyAction}>
-            <input type="hidden" name="projectId" value={projectId} />
-            <button type="submit" disabled={blocked} className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-700 disabled:cursor-not-allowed disabled:opacity-40">Mark ready</button>
-          </form>
-          <form action={submitAction}>
-            <input type="hidden" name="projectId" value={projectId} />
-            <button type="submit" disabled={blocked} className="rounded-full bg-black px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Submit for review</button>
-          </form>
-        </div>
+        <div role="progressbar" aria-label="Project completeness" aria-valuenow={score} aria-valuemin={0} aria-valuemax={100} className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100"><span className="block h-full rounded-full bg-neutral-900" style={{ width: `${score}%` }} /></div>
+        {blocked ? (
+          <ul className="mt-3 divide-y divide-black/5">
+            {readiness.missing.map((issue) => <li key={issue}><a href={issueHref(issue)} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm text-neutral-700 hover:text-black"><span>{issue}</span><ChevronRight size={15} aria-hidden="true" /></a></li>)}
+          </ul>
+        ) : <p className="mt-3 text-xs text-neutral-500">The server checks eligibility again when you submit. Saving changes does not publish them.</p>}
       </div>
+      {canPrepare ? <div className="mt-4 flex flex-wrap justify-end gap-2">
+        {status !== "ready" ? <form action={markReadyAction}>
+          <input type="hidden" name="projectId" value={projectId} />
+          <ProjectWorkflowSubmitButton disabled={blocked} pendingLabel="Checking…">Mark ready</ProjectWorkflowSubmitButton>
+        </form> : null}
+        <form action={submitAction}>
+          <input type="hidden" name="projectId" value={projectId} />
+          <ProjectWorkflowSubmitButton disabled={blocked} primary pendingLabel="Submitting…">{status === "changes_requested" ? "Resubmit for review" : "Submit for review"}</ProjectWorkflowSubmitButton>
+        </form>
+      </div> : null}
     </section>
   );
 }

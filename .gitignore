@@ -15,6 +15,7 @@
 /output/
 /.external-council-runs/
 /.ollama-cloud-runs/
+/.serena/
 
 # next.js
 /.next/

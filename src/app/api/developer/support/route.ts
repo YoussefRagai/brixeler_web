@@ -5,7 +5,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 
-const CATEGORIES = ["account", "inventory", "sales", "integrations", "billing", "technical", "other"] as const;
+const CATEGORIES = ["account", "inventory", "sales", "billing", "technical", "other"] as const;
 const PRIORITIES = ["normal", "high", "urgent"] as const;
 
 export async function GET() {

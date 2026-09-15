@@ -18,7 +18,7 @@ const ROLE_OPTIONS: Array<{ value: DeveloperRole; label: string; description: st
   {
     value: "developer_super_admin",
     label: "Developer super admin",
-    description: "Company, team, projects, inventory, and integrations",
+    description: "Company, team, projects, and inventory",
   },
 ];
 

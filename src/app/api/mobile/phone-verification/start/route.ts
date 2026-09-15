@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getMobileUserFromRequest } from "@/lib/mobileSession";
-import { isTwilioVerifyConfigured, startWhatsAppVerification } from "@/lib/twilioVerify";
+import { isTwilioVerifyConfigured, startWhatsAppVerification, TwilioVerifyError } from "@/lib/twilioVerify";
 
 const phonePattern = /^\+[1-9]\d{9,14}$/;
 
@@ -57,6 +57,10 @@ export async function POST(request: Request) {
   try {
     await startWhatsAppVerification(phone);
   } catch (error) {
+    console.error("Twilio WhatsApp verification start failed", {
+      code: error instanceof TwilioVerifyError ? error.code : null,
+      status: error instanceof TwilioVerifyError ? error.status : null,
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to send WhatsApp verification code." },
       { status: 502 },

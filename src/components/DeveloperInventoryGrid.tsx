@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { ProjectWorkflowSubmitButton } from "@/components/ProjectWorkflowSubmitButton";
 import { readSheet } from "read-excel-file/browser";
 import type {
   DeveloperInventoryAvailability,
@@ -22,6 +23,7 @@ type EditableInventory = Pick<
 type Props = {
   projectId: string;
   phaseId: string | null;
+  phaseName?: string;
   rows: DeveloperInventoryRow[];
   savedFilters?: DeveloperInventorySavedFilter[];
   bulkUpdateAction: ServerAction;
@@ -195,6 +197,7 @@ export function DeveloperInventoryGrid({
   projectId,
   phaseId,
   rows,
+  phaseName,
   savedFilters = [],
   bulkUpdateAction,
   importAction,
@@ -206,7 +209,7 @@ export function DeveloperInventoryGrid({
   const [availability, setAvailability] = useState<"all" | DeveloperInventoryAvailability>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [edits, setEdits] = useState<Record<string, Partial<EditableInventory>>>({});
-  const [dryRun, setDryRun] = useState(false);
+  const [showLocalChecks, setShowLocalChecks] = useState(false);
   const [importRows, setImportRows] = useState<Array<Record<string, unknown>>>([]);
   const [importErrors, setImportErrors] = useState<Array<{ row: number; errors: string[] }>>([]);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -231,6 +234,8 @@ export function DeveloperInventoryGrid({
   const selectedErrors = selectedRows.flatMap((row) => localErrors(row).map((message) => ({ id: row.id, message })));
 
   const updateEdit = (id: string, field: keyof EditableInventory, value: string) => {
+    setSelectedIds((current) => current.includes(id) ? current : [...current, id]);
+    setShowLocalChecks(false);
     setEdits((current) => ({ ...current, [id]: { ...(current[id] ?? {}), [field]: value } }));
   };
 
@@ -240,7 +245,7 @@ export function DeveloperInventoryGrid({
     setSelectedIds((current) => allSelected ? current.filter((id) => !visibleIds.includes(id)) : Array.from(new Set([...current, ...visibleIds])));
   };
 
-  const runDryRun = () => setDryRun(true);
+  const runLocalChecks = () => setShowLocalChecks(true);
 
   const exportCsv = () => {
     const header = CSV_COLUMNS.join(",");
@@ -313,8 +318,8 @@ export function DeveloperInventoryGrid({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Inventory operations</p>
-          <h3 className="mt-1 text-lg font-semibold text-neutral-950">Search, edit, hold, and publish-ready units</h3>
-          <p className="mt-1 max-w-2xl text-xs text-neutral-500">Edits stay pending until moderation. Use dry run to inspect row errors before committing a bulk update or import.</p>
+          <h3 className="mt-1 text-lg font-semibold text-neutral-950">Individual units</h3>
+          <p className="mt-1 max-w-2xl text-xs text-neutral-500">Edit a row to select it for saving. Changes are checked before they are saved and still require moderation.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={exportCsv} className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-black/30">Export CSV</button>
@@ -336,13 +341,14 @@ export function DeveloperInventoryGrid({
           </select>
         </label>
         <div className="flex items-end gap-2">
-          <button type="button" onClick={runDryRun} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">Dry run</button>
+          <button type="button" onClick={runLocalChecks} disabled={!selectedIds.length} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">Check changes</button>
           {saveFilterAction ? (
             <form action={saveFilterAction} className="flex items-center gap-1">
               <input type="hidden" name="projectId" value={projectId} />
+              {phaseId ? <input type="hidden" name="phaseId" value={phaseId} /> : null}
               <input type="hidden" name="filter" value={JSON.stringify({ search, availability })} />
-              <input name="name" value={filterName} onChange={(event) => setFilterName(event.target.value)} placeholder="Save filter as…" className="w-32 rounded-xl border border-black/10 px-2 py-2 text-xs" />
-              <button type="submit" className="rounded-xl border border-black/10 px-2 py-2 text-xs font-semibold text-neutral-700">Save</button>
+              <input name="name" aria-label="Saved filter name" value={filterName} onChange={(event) => setFilterName(event.target.value)} placeholder="Save filter as…" className="w-32 rounded-xl border border-black/10 px-2 py-2 text-xs" />
+              <ProjectWorkflowSubmitButton pendingLabel="Saving…">Save filter</ProjectWorkflowSubmitButton>
             </form>
           ) : null}
         </div>
@@ -358,18 +364,17 @@ export function DeveloperInventoryGrid({
       {selectedIds.length ? (
         <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-neutral-800">{selectedIds.length} selected · inline edits are ready</p>
+            <p className="text-xs font-semibold text-neutral-800">{selectedIds.length} selected · review changes before saving</p>
             <form action={bulkUpdateAction} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="projectId" value={projectId} />
               {phaseId ? <input type="hidden" name="phaseId" value={phaseId} /> : null}
               <input type="hidden" name="rows" value={JSON.stringify(selectedRows)} />
-              <input type="hidden" name="dryRun" value={dryRun ? "true" : "false"} />
-              <button type="submit" className="rounded-full bg-black px-3 py-2 text-xs font-semibold text-white">{dryRun ? "Submit dry run" : "Save selected rows"}</button>
-              <button type="button" onClick={() => setDryRun(false)} className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-600">Commit mode</button>
+              <input type="hidden" name="dryRun" value="false" />
+              <ProjectWorkflowSubmitButton primary disabled={!phaseId || selectedErrors.length > 0} pendingLabel="Saving…">Save selected changes</ProjectWorkflowSubmitButton>
             </form>
           </div>
-          {dryRun && selectedErrors.length ? <div className="mt-2 text-xs text-rose-700">{selectedErrors.map((error) => <p key={`${error.id}-${error.message}`}>Row {error.id.slice(0, 8)}: {error.message}</p>)}</div> : null}
-          {dryRun && !selectedErrors.length ? <p className="mt-2 text-xs text-emerald-700">Local dry run passed. Server validation will run again before any write.</p> : null}
+          {showLocalChecks && selectedErrors.length ? <div className="mt-2 text-xs text-rose-700">{selectedErrors.map((error) => <p key={`${error.id}-${error.message}`}>Row {error.id.slice(0, 8)}: {error.message}</p>)}</div> : null}
+          {showLocalChecks && !selectedErrors.length ? <p className="mt-2 text-xs text-emerald-700">Local checks passed. Save when ready; the server will validate again before writing.</p> : null}
         </div>
       ) : null}
 
@@ -383,15 +388,8 @@ export function DeveloperInventoryGrid({
                 <input type="hidden" name="projectId" value={projectId} />
                 {phaseId ? <input type="hidden" name="phaseId" value={phaseId} /> : null}
                 <input type="hidden" name="rows" value={JSON.stringify(importRows)} />
-                <input type="hidden" name="dryRun" value="true" />
-                <button type="submit" className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">Validate on server</button>
-              </form>
-              <form action={importAction}>
-                <input type="hidden" name="projectId" value={projectId} />
-                {phaseId ? <input type="hidden" name="phaseId" value={phaseId} /> : null}
-                <input type="hidden" name="rows" value={JSON.stringify(importRows)} />
                 <input type="hidden" name="dryRun" value="false" />
-                <button type="submit" disabled={Boolean(importErrors.length)} className="rounded-full bg-black px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Import pending rows</button>
+                <ProjectWorkflowSubmitButton primary disabled={!phaseId || Boolean(importErrors.length)} pendingLabel="Importing…">Import pending rows</ProjectWorkflowSubmitButton>
               </form>
             </div>
           </div>
@@ -411,17 +409,17 @@ export function DeveloperInventoryGrid({
             {visibleRows.map((row) => {
               const original = rows.find((item) => item.id === row.id);
               const hold = original?.active_hold;
-              const rowError = dryRun ? localErrors(row) : [];
+              const rowError = showLocalChecks ? localErrors(row) : [];
               return (
                 <tr key={row.id} className="border-t border-black/5 align-top">
                   <td className="px-3 py-3"><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => setSelectedIds((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])} aria-label={`Select ${row.property_name}`} /></td>
-                  <td className="px-3 py-3"><input value={row.property_name} onChange={(event) => updateEdit(row.id, "property_name", event.target.value)} className="w-44 rounded-lg border border-black/10 px-2 py-1.5 text-sm" /><p className="mt-1 text-[10px] text-neutral-400">{row.id.slice(0, 8)}</p></td>
-                  <td className="space-y-1 px-3 py-3"><input value={emptyValue(row.inventory_code)} onChange={(event) => updateEdit(row.id, "inventory_code", event.target.value)} placeholder="Inventory code" className="w-28 rounded-lg border border-black/10 px-2 py-1.5" /><div className="flex gap-1"><input value={emptyValue(row.building)} onChange={(event) => updateEdit(row.id, "building", event.target.value)} placeholder="Building" className="w-20 rounded-lg border border-black/10 px-2 py-1.5" /><input value={emptyValue(row.unit_number)} onChange={(event) => updateEdit(row.id, "unit_number", event.target.value)} placeholder="Unit" className="w-20 rounded-lg border border-black/10 px-2 py-1.5" /></div></td>
-                  <td className="px-3 py-3"><input type="number" min="100000" step="0.01" value={row.price} onChange={(event) => updateEdit(row.id, "price", event.target.value)} className="w-32 rounded-lg border border-black/10 px-2 py-1.5" /></td>
-                  <td className="px-3 py-3"><input type="number" min="10" step="0.01" value={row.unit_area} onChange={(event) => updateEdit(row.id, "unit_area", event.target.value)} className="w-24 rounded-lg border border-black/10 px-2 py-1.5" /></td>
-                  <td className="px-3 py-3"><select value={row.availability_state} onChange={(event) => updateEdit(row.id, "availability_state", event.target.value)} className="rounded-lg border border-black/10 px-2 py-1.5"><option value="available">available</option>{AVAILABILITY_STATES.filter((state) => state !== "available").map((state) => <option key={state} value={state}>{state}</option>)}</select>{row.availability_state === "held" ? <input type="datetime-local" value={formatDateTime(row.hold_expires_at)} onChange={(event) => updateEdit(row.id, "hold_expires_at", event.target.value)} className="mt-1 rounded-lg border border-black/10 px-2 py-1.5" /> : null}{rowError.length ? <p className="mt-1 max-w-36 text-[10px] text-rose-700">{rowError.join(" · ")}</p> : null}</td>
-                  <td className="px-3 py-3"><input type="datetime-local" value={formatDateTime(row.price_effective_from)} onChange={(event) => updateEdit(row.id, "price_effective_from", event.target.value)} className="rounded-lg border border-black/10 px-2 py-1.5" /></td>
-                  <td className="px-3 py-3">{hold ? <div className="space-y-1"><p className="text-amber-800">Until {new Date(hold.expires_at).toLocaleString()}</p><form action={releaseHoldAction}><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="holdId" value={hold.id} /><button type="submit" className="text-[10px] font-semibold text-rose-700 underline">Release hold</button></form></div> : row.availability_state === "held" ? <form action={holdAction} className="space-y-1"><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="propertyId" value={row.id} /><input type="hidden" name="expiresAt" value={row.hold_expires_at ?? ""} /><input name="holderReference" placeholder="Holder reference" className="w-28 rounded-lg border border-black/10 px-2 py-1.5" /><button type="submit" className="rounded-lg bg-amber-500 px-2 py-1.5 text-[10px] font-semibold text-white">Create hold</button></form> : <span className="text-neutral-400">—</span>}</td>
+                  <td className="px-3 py-3"><input aria-label={`Unit name for ${row.property_name}`} value={row.property_name} onChange={(event) => updateEdit(row.id, "property_name", event.target.value)} className="w-44 rounded-lg border border-black/10 px-2 py-1.5 text-sm" /><p className="mt-1 text-[10px] text-neutral-400">{row.id.slice(0, 8)}</p></td>
+                  <td className="space-y-1 px-3 py-3"><input aria-label={`Inventory code for ${row.property_name}`} value={emptyValue(row.inventory_code)} onChange={(event) => updateEdit(row.id, "inventory_code", event.target.value)} placeholder="Inventory code" className="w-28 rounded-lg border border-black/10 px-2 py-1.5" /><div className="flex gap-1"><input aria-label={`Building for ${row.property_name}`} value={emptyValue(row.building)} onChange={(event) => updateEdit(row.id, "building", event.target.value)} placeholder="Building" className="w-20 rounded-lg border border-black/10 px-2 py-1.5" /><input aria-label={`Unit number for ${row.property_name}`} value={emptyValue(row.unit_number)} onChange={(event) => updateEdit(row.id, "unit_number", event.target.value)} placeholder="Unit" className="w-20 rounded-lg border border-black/10 px-2 py-1.5" /></div></td>
+                  <td className="px-3 py-3"><input aria-label={`Price in EGP for ${row.property_name}`} type="number" min="100000" step="0.01" value={row.price} onChange={(event) => updateEdit(row.id, "price", event.target.value)} className="w-32 rounded-lg border border-black/10 px-2 py-1.5" /></td>
+                  <td className="px-3 py-3"><input aria-label={`Area in square metres for ${row.property_name}`} type="number" min="10" step="0.01" value={row.unit_area} onChange={(event) => updateEdit(row.id, "unit_area", event.target.value)} className="w-24 rounded-lg border border-black/10 px-2 py-1.5" /></td>
+                  <td className="px-3 py-3"><select aria-label={`Availability for ${row.property_name}`} value={row.availability_state} onChange={(event) => updateEdit(row.id, "availability_state", event.target.value)} className="rounded-lg border border-black/10 px-2 py-1.5"><option value="available">available</option>{AVAILABILITY_STATES.filter((state) => state !== "available").map((state) => <option key={state} value={state}>{state}</option>)}</select>{row.availability_state === "held" ? <input aria-label={`Hold expiry for ${row.property_name}`} type="datetime-local" value={formatDateTime(row.hold_expires_at)} onChange={(event) => updateEdit(row.id, "hold_expires_at", event.target.value)} className="mt-1 rounded-lg border border-black/10 px-2 py-1.5" /> : null}{rowError.length ? <p className="mt-1 max-w-36 text-[10px] text-rose-700">{rowError.join(" · ")}</p> : null}</td>
+                  <td className="px-3 py-3"><input aria-label={`Price effective date for ${row.property_name}`} type="datetime-local" value={formatDateTime(row.price_effective_from)} onChange={(event) => updateEdit(row.id, "price_effective_from", event.target.value)} className="rounded-lg border border-black/10 px-2 py-1.5" /></td>
+                  <td className="px-3 py-3">{hold ? <div className="space-y-1"><p className="text-amber-800">Until {new Date(hold.expires_at).toLocaleString()}</p><form action={releaseHoldAction}><input type="hidden" name="projectId" value={projectId} />{phaseId ? <input type="hidden" name="phaseId" value={phaseId} /> : null}<input type="hidden" name="holdId" value={hold.id} /><ProjectWorkflowSubmitButton pendingLabel="Releasing…">Release hold</ProjectWorkflowSubmitButton></form></div> : row.availability_state === "held" ? <form action={holdAction} className="space-y-1"><input type="hidden" name="projectId" value={projectId} />{phaseId ? <input type="hidden" name="phaseId" value={phaseId} /> : null}<input type="hidden" name="propertyId" value={row.id} /><input type="hidden" name="expiresAt" value={row.hold_expires_at ?? ""} /><input aria-label={`Holder reference for ${row.property_name}`} name="holderReference" placeholder="Holder reference" className="w-28 rounded-lg border border-black/10 px-2 py-1.5" /><ProjectWorkflowSubmitButton pendingLabel="Creating hold…">Create hold</ProjectWorkflowSubmitButton></form> : <span className="text-neutral-400">—</span>}</td>
                   <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${row.publication_status === "published" ? "bg-emerald-100 text-emerald-800" : row.publication_status === "changes_requested" ? "bg-rose-100 text-rose-800" : "bg-neutral-100 text-neutral-600"}`}>{(row.publication_status ?? "draft").replace(/_/g, " ")}</span></td>
                 </tr>
               );
@@ -430,7 +428,8 @@ export function DeveloperInventoryGrid({
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-[11px] text-neutral-400">Showing {visibleRows.length} of {editedRows.length} active developer units · changes are scoped to phase {phaseId ? phaseId.slice(0, 8) : "not selected"}.</p>
+      <p className="mt-3 text-xs text-neutral-500">Publication here is the unit record status, not confirmation that customers can see it. Project and phase approval still apply.</p>
+      <p className="mt-2 text-[11px] text-neutral-400">Showing {visibleRows.length} of {editedRows.length} active developer units · changes apply only to {phaseName || "the selected phase"}.</p>
     </section>
   );
 }

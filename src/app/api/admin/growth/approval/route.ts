@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   if (!body.ok) return NextResponse.json({ error: body.error }, { status: 400 });
   const parsed = parseApprovalInput(body.value);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const { entity_type: entityType, entity_id: entityId, decision, rejection_reason: rejectionReason } = parsed.value;
+  const { entity_type: entityType, entity_id: entityId, decision, rejection_reason: rejectionReason, expected_version: expectedVersion } = parsed.value;
 
   // Commission-affecting tiers/rules require a super admin. Marketing admins
   // can prepare and reject other records, but approval of any broad campaign
@@ -39,6 +39,9 @@ export async function POST(request: Request) {
   if (currentError) return NextResponse.json({ error: growthErrorMessage(currentError, "Unable to load Growth item") }, { status: 500 });
   if (!current) return NextResponse.json({ error: "Growth item not found" }, { status: 404 });
   const currentRecord = current as unknown as Record<string, unknown>;
+  if (currentRecord.version !== expectedVersion) {
+    return NextResponse.json({ error: "This Growth item changed. Refresh and review the latest version." }, { status: 409 });
+  }
   const highRisk = ["tier", "gift_rule", "admin_rule"].includes(entityType)
     || (entityType === "badge" && currentRecord.benefit_type === "commission_boost")
     || (entityType === "gift" && currentRecord.gift_type === "cash");
@@ -73,12 +76,16 @@ export async function POST(request: Request) {
   // Keep the legacy flag aligned with the canonical lifecycle and approval
   // state. Live visibility/evaluation is only enabled after approval.
   const lifecycleState = currentRecord.lifecycle_state;
-  if (entityType !== "notification_campaign") {
+  if (entityType !== "notification_campaign" && entityType !== "audience") {
     update.is_active = decision === "approved" && (lifecycleState === "active" || lifecycleState === "scheduled");
   }
   if (["gift", "tier", "badge", "gift_rule", "admin_rule", "audience"].includes(entityType)) update.updated_by_admin = admin.adminId;
   if (entityType === "notification_campaign" || entityType === "audience") update.updated_by = admin.adminId;
   if (entityType === "audience") {
+    // Active/scheduled audiences require pending or approved review in the DB.
+    if (decision === "rejected" && (lifecycleState === "active" || lifecycleState === "scheduled")) {
+      update.lifecycle_state = "draft";
+    }
     update.published_at = decision === "approved" && (lifecycleState === "active" || lifecycleState === "scheduled")
       ? new Date().toISOString()
       : null;
@@ -87,9 +94,11 @@ export async function POST(request: Request) {
     .from(resource.table)
     .update(update)
     .eq("id", entityId)
+    .eq("version", expectedVersion)
     .select("*")
-    .single();
+    .maybeSingle();
   if (error) return NextResponse.json({ error: growthErrorMessage(error, "Unable to update Growth approval") }, { status: 400 });
+  if (!data) return NextResponse.json({ error: "This Growth item changed. Refresh and review the latest version." }, { status: 409 });
   await logAdminActivity({ adminId: admin.adminId, action: `growth.${entityType}.${decision}`, resourceType: resource.table, resourceId: entityId, metadata: { rejection_reason: rejectionReason } });
   return NextResponse.json({ item: data, approval_status: decision });
 }

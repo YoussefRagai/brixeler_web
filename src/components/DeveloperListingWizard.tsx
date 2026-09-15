@@ -94,11 +94,13 @@ export function DeveloperListingWizard({
     if (!rawDraft) return;
     try {
       const draft = JSON.parse(rawDraft) as Record<string, DraftValue>;
+      const retryProject = new URLSearchParams(window.location.search).get("retryProject") === "1" && projects.some((project) => project.id === preselectedProjectId);
       const savedProjectMode = draft.__projectMode?.value === "existing" || draft.__projectMode?.value === "new"
         ? draft.__projectMode.value
         : null;
       const restore = window.setTimeout(() => {
-        if (savedProjectMode) setProjectMode(savedProjectMode);
+        if (retryProject) setProjectMode("existing");
+        else if (savedProjectMode) setProjectMode(savedProjectMode);
           window.requestAnimationFrame(() => {
             let restored = false;
             for (const { control, key } of getDraftControls(form)) {
@@ -111,7 +113,7 @@ export function DeveloperListingWizard({
             }
               restored = true;
             }
-            const restoredProjectId = (form.elements.namedItem("projectId") as HTMLSelectElement | null)?.value ?? "";
+            const restoredProjectId = retryProject ? preselectedProjectId : (form.elements.namedItem("projectId") as HTMLSelectElement | null)?.value ?? "";
             const restoredProject = projects.find((project) => project.id === restoredProjectId);
             const restoredPhaseId = (form.elements.namedItem("phaseId") as HTMLSelectElement | null)?.value ?? "";
             const restoredPhaseIsActive = restoredProject?.phases?.some((phase) => phase.id === restoredPhaseId && !phase.archived_at && phase.lifecycle_state !== "archived");
@@ -127,7 +129,7 @@ export function DeveloperListingWizard({
     } catch {
       removeDraft(draftKey);
     }
-  }, [draftKey, projects]);
+  }, [draftKey, projects, preselectedProjectId]);
 
   const persistDraft = () => {
     const form = formRef.current;

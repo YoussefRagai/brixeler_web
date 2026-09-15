@@ -1,0 +1,22 @@
+begin;
+insert into auth.users(id,email) values ('33333333-3333-4333-8333-333333333333','support-dev@example.invalid'),('44444444-4444-4444-8444-444444444444','support-admin@example.invalid');
+insert into public.developers(id,name) values ('11111111-1111-4111-8111-111111111111','Support tenant one'),('22222222-2222-4222-8222-222222222222','Support tenant two');
+insert into public.developer_accounts(id,developer_id,auth_user_id,role,status,email,activated_at) values ('55555555-5555-4555-8555-555555555555','11111111-1111-4111-8111-111111111111','33333333-3333-4333-8333-333333333333','project_manager','active','support-dev@example.invalid',now());
+insert into public.admins(id,role,roles,is_active,permissions) values ('44444444-4444-4444-8444-444444444444','developers_admin',array['developers_admin'::public.admin_role],true,'{"developer_ids":["11111111-1111-4111-8111-111111111111"]}');
+do $$ declare ticket uuid; failed boolean := false; begin
+  ticket := public.create_developer_support_ticket('11111111-1111-4111-8111-111111111111','55555555-5555-4555-8555-555555555555','Support regression','technical','normal','Help');
+  perform public.developer_support_conversation_action(ticket,'11111111-1111-4111-8111-111111111111','44444444-4444-4444-8444-444444444444',true,'reply','Admin response');
+  if not exists(select 1 from public.developer_support_tickets where id=ticket and unread_for_developer and not unread_for_admin and status='waiting_on_developer') then raise exception 'Reply state not synchronized'; end if;
+  if not exists(select 1 from public.developer_support_messages where ticket_id=ticket and author_admin_id='44444444-4444-4444-8444-444444444444' and body='Admin response') then raise exception 'Reply missing'; end if;
+  begin perform public.developer_support_conversation_action(ticket,'22222222-2222-4222-8222-222222222222','55555555-5555-4555-8555-555555555555',false,'reply','Leak'); exception when others then failed:=true; end;
+  if not failed then raise exception 'Cross tenant developer reply allowed'; end if;
+  failed:=false;
+  begin perform public.developer_support_conversation_action(ticket,'22222222-2222-4222-8222-222222222222','44444444-4444-4444-8444-444444444444',true,'reply','Leak'); exception when others then failed:=true; end;
+  if not failed then raise exception 'Cross tenant admin reply allowed'; end if;
+  perform public.developer_support_conversation_action(ticket,'11111111-1111-4111-8111-111111111111','55555555-5555-4555-8555-555555555555',false,'read');
+  if exists(select 1 from public.developer_support_tickets where id=ticket and unread_for_developer) then raise exception 'Read not persisted'; end if;
+  perform public.developer_support_conversation_action(ticket,'11111111-1111-4111-8111-111111111111','55555555-5555-4555-8555-555555555555',false,'reply','Thanks');
+  if not exists(select 1 from public.developer_support_tickets where id=ticket and unread_for_admin and not unread_for_developer) then raise exception 'Developer reply not delivered'; end if;
+  if has_function_privilege('authenticated','public.developer_support_conversation_action(uuid,uuid,uuid,boolean,text,text)','execute') then raise exception 'RPC exposed'; end if;
+end $$;
+rollback;

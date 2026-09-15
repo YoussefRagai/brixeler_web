@@ -5,13 +5,11 @@ import test from "node:test";
 const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
 
 test("dark dashboard controls keep a readable foreground inside the light compatibility layer", () => {
-  const lightOverride = css.indexOf(".glassless .text-white");
-  const darkOverride = css.indexOf(".glassless .bg-black.text-white");
-
-  assert.ok(lightOverride >= 0, "expected the legacy light-dashboard text remap");
-  assert.ok(darkOverride > lightOverride, "dark-control exception must follow the light text remap");
-  assert.match(css, /\.glassless \.bg-black\.text-white[\s\S]*color:\s*#fff\s*!important/);
-  assert.match(css, /\[class~="bg-black\/60"\]\.text-white/);
+  assert.match(css, /\.dashboard-shell :is\(\.bg-white[\s\S]*?--dashboard-ink: #050505/);
+  assert.match(css, /\.dashboard-shell :is\(\.bg-black[\s\S]*?--dashboard-ink: #fff/);
+  assert.match(css, /\.dashboard-shell \.text-white,[\s\S]*?color: var\(--dashboard-ink\) !important/);
+  assert.match(css, /\[class~="bg-black\/60"\]/);
+  assert.doesNotMatch(css, /\.glassless \.bg-black \.text-white/);
 });
 
 test("developer media fields support picker, drag-and-drop, and safe URL entry", () => {

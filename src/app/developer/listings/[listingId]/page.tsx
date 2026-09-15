@@ -5,7 +5,7 @@ import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { DeveloperListingProjectFields } from "@/components/DeveloperListingProjectFields";
 import { DeveloperMediaField } from "@/components/DeveloperMediaField";
 import { currentDeveloperImpersonation, requireDeveloperCapability } from "@/lib/developerAuth";
-import { archiveDeveloperListing, fetchDeveloperListing, fetchDeveloperProjects, updateDeveloperListing, requestListingRenewal, validateDeveloperProjectPhase } from "@/lib/developerQueries";
+import { archiveDeveloperListing, fetchDeveloperListing, fetchDeveloperProfile, fetchDeveloperProjects, updateDeveloperListing, requestListingRenewal, validateDeveloperProjectPhase } from "@/lib/developerQueries";
 import { resolveDeveloperListingMedia } from "@/lib/developerListingMedia";
 import { removeUploadedStorageObjects } from "@/lib/storageServer";
 import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes } from "react";
@@ -25,10 +25,11 @@ interface Props {
 export default async function EditListingPage({ params, searchParams }: Props) {
   const session = await requireDeveloperCapability("manage_inventory");
   const feedback = (await searchParams) ?? {};
-  const [listing, projects, impersonation] = await Promise.all([
+  const [listing, projects, impersonation, profile] = await Promise.all([
     fetchDeveloperListing(params.listingId, session.developerId),
     fetchDeveloperProjects(session.developerId),
     currentDeveloperImpersonation(),
+    fetchDeveloperProfile(session.developerId),
   ]);
   if (!listing) {
     notFound();
@@ -44,6 +45,7 @@ export default async function EditListingPage({ params, searchParams }: Props) {
 
   const price = typeof listing.price === "string" ? Number(listing.price) : listing.price ?? 0;
   const visibility = listing.is_active === false ? "hidden" : "public";
+  const mobileVisibility = listingMobileVisibility(listing, projects, profile);
   const expiresLabel = listing.expires_at
     ? new Date(listing.expires_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
@@ -209,7 +211,7 @@ export default async function EditListingPage({ params, searchParams }: Props) {
           <div className="space-y-2 p-4">
             <div className="flex items-start justify-between gap-3">
               <p className="font-semibold">{listing.property_name}</p>
-              {listing.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-bold text-amber-800">DEMO</span> : null}
+              {mobileVisibility.isDemo ? <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-bold text-amber-800">DEMO</span> : null}
             </div>
             <p className="text-xs text-neutral-500">{listing.specific_location || "Location missing"}</p>
             <p className="text-lg font-semibold">EGP {price.toLocaleString()}</p>
@@ -222,8 +224,8 @@ export default async function EditListingPage({ params, searchParams }: Props) {
         </div>
         <ul className="mt-4 space-y-2 text-xs text-white/65">
           <li>{listing.approval_status === "approved" ? "✓ Approved" : listing.approval_status === "rejected" ? "! Changes requested" : "○ Awaiting approval"}</li>
-          <li>{listing.approval_status === "approved" && listing.published_at ? "✓ Published to mobile" : "○ Not published to mobile"}</li>
-          <li>{visibility === "public" ? "✓ Visible to agents" : "○ Hidden from agents"}</li>
+          <li>{listing.approval_status === "approved" && listing.published_at ? "✓ Publication approved" : "○ Publication not approved"}</li>
+          <li>{mobileVisibility.visible ? "✓ Visible to agents" : mobileVisibility.isDemo ? "○ Demo · hidden from agents" : "○ Hidden from agents"}</li>
           <li>{Array.isArray(listing.photos) && listing.photos.length >= 3 ? "✓ Three or more photos" : "○ Add at least three photos"}</li>
           <li>{listing.description ? "✓ Description supplied" : "○ Description missing"}</li>
         </ul>
@@ -231,6 +233,29 @@ export default async function EditListingPage({ params, searchParams }: Props) {
       </section>
     </DeveloperLayout>
   );
+}
+
+function listingMobileVisibility(
+  listing: NonNullable<Awaited<ReturnType<typeof fetchDeveloperListing>>>,
+  projects: Awaited<ReturnType<typeof fetchDeveloperProjects>>,
+  profile: Awaited<ReturnType<typeof fetchDeveloperProfile>>,
+) {
+  const project = projects.find((item) => item.id === listing.project_id);
+  const isDemo = Boolean(listing.is_demo || project?.is_demo || profile?.is_demo);
+  const hidden = { visible: false, isDemo };
+  if (isDemo || !profile?.is_active || profile.lifecycle_state !== "published" || !profile.published_at) return hidden;
+  if (listing.archived_at || listing.is_active === false || listing.approval_status !== "approved" || !listing.published_at) return hidden;
+  if (listing.availability_state && !["available", "released"].includes(listing.availability_state)) return hidden;
+  if (listing.expires_at && new Date(listing.expires_at).getTime() <= Date.now()) return hidden;
+  if (listing.project_id) {
+    if (!project || project.approval_status !== "approved" || project.lifecycle_state !== "published" || !project.published_at) return hidden;
+    if (listing.phase_id) {
+      const phase = project.developer_project_phases?.find((item) => item.id === listing.phase_id);
+      if (!phase || phase.archived_at || phase.approval_status !== "approved" || phase.lifecycle_state !== "published" || !phase.published_at) return hidden;
+      if (!project.project_unit_types?.some((unit) => unit.phase_id === phase.id && !unit.archived_at)) return hidden;
+    }
+  }
+  return { visible: true, isDemo };
 }
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & { label: string; as?: "input" };

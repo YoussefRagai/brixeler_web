@@ -177,9 +177,9 @@ test("admin Growth compatibility routes expose the delegated paths", () => {
 });
 
 test("approval payloads normalize decisions and require rejection reasons", () => {
-  const approved = parseApprovalInput({ entity_type: "badge", entity_id: "00000000-0000-4000-8000-000000000001", decision: "approve" });
+  const approved = parseApprovalInput({ entity_type: "badge", entity_id: "00000000-0000-4000-8000-000000000001", decision: "approve", expected_version: 1 });
   assert.equal(approved.ok, true);
   if (approved.ok) assert.equal(approved.value.decision, "approved");
-  assert.equal(parseApprovalInput({ entity_type: "audience", entity_id: "00000000-0000-4000-8000-000000000001", decision: "approve" }).ok, true);
-  assert.equal(parseApprovalInput({ entity_type: "gift", entity_id: "00000000-0000-4000-8000-000000000001", decision: "reject" }).ok, false);
+  assert.equal(parseApprovalInput({ entity_type: "audience", entity_id: "00000000-0000-4000-8000-000000000001", decision: "approve", expected_version: 1 }).ok, true);
+  assert.equal(parseApprovalInput({ entity_type: "gift", entity_id: "00000000-0000-4000-8000-000000000001", decision: "reject", expected_version: 1 }).ok, false);
 });

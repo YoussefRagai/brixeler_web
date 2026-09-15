@@ -54,10 +54,12 @@ export function isDeveloperRole(value: unknown): value is DeveloperRole {
 }
 
 /**
- * Capability matrix shared with the database migration.  A super admin is the
- * only role with company, team, and integration authority.  Project managers
- * own project content and analytics; sales managers own inventory and the
- * contacts inbox.
+ * Capability matrix shared with the database migration. A super admin is the
+ * only role with company and team authority. The historical
+ * `manage_integrations` capability remains in this closed contract for
+ * membership/database compatibility, but the optional integration product
+ * surface is no longer exposed by the dashboard. Project managers own project
+ * content and analytics; sales managers own inventory and the contacts inbox.
  */
 const CAPABILITIES_BY_ROLE: Record<DeveloperRole, readonly DeveloperCapability[]> = {
   developer_super_admin: DEVELOPER_CAPABILITIES,

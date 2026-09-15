@@ -4,6 +4,7 @@ import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { PrintButton } from "@/components/PrintButton";
 import { summarizeGiftGrowthMetrics } from "@/lib/growthAnalytics";
+import { readReportRows } from "@/lib/reportRows";
 
 const formatCurrency = (value: number) =>
   value.toLocaleString("en-EG", {
@@ -18,11 +19,12 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
   }
 
   let dealsQuery = supabaseServer
-    .from("deals")
-    .select("status, sale_amount, submitted_at, paid_at")
-    .order("submitted_at", { ascending: false });
-  if (dateFrom) dealsQuery = dealsQuery.gte("submitted_at", new Date(`${dateFrom}T00:00:00`).toISOString());
-  if (dateTo) dealsQuery = dealsQuery.lte("submitted_at", new Date(`${dateTo}T23:59:59`).toISOString());
+    .from("workspace_operations")
+    .select("status, sale_amount, created_at, payment_approved_at")
+    .eq("stage", "SalesClaim")
+    .order("created_at", { ascending: false }).order("id");
+  if (dateFrom) dealsQuery = dealsQuery.gte("created_at", new Date(`${dateFrom}T00:00:00Z`).toISOString());
+  if (dateTo) dealsQuery = dealsQuery.lte("created_at", new Date(`${dateTo}T23:59:59.999Z`).toISOString());
   const eligibilityQuery = supabaseServer
     .from("gift_eligibilities")
     .select("status, eligible_at")
@@ -58,7 +60,7 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
     notificationsQuery.lte("created_at", to);
   }
   const [
-    { data: deals },
+    { data: deals, error: dealsError },
     { count: approvedListings },
     { count: pendingListings },
     { data: profiles },
@@ -69,7 +71,7 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
     { data: growthNotifications },
   ] =
     await Promise.all([
-      dealsQuery,
+      readReportRows(dealsQuery).then(data => ({ data, error: null })),
       supabaseServer
         .from("properties")
         .select("*", { count: "exact", head: true })
@@ -86,14 +88,15 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
       notificationsQuery,
     ]);
 
+  if (dealsError) throw dealsError;
   const dealRows = deals ?? [];
   const totalDeals = dealRows.length;
-  const paidDeals = dealRows.filter((deal) => deal.status === "paid").length;
-  const submittedDeals = dealRows.filter((deal) => deal.status === "submitted").length;
-  const totalRevenue = dealRows.reduce((sum, deal) => sum + Number(deal.sale_amount ?? 0), 0);
+  const paidDeals = dealRows.filter((deal) => deal.status === "Paid").length;
+  const submittedDeals = dealRows.filter((deal) => deal.status === "Submitted").length;
+  const totalRevenue = dealRows.filter((deal) => !["Paid", "Rejected"].includes(deal.status)).reduce((sum, deal) => sum + (Number.isFinite(Number(deal.sale_amount)) ? Number(deal.sale_amount) : 0), 0);
   const paidRevenue = dealRows
-    .filter((deal) => deal.status === "paid")
-    .reduce((sum, deal) => sum + Number(deal.sale_amount ?? 0), 0);
+    .filter((deal) => deal.status === "Paid")
+    .reduce((sum, deal) => sum + (Number.isFinite(Number(deal.sale_amount)) ? Number(deal.sale_amount) : 0), 0);
 
   const referralTotals = (profiles ?? []).reduce(
     (acc, profile) => {
@@ -115,15 +118,15 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
   return {
     cards: [
       {
-        title: "Deal health",
+        title: "Sales claim health",
         points: [
-          `${totalDeals} total deals`,
+          `${totalDeals} sales claim entries`,
           `${submittedDeals} still submitted`,
           `${paidDeals} fully paid`,
         ],
       },
       {
-        title: "Revenue",
+        title: "Sales claim value",
         points: [
           `${formatCurrency(totalRevenue)} total pipeline`,
           `${formatCurrency(paidRevenue)} fully paid`,

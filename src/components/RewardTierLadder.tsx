@@ -89,7 +89,7 @@ export function RewardTierLadder({
                   </p>
                   <p className="mt-3 border-t border-black/10 pt-2 text-[10px] font-semibold text-[#4c5d11]">{benefitLabel(tier)}</p>
                   <div className="mt-2 flex items-start justify-between gap-2">
-                    <GrowthApprovalControls entityType="tier" entityId={tier.id} status={tier.approval_status ?? "not_required"} canApprove={canApprove} />
+                    <GrowthApprovalControls entityType="tier" entityId={tier.id} expectedVersion={tier.version ?? 1} status={tier.approval_status ?? "not_required"} canApprove={canApprove} />
                     <GrowthVersionHistory entityType="tier" entityId={tier.id} currentVersion={tier.version ?? 1} />
                   </div>
                 </article>

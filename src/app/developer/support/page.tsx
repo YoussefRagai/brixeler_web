@@ -11,5 +11,5 @@ export default async function DeveloperSupportPage() {
     fetchDeveloperSupportTickets(session.developerId),
     currentDeveloperImpersonation(),
   ]);
-  return <DeveloperLayout title="Support & help" description="Get help with account access, inventory, sales operations, and integrations." impersonation={impersonation}><DeveloperSupportCenter initialTickets={tickets} /></DeveloperLayout>;
+  return <DeveloperLayout title="Support & help" description="Get help with account access, inventory, and sales operations." impersonation={impersonation}><DeveloperSupportCenter initialTickets={tickets} /></DeveloperLayout>;
 }

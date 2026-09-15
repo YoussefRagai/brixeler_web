@@ -53,7 +53,7 @@ export default async function DeveloperProfilePage({
   );
   if (!isSupabaseConfigured) {
     return (
-      <DeveloperLayout title="Profile" description="Control how Brixeler presents your brand." impersonation={impersonation}>
+      <DeveloperLayout title="Profile" description="Control how Brixeler presents your brand." impersonation={impersonation} preview>
         <div className="rounded-3xl border border-black/5 bg-white p-6 text-sm text-neutral-600">
           Supabase environment variables are missing. Set `NEXT_PUBLIC_SUPABASE_URL` and
           `SUPABASE_SERVICE_ROLE_KEY` in your deployment environment to enable profile management.
@@ -387,32 +387,41 @@ function revisionNote(revision: ProfileRevision | null) {
   return date ? `Submitted ${formatDateTime(date)}.` : "Submitted for review.";
 }
 
-function publicProfileLabel(state: PublicProfileState, profile: { name?: string | null } | null) {
+type PublicProfileIdentity = { name?: string | null; is_demo?: boolean | null; is_active?: boolean | null };
+
+function publicProfileLabel(state: PublicProfileState, profile: PublicProfileIdentity | null) {
   if (!profile) return "Public profile unavailable";
+  if (profile.is_demo || !profile.is_active) return "Saved identity";
   if (!state.contractAvailable) return "Current identity";
   if (!state.lifecycleState) return "Current identity";
   if (state.lifecycleState === "draft") return "Draft public identity";
   if (state.lifecycleState === "archived") return "Archived identity";
-  return "Published now";
+  return state.lifecycleState === "published" && state.publishedAt ? "Published now" : "Saved identity";
 }
 
-function publicProfileStatus(state: PublicProfileState, profile: { name?: string | null } | null) {
+function publicProfileStatus(state: PublicProfileState, profile: PublicProfileIdentity | null) {
   if (!profile) return "Not available";
   if (!state.contractAvailable) return "Publication state unavailable";
   if (!state.lifecycleState) return "Current public profile";
   if (state.lifecycleState === "draft") return "Draft · not published";
   if (state.lifecycleState === "archived") return "Archived";
+  if (profile.is_demo) return "Demo · hidden from mobile";
+  if (!profile.is_active) return "Inactive · hidden from mobile";
   if (state.lifecycleState === "published" && state.publishedAt) return "Published to mobile";
   return "Current public profile";
 }
 
-function publicProfileNote(state: PublicProfileState, profile: { name?: string | null } | null) {
+function publicProfileNote(state: PublicProfileState, profile: PublicProfileIdentity | null) {
   if (!profile) return "The current public identity could not be loaded.";
+  if (profile.is_demo) return "This demo identity is hidden from agents, including after publication approval.";
+  if (!profile.is_active) return "This developer identity is inactive and hidden from agents.";
   if (!state.contractAvailable) return "Current identity loaded; publication state is unavailable in this environment.";
-  if (!state.lifecycleState) return "This is the identity currently available to agents.";
+  if (!state.lifecycleState) return "Current identity loaded; mobile publication has not been confirmed.";
   if (state.lifecycleState === "draft") return "This identity is saved but not available to agents yet.";
   if (state.lifecycleState === "archived") return "This developer identity is archived and hidden from agents.";
-  return "This is the identity currently available to agents.";
+  return state.lifecycleState === "published" && state.publishedAt
+    ? "This is the identity currently available to agents."
+    : "Current identity loaded; mobile publication has not been confirmed.";
 }
 
 function formatDateTime(value: string) {

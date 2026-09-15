@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminDeveloperSupportQueue } from "@/components/AdminDeveloperSupportQueue";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AdminLayout } from "@/components/AdminLayout";
@@ -41,7 +42,7 @@ function cleanSearch(value: string) {
 export default async function SupportPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ ticket?: string; success?: string; error?: string; q?: string; status?: string; closed?: string; unread?: string; owner?: string; priority?: string; page?: string }>;
+  searchParams?: Promise<{ developerTicket?: string; ticket?: string; success?: string; error?: string; q?: string; status?: string; closed?: string; unread?: string; owner?: string; priority?: string; page?: string }>;
 }) {
   const ui = await buildAdminUi(["user_support_admin", "developers_admin"]);
   const params = (await searchParams) ?? {};
@@ -93,6 +94,7 @@ export default async function SupportPage({
     <AdminLayout title="Support cockpit" description="Own the full agent conversation, assignment, status, and SLA loop." navItems={ui.navItems} meta={ui.meta}>
       {!ui.hasAccess ? <AdminAccessDenied /> : (
         <>
+          <AdminDeveloperSupportQueue selectedId={params.developerTicket} />
           {params.success ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{params.success}</div> : null}
           {params.error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{params.error}</div> : null}
 

@@ -7,7 +7,7 @@ const read = (path) => readFileSync(new URL(path, root), "utf8");
 const migration = read("supabase/migrations/20260830111500_developer_team_rbac.sql");
 const auth = read("src/lib/developerAuth.ts");
 const session = read("src/lib/developerSession.ts");
-const layout = read("src/components/DeveloperLayout.tsx");
+const clientLayout = read("src/components/DeveloperLayoutClient.tsx");
 const profile = read("src/app/developer/profile/page.tsx");
 
 test("developer RBAC is a closed, tenant-bound capability contract", () => {
@@ -26,7 +26,7 @@ test("developer RBAC is a closed, tenant-bound capability contract", () => {
   assert.match(auth, /eq\("auth_user_id", session\.userId\)/);
   assert.match(auth, /normalizeDeveloperRole\(membership\.role\)/);
   assert.match(session, /role\?: DeveloperRole/);
-  assert.match(layout, /href: "\/developer\/team"/);
+  assert.match(clientLayout, /href: "\/developer\/team"/);
   assert.match(profile, /requireDeveloperCapability\("manage_company"/);
 });
 

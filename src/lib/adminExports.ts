@@ -1,5 +1,7 @@
 import { strToU8, zipSync } from "fflate";
+import { csvCell } from "./csv";
 import { supabaseServer } from "./supabaseServer";
+import { readReportRows } from "./reportRows";
 import { hasAdminRole, type AdminRole } from "./adminRoles";
 
 export type AdminExportType = "dashboard" | "agents" | "deals" | "properties" | "commissions";
@@ -31,7 +33,7 @@ export const ADMIN_EXPORT_DEFINITIONS: Record<AdminExportType, {
   },
   deals: {
     label: "Deals",
-    description: "Deal pipeline records, clients, and sale amounts.",
+    description: "Operational stage entries (one row per stage), clients, and sale amounts; stages are not unique deals.",
     requiredRoles: ["super_admin", "deals_admin"],
     sensitivity: "Highly confidential financial data",
   },
@@ -43,7 +45,7 @@ export const ADMIN_EXPORT_DEFINITIONS: Record<AdminExportType, {
   },
   commissions: {
     label: "Commissions",
-    description: "Commission rates, estimates, and payment state.",
+    description: "SalesClaim commission rates and recorded payment amounts from the operational pipeline.",
     requiredRoles: ["super_admin", "deals_admin"],
     sensitivity: "Highly confidential financial data",
   },
@@ -91,77 +93,72 @@ export async function loadAdminExportRows(type: AdminExportType, rawFilters: Adm
     let query = supabaseServer
       .from("users_profile")
       .select("id, display_name, phone, verification_status, account_status, total_deals, total_earnings, total_referrals, created_at")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false }).order("id");
     query = applyDateFilters(query, "created_at", filters);
     if (filters.status) query = query.eq("account_status", filters.status);
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data ?? []) as ExportRow[];
+    return await readReportRows(query) as ExportRow[];
   }
   if (type === "commissions") {
     let query = supabaseServer
-      .from("deals")
-      .select("deal_reference, agent_id, property_name, developer_name, status, sale_amount, commission_rate, estimated_commission, actual_commission, paid_at")
-      .order("submitted_at", { ascending: false });
-    query = applyDateFilters(query, "submitted_at", filters);
+      .from("workspace_operations")
+      .select("id, agent_id, property_name, developer_name, stage, status, sale_amount, commission_rate, payment_amount, payment_amount_confirmed, payment_approved_at, created_at, is_demo")
+      .eq("stage", "SalesClaim")
+      .order("created_at", { ascending: false }).order("id");
+    query = applyDateFilters(query, "created_at", filters);
     if (filters.status) query = query.eq("status", filters.status);
     query = applyDemoFilter(query, filters);
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data ?? []) as ExportRow[];
+    return await readReportRows(query) as ExportRow[];
   }
   if (type === "deals") {
     let query = supabaseServer
-      .from("deals")
-      .select("deal_reference, agent_id, property_name, developer_name, client_name, unit_code, sale_amount, status, submitted_at, updated_at, is_demo")
-      .order("submitted_at", { ascending: false });
-    query = applyDateFilters(query, "submitted_at", filters);
+      .from("workspace_operations")
+      .select("id, agent_id, property_name, developer_name, client_name, unit_code, sale_amount, stage, status, source_entry_id, created_at, updated_at, is_demo")
+      .order("created_at", { ascending: false }).order("id");
+    query = applyDateFilters(query, "created_at", filters);
     if (filters.status) query = query.eq("status", filters.status);
     query = applyDemoFilter(query, filters);
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data ?? []) as ExportRow[];
+    return await readReportRows(query) as ExportRow[];
   }
   if (type === "properties") {
     let query = supabaseServer
       .from("properties")
       .select("id, property_name, developer_id, project_id, property_type, sale_type, price, approval_status, is_active, is_demo, demo_batch, published_at, expires_at")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false }).order("id");
     query = applyDateFilters(query, "created_at", filters);
     if (filters.status) query = query.eq("approval_status", filters.status);
     query = applyDemoFilter(query, filters);
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data ?? []) as ExportRow[];
+    return await readReportRows(query) as ExportRow[];
   }
 
   let agentsQuery = supabaseServer.from("users_profile").select("id", { count: "exact", head: true });
   let propertiesQuery = supabaseServer.from("properties").select("id", { count: "exact", head: true }).eq("approval_status", "approved").eq("is_active", true);
   let pendingQuery = supabaseServer.from("properties").select("id", { count: "exact", head: true }).eq("approval_status", "pending");
-  let dealsQuery = supabaseServer.from("deals").select("sale_amount, status, is_demo");
+  let dealsQuery = supabaseServer.from("workspace_operations").select("sale_amount, status, is_demo").eq("stage", "SalesClaim").order("id");
   agentsQuery = applyDateFilters(agentsQuery, "created_at", filters);
   propertiesQuery = applyDateFilters(propertiesQuery, "created_at", filters);
   pendingQuery = applyDateFilters(pendingQuery, "created_at", filters);
-  dealsQuery = applyDateFilters(dealsQuery, "submitted_at", filters);
+  dealsQuery = applyDateFilters(dealsQuery, "created_at", filters);
   propertiesQuery = applyDemoFilter(propertiesQuery, filters);
   pendingQuery = applyDemoFilter(pendingQuery, filters);
   if (filters.status) dealsQuery = dealsQuery.eq("status", filters.status);
   dealsQuery = applyDemoFilter(dealsQuery, filters);
-  const [{ count: agents }, { count: properties }, { count: pending }, { data: deals }] = await Promise.all([
+  const results = await Promise.all([
     agentsQuery,
     propertiesQuery,
     pendingQuery,
-    dealsQuery,
+    readReportRows(dealsQuery).then(data => ({ data, error: null })),
   ]);
+  for (const result of results) if (result.error) throw result.error;
+  const [{ count: agents }, { count: properties }, { count: pending }, { data: deals }] = results;
   const dealRows = deals ?? [];
   return [{
     generated_at: new Date().toISOString(),
     agents: agents ?? 0,
     active_properties: properties ?? 0,
     pending_properties: pending ?? 0,
-    deals: dealRows.length,
-    pipeline_value: dealRows.reduce((sum, deal) => sum + Number(deal.sale_amount ?? 0), 0),
-    paid_deals: dealRows.filter((deal) => deal.status === "paid").length,
+    sales_claim_entries: dealRows.length,
+    sales_claim_pipeline_value: dealRows.filter((deal) => !["Paid", "Rejected"].includes(deal.status)).reduce((sum, deal) => sum + (Number.isFinite(Number(deal.sale_amount)) ? Number(deal.sale_amount) : 0), 0),
+    paid_sales_claims: dealRows.filter((deal) => deal.status === "Paid").length,
   }];
 }
 
@@ -175,13 +172,10 @@ function displayValue(value: ExportRow[string]) {
   return value == null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
-function csvCell(value: string) {
-  return /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}
 
 export function buildCsv(rows: ExportRow[]) {
   const columns = columnsFor(rows);
-  return [columns, ...rows.map((row) => columns.map((column) => displayValue(row[column])))]
+  return [columns, ...rows.map((row) => columns.map((column) => typeof row[column] === "number" ? row[column] : displayValue(row[column])))]
     .map((line) => line.map(csvCell).join(","))
     .join("\r\n");
 }

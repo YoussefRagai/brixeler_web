@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-export function GrowthApprovalControls({ entityType, entityId, status, canApprove }: { entityType: string; entityId: string; status: string; canApprove: boolean }) {
+export function GrowthApprovalControls({ entityType, entityId, status, canApprove, expectedVersion }: { entityType: string; entityId: string; status: string; canApprove: boolean; expectedVersion: number }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
@@ -23,7 +23,7 @@ export function GrowthApprovalControls({ entityType, entityId, status, canApprov
     const response = await fetch("/api/admin/growth/approvals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entity_type: entityType, entity_id: entityId, decision, reason: reason.trim() || null }),
+      body: JSON.stringify({ entity_type: entityType, entity_id: entityId, decision, reason: reason.trim() || null, expected_version: expectedVersion }),
     });
     const body = await response.json().catch(() => null) as { error?: string } | null;
     if (!response.ok) {

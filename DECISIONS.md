@@ -1,9 +1,37 @@
 # Decisions
 
+## 2026-09-15 — GitHub handover boundary
+
+- Publish the full source, migration chain, tests and operating documentation to the existing GitHub repository. Keep provider credentials, local recovery dumps and machine/tool state outside Git; transfer provider access through team membership and rotate credentials after the successor verifies access.
+
+## 2026-09-08 — Contextual contrast and safe demo updates
+
+- Dashboard foregrounds follow the nearest light/dark surface, with explicit image-surface markers and readable disabled labels; avoid ancestor-specific white-to-black exceptions. Palette regression tests enforce normal-text contrast.
+- Demo maintenance permits actual service-role metadata-only changes, never mixed business updates or forged JWT role claims. Preserve reward state and tenant guards. Applied the tested additive path instead of disabling triggers.
+
+## 2026-09-08 — Demo classification and selective release
+
+- User confirms all existing business data is demo; flag safely, do not delete. Preserve existing demo batches and use exact snapshot IDs for new prelaunch-demo-20260908 flags. Keep immutable membership guards and reward triggers intact; defer unsafe flag-only updates to a separately tested maintenance path. Built-in configuration is not automatically disposable business data.
+- Release dashboard/database fixes independently of mobile/WhatsApp work using selective clean worktree f60153c. Native testing explicitly skipped by user; mobile release remains approval-gated.
+
+## 2026-09-08 — Project-first developer flow
+
+Create shared project details/materials as a draft before phase inventory. Keep optional launch/payment inputs available without making them setup steps. Separate reusable unit types from individual inventory rows and preserve phase context in links/actions. Expose explicit Review; completeness is not customer visibility. Preserve existing server readiness semantics (including archived unit types) until a separately tested database change is agreed. Remove redirecting dry-run submissions that discard client edits; local checks precede server-validated actual saves. No schema/publication/tenant boundary changes in this UI task.
+
+## 2026-09-08 — Server-hydrated developer shell
+
+Derive authorized navigation from the verified membership server-side, not a follow-up brand request. Brand failure may use generic branding but cannot remove legitimate capabilities; unknown project counts remain omitted. Keep publication trigger field access in table-specific branches because trigger records differ. Preserve invitation form state on email errors and reset only on success.
+
+## 2026-09-07 — Retire optional integrations, retain first-party interfaces
+
+Remove provider CRM imports, developer API credentials, webhooks, mappings and schedules per user request. Retain immutable historical records with service-role read-only grants and a no-op enqueue helper so existing contact transactions continue safely. Keep core app/dashboard APIs and manual inventory CSV imports. Ship the tested subset from an isolated release branch to preserve unrelated unfinished WhatsApp work; do not build/publish mobile in this release.
+
 Record architecture and product decisions here.
 
 | Date | Decision | Why | Alternatives Rejected |
 | --- | --- | --- | --- |
+| 2026-09-07 | Use opt-in first-party mobile usage events and aggregate-only super-admin analytics, with strict event fields, account-bound ingestion, demo exclusion, deduplication and retention. | Measure real interactions without freeform personal data, third-party SDKs or fabricated historical metrics. | Automatic tracking without preference; raw user timelines; sending messages/search text; client-only consent enforcement. |
+| 2026-09-07 | Version all new developer cookies and bind impersonation to a revocable grant/current issuer; approve Growth only at the displayed version. | Existing indistinguishable cookies and stale reviews cannot enforce revocation/independent review. | Preserving old impersonation cookies; relying on removable UI markers; approving whichever version exists at POST time. |
 | 2026-08-26 | Keep support ticket writes agent-owned under forced RLS; dashboard access remains service-role-only. | Mobile agents need direct creation/read access without being able to update status, impersonate another agent, or read another agent's messages. | Public/anonymous access; client-side status updates; broad authenticated policies. |
 | 2026-08-30 | Treat company profile completion as the developer-portal onboarding boundary; a complete submitted revision unlocks internal work while public/mobile branding remains approval-gated. | New client users must finish identity setup before inventory work without waiting on an admin review queue, and additional members of an already-complete company should enter the shared workspace directly. | Client-only completion flags; blocking until admin approval; onboarding every invited company member independently. |
 | 2026-08-30 | Model real-estate releases as ordered project phases and require developer-managed inventory to belong to an active phase. | Developers publish inventory in commercial drops; phase ownership makes updates, readiness, archiving, and mobile visibility explicit while a default compatibility phase preserves existing inventory. | Keeping all inventory directly under projects; destructive phase deletion; exposing empty phases; forcing existing projects to be recreated. |
@@ -32,3 +60,5 @@ Record architecture and product decisions here.
 | 2026-08-30 | Use exactly three developer-company roles backed by server and database capabilities: developer super admin, project manager, and sales manager. | The client portal needs understandable job boundaries: company/team control, project creation, and inventory/contact operations must not bleed into one another. | Free-form roles; UI-only hiding; giving project managers lead PII; allowing sales managers to create projects. |
 | 2026-08-30 | Make inventory a versioned publication workspace with atomic availability/hold transitions, while keeping contacts in a dedicated sales workspace. | Inventory changes affect mobile availability and need review/recovery; lead PII and follow-up operations belong only to sales-authorized users. | Direct unversioned publishing; project-page lead tabs; optimistic browser-only holds. |
 | 2026-08-30 | Treat developer integrations as secured credentials, mappings, schedules, and a durable webhook outbox until an external delivery worker is selected. | The portal should expose a real integration foundation without claiming delivery that no provider process performs. | Storing plaintext reusable secrets; synchronous fire-and-forget webhooks; fake “connected” states. |
+| 2026-08-30 | Operate Brixeler Railway, Supabase, and Cloudflare through one project-specific Codex skill with provider tokens stored in macOS Keychain. | Existing provider CLIs/APIs already supply the required control plane; Keychain-backed tokens preserve reusable access without plaintext credentials or repeated browser login. | Storing tokens in repositories or skill files; relying on whichever browser account is open; building and maintaining a redundant custom MCP server. |
+| 2026-09-07 | Keep shared facts/materials on projects, merchandising on phases, and derive starting prices/areas from phase inventory. Keep sales status separate from publication; staged deposits add to the initial booking percentage. | Prevent duplicate facts and stale prices while supporting repeat release drops and real payment schedules across dashboard/database/mobile. | Re-entering project facts per phase; manually maintained starting-price summaries; treating currently-selling as publication approval. |

@@ -1,17 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { useFormStatus } from "react-dom";
 import { MobilePreviewButton } from "@/components/MobilePreviewButton";
 
-type WizardAction = (formData: FormData) => void | Promise<void>;
+export type ProjectWizardAction = (formData: FormData) => void | Promise<void>;
 
 const steps = [
-  { id: "basics", label: "Basics", hint: "Name, location & story" },
-  { id: "commercial", label: "Commercial", hint: "Plans & pricing" },
-  { id: "launch", label: "Launch", hint: "Types & timing" },
-  { id: "media", label: "Media", hint: "Files & inventory" },
-  { id: "amenities", label: "Amenities", hint: "Shared features" },
+  { id: "details", label: "Project details", hint: "Name, story & facilities" },
+  { id: "materials", label: "Materials", hint: "Images, documents & media" },
+  { id: "review", label: "Review & create", hint: "Check details and save" },
 ] as const;
 
 export const PROJECT_WIZARD_DRAFT_KEY = "brixeler-project-wizard-draft-v1";
@@ -62,31 +69,76 @@ function normalizeProjectName(value: string) {
   return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
+function panelIndexForControl(control: DraftControl) {
+  const panel = control.closest<HTMLElement>("[data-wizard-panel]");
+  return panel ? steps.findIndex((step) => step.id === panel.dataset.wizardPanel) : -1;
+}
+
+function revealInvalidControl(control: DraftControl) {
+  let parentDetails = control.closest("details");
+  while (parentDetails) {
+    parentDetails.open = true;
+    parentDetails = parentDetails.parentElement?.closest("details") ?? null;
+  }
+}
+
+function draftMatchesContext(rawDraft: string | null, draftContext: string | null) {
+  if (!rawDraft) return true;
+  try {
+    const draft = JSON.parse(rawDraft) as Record<string, DraftValue | string | null>;
+    const hasTemplateMarker = Object.prototype.hasOwnProperty.call(draft, "__templateId");
+    const savedTemplateId = typeof draft.__templateId === "string" ? draft.__templateId : null;
+    const contextMismatch = draftContext
+      ? !hasTemplateMarker || savedTemplateId !== draftContext
+      : hasTemplateMarker && Boolean(savedTemplateId);
+    return !contextMismatch;
+  } catch {
+    return false;
+  }
+}
+
+function panelChildren(children: ReactNode, activeStep: number) {
+  return Children.map(children, (child) => {
+    if (!isValidElement(child)) return child;
+    const panelId = (child.props as { [key: string]: unknown })["data-wizard-panel"];
+    if (typeof panelId !== "string") return child;
+    return cloneElement(child as ReactElement<{ hidden?: boolean }>, {
+      hidden: panelId !== steps[activeStep].id,
+    });
+  });
+}
+
 export function ProjectWizard({
   action,
   children,
   developerId,
   existingProjectNames = [],
+  draftContext = null,
 }: {
-  action: WizardAction;
+  action: ProjectWizardAction;
   children: ReactNode;
   developerId: string;
   existingProjectNames?: string[];
+  /** Optional template identity used to avoid restoring another template's draft over this one. */
+  draftContext?: string | null;
 }) {
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [draftRestored, setDraftRestored] = useState(false);
   const [error, setError] = useState("");
   const [duplicateNameWarning, setDuplicateNameWarning] = useState(false);
+  const [submitLocked, setSubmitLocked] = useState(false);
+  const [draftContextConflict, setDraftContextConflict] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   const draftKey = `${PROJECT_WIZARD_DRAFT_KEY}:${developerId}`;
 
   useEffect(() => {
+    if (!draftMatchesContext(readLocalValue(draftKey), draftContext ?? null)) return;
     const savedStep = Number(readLocalValue(`${draftKey}:step`));
     if (!Number.isInteger(savedStep) || savedStep < 0 || savedStep >= steps.length) return;
     const restore = window.setTimeout(() => setActiveStep(savedStep), 0);
     return () => window.clearTimeout(restore);
-  }, [draftKey]);
+  }, [draftContext, draftKey]);
 
   useEffect(() => {
     const form = formRef.current;
@@ -94,11 +146,15 @@ export function ProjectWizard({
     const rawDraft = readLocalValue(draftKey);
     if (!rawDraft) return;
     try {
-      const draft = JSON.parse(rawDraft) as Record<string, DraftValue>;
+      const draft = JSON.parse(rawDraft) as Record<string, DraftValue | string | null>;
+      if (!draftMatchesContext(rawDraft, draftContext ?? null)) {
+        const restore = window.setTimeout(() => setDraftContextConflict(true), 0);
+        return () => window.clearTimeout(restore);
+      }
       let restored = false;
       for (const { control, key } of getDraftControls(form)) {
-        const saved = draft[key];
-        if (!saved) continue;
+        const saved = draft[key] as DraftValue | undefined;
+        if (!saved || typeof saved !== "object") continue;
         if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
           control.checked = Boolean(saved.checked);
         } else {
@@ -106,17 +162,21 @@ export function ProjectWizard({
         }
         restored = true;
       }
-      const restore = window.setTimeout(() => setDraftRestored(restored), 0);
+      const restore = window.setTimeout(() => {
+        setDraftRestored(restored);
+        setDraftContextConflict(false);
+        form.dispatchEvent(new CustomEvent("project-wizard-sync", { detail: { reset: false } }));
+      }, 0);
       return () => window.clearTimeout(restore);
     } catch {
       removeLocalValue(draftKey);
     }
-  }, [draftKey]);
+  }, [draftContext, draftKey]);
 
   const persistDraft = () => {
     const form = formRef.current;
     if (!form) return;
-    const draft: Record<string, DraftValue> = {};
+    const draft: Record<string, DraftValue | string | null> = {};
     for (const { control, key } of getDraftControls(form)) {
       draft[key] = {
         value: control.value,
@@ -125,6 +185,7 @@ export function ProjectWizard({
           : {}),
       };
     }
+    draft.__templateId = draftContext;
     try {
       window.localStorage.setItem(draftKey, JSON.stringify(draft));
     } catch {
@@ -136,6 +197,21 @@ export function ProjectWizard({
     const value = (formRef.current?.elements.namedItem("name") as HTMLInputElement | null)?.value ?? "";
     const normalizedName = normalizeProjectName(value);
     setDuplicateNameWarning(Boolean(normalizedName) && existingProjectNames.some((name) => normalizeProjectName(name) === normalizedName));
+  };
+
+  const focusInvalid = (control: DraftControl, message: string) => {
+    setError(message);
+    revealInvalidControl(control);
+    const panelIndex = panelIndexForControl(control);
+    if (panelIndex >= 0 && panelIndex !== activeStep) {
+      setActiveStep(panelIndex);
+      writeLocalValue(`${draftKey}:step`, String(panelIndex));
+    }
+    window.requestAnimationFrame(() => {
+      control.focus({ preventScroll: true });
+      control.reportValidity();
+      control.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
   };
 
   const handleInput = (event: React.FormEvent<HTMLFormElement>) => {
@@ -159,6 +235,9 @@ export function ProjectWizard({
     setActiveStep(0);
     setCompletedSteps([]);
     setError("");
+    setSubmitLocked(false);
+    setDraftContextConflict(false);
+    formRef.current?.dispatchEvent(new CustomEvent("project-wizard-sync", { detail: { reset: true } }));
   };
 
   const changeStep = (nextStep: number) => {
@@ -176,9 +255,7 @@ export function ProjectWizard({
     const controls = Array.from(activePanel?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea") ?? []);
     const invalidControl = controls.find((control) => !control.checkValidity());
     if (invalidControl) {
-      setError("Fix the highlighted field before continuing.");
-      invalidControl.focus();
-      invalidControl.reportValidity();
+      focusInvalid(invalidControl, "Fix the highlighted field before continuing.");
       return;
     }
     setError("");
@@ -187,17 +264,20 @@ export function ProjectWizard({
   };
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    if (submitLocked) {
+      event.preventDefault();
+      return;
+    }
     persistDraft();
     const form = formRef.current;
     if (!form) return;
     const invalidControl = getDraftControls(form).find(({ control }) => !control.checkValidity())?.control;
     if (invalidControl) {
       event.preventDefault();
-      setError("Fix the highlighted field before creating the project.");
-      invalidControl.focus();
-      invalidControl.reportValidity();
+      focusInvalid(invalidControl, "Fix the highlighted field before creating the project.");
       return;
     }
+    setSubmitLocked(true);
     removeLocalValue(`${draftKey}:step`);
   };
 
@@ -208,15 +288,16 @@ export function ProjectWizard({
       <div className="border-b border-black/5 bg-neutral-50/70 p-3 sm:px-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500">Setup progress</p>
-            <p className="mt-1 text-xs text-neutral-500">Details are saved in this browser only. Uploads are never saved.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-neutral-500">Project setup</p>
+            <p className="mt-1 text-xs text-neutral-500">Text and links may be saved in this browser. Uploads are never saved.</p>
           </div>
           <div className="flex items-center gap-3">
-            {draftRestored ? <button type="button" onClick={clearDraft} className="text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-black">Clear saved details</button> : null}
+            {draftRestored || draftContextConflict ? <button type="button" onClick={clearDraft} className="text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-black">Clear saved details</button> : null}
             <span className="dashboard-number shrink-0 text-sm font-semibold text-neutral-900">{activeStep + 1} / {steps.length}</span>
           </div>
         </div>
-        <ol className="mt-3 grid grid-cols-5 gap-1" aria-label="Project setup steps">
+        {draftRestored ? <p className="mt-2 text-xs text-neutral-500" role="status">Saved details were restored. Review them before creating; template values remain starting points.</p> : null}
+        <ol className="mt-3 grid grid-cols-3 gap-1" aria-label="Project setup steps">
           {steps.map((step, index) => {
             const active = index === activeStep;
             const complete = completedSteps.includes(index);
@@ -240,11 +321,11 @@ export function ProjectWizard({
                     active ? "border-black bg-black text-white" : "border-black/10 bg-white text-neutral-700 hover:border-black/30 disabled:cursor-not-allowed disabled:opacity-45"
                   }`}
                 >
-                  <span className="flex items-center justify-center gap-2 text-xs font-semibold sm:justify-start">
+                  <span className="flex flex-col items-center justify-center gap-2 text-xs font-semibold sm:flex-row sm:justify-start">
                     <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${active ? "bg-white text-black" : complete ? "bg-black text-white" : "bg-neutral-200 text-neutral-600"}`}>
                       {complete ? "✓" : index + 1}
                     </span>
-                    <span className="hidden sm:inline">{step.label}</span>
+                    <span>{step.label}</span>
                   </span>
                   <span className={`mt-1 hidden truncate text-[11px] lg:block ${active ? "text-white/70" : "text-neutral-500"}`}>{step.hint}</span>
                 </button>
@@ -256,8 +337,9 @@ export function ProjectWizard({
 
       {error ? <p id="project-wizard-error" role="alert" aria-live="assertive" className="mx-5 mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 sm:mx-7">{error}</p> : null}
       {duplicateNameWarning ? <p id="project-wizard-duplicate" role="status" className="mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 sm:mx-7">A project with this name already exists. Choose a distinct name before saving.</p> : null}
-      <form id="project-creator" ref={formRef} action={action} onSubmit={submit} onInput={handleInput} onChange={handleInput} aria-describedby={describedBy} className="space-y-4 p-5 sm:p-7">
-        <div className="mx-auto max-w-4xl">{children}</div>
+      {draftContextConflict ? <p role="status" className="mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 sm:mx-7">A saved draft from another template was kept aside. The selected template is shown as its own starting point.</p> : null}
+      <form id="project-creator" ref={formRef} action={action} noValidate onSubmit={submit} onInput={handleInput} onChange={handleInput} aria-describedby={describedBy} className="space-y-4 p-5 sm:p-7">
+        <div className="mx-auto max-w-4xl">{panelChildren(children, activeStep)}</div>
         <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white/95 p-3 shadow-lg shadow-black/10 backdrop-blur">
           <button
             type="button"
@@ -275,7 +357,7 @@ export function ProjectWizard({
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <MobilePreviewButton formId="project-creator" titleField="name" bodyField="description" typeField="launchStatus" />
-              <ProjectSubmitButton />
+              <ProjectSubmitButton locked={submitLocked} onSettled={() => setSubmitLocked(false)} />
             </div>
           )}
         </div>
@@ -284,11 +366,17 @@ export function ProjectWizard({
   );
 }
 
-function ProjectSubmitButton() {
+function ProjectSubmitButton({ locked, onSettled }: { locked: boolean; onSettled: () => void }) {
   const { pending } = useFormStatus();
+  const previousPending = useRef(false);
+  useEffect(() => {
+    if (previousPending.current && !pending) onSettled();
+    previousPending.current = pending;
+  }, [onSettled, pending]);
+  const disabled = pending || locked;
   return (
-    <button type="submit" disabled={pending} aria-busy={pending} className="min-h-11 rounded-full bg-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-60">
-      {pending ? "Creating…" : "Create project"}
+    <button type="submit" disabled={disabled} aria-busy={pending} className="min-h-11 rounded-full bg-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-60">
+      {pending ? "Creating…" : locked ? "Saving…" : "Create project"}
     </button>
   );
 }

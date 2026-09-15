@@ -47,6 +47,9 @@ jobs:
       - name: Shared UI contracts
         run: npm run test:shared-ui
 
+      - name: Phone verification contracts
+        run: npm run test:phone-verification
+
       - name: Build
         run: npm run build
 

@@ -174,63 +174,91 @@ button:disabled {
   border-color: rgba(5, 5, 5, 0.08) !important;
 }
 
-.glassless .text-white,
-.glassless .text-white\/80,
-.glassless .text-white\/75,
-.glassless .text-white\/60,
-.glassless .text-white\/50 {
-  color: #050505 !important;
+/* Foregrounds follow the nearest surface, not a distant dark ancestor. This
+   also resets nested light buttons/cards inside dark studio panels. New custom
+   surfaces can opt in with data-dashboard-surface="light" or "dark". */
+.dashboard-shell,
+.dashboard-shell :is(.bg-white, .bg-neutral-50, .bg-neutral-100, .bg-neutral-200,
+  .bg-slate-100, .bg-slate-200, .bg-amber-50, .bg-amber-100, .bg-emerald-50,
+  .bg-emerald-100, .bg-rose-50, .bg-rose-100, .bg-blue-50, .bg-blue-100,
+  [class^="bg-[#f"], [class*=" bg-[#f"], [class~="bg-[#dff579]"],
+  [class~="bg-[#d6e87a]"], [data-dashboard-surface="light"]) {
+  --dashboard-ink: #050505;
+  --dashboard-muted: #525252;
+  --dashboard-positive: #065f46;
+  --dashboard-warning: #92400e;
+  --dashboard-danger: #9f1239;
+  --dashboard-info: #1e40af;
+  --dashboard-glass: #fff;
 }
 
-/* The light compatibility layer above intentionally remaps legacy white text
-   on light cards. Preserve white foregrounds when the element itself, or its
-   containing control, deliberately keeps a dark background. Without this
-   exception selected tabs and primary actions render black-on-black. */
-.glassless .bg-black.text-white,
-.glassless .bg-black .text-white,
-.glassless [class~="bg-black/50"].text-white,
-.glassless [class~="bg-black/50"] .text-white,
-.glassless [class~="bg-black/60"].text-white,
-.glassless [class~="bg-black/60"] .text-white,
-.glassless [class~="bg-black/70"].text-white,
-.glassless [class~="bg-black/70"] .text-white,
-.glassless [class~="bg-black/80"].text-white,
-.glassless [class~="bg-black/80"] .text-white,
-.glassless [class~="bg-black/90"].text-white,
-.glassless [class~="bg-black/90"] .text-white,
-.glassless [class~="bg-[#0f1115]"].text-white,
-.glassless [class~="bg-[#0f1115]"] .text-white {
-  color: #fff !important;
+.dashboard-shell :is(.bg-black, .bg-neutral-800, .bg-neutral-900, .bg-neutral-950,
+  .bg-slate-950, .bg-violet-900, .bg-blue-800, .bg-emerald-600, .bg-emerald-700,
+  .bg-amber-700, .bg-rose-700, [class~="bg-black/50"], [class~="bg-black/60"],
+  [class~="bg-black/70"], [class~="bg-black/80"], [class~="bg-black/90"],
+  [class~="bg-[#111]"], [class~="bg-[#111211]"], [class~="bg-[#11120f]"],
+  [class~="bg-[#101110]"], [class~="bg-[#090909]"], [class~="bg-[#0f1115]"],
+  [class~="bg-[#4c5d11]"], [class~="bg-[#4d477f]"], [data-dashboard-surface="dark"]) {
+  --dashboard-ink: #fff;
+  --dashboard-muted: #e5e5e5;
+  --dashboard-positive: #a7f3d0;
+  --dashboard-warning: #fde68a;
+  --dashboard-danger: #fecdd3;
+  --dashboard-info: #bfdbfe;
+  --dashboard-glass: rgb(255 255 255 / 8%);
 }
 
-/* A few older dashboard modules still use the dark-theme slate utilities.
-   Keep the shared light command-center canvas readable without changing the
-   underlying data or action contracts. */
-.glassless .text-slate-200,
-.glassless .text-slate-300 {
-  color: #404040 !important;
+.dashboard-shell :is(.bg-white\/5, .bg-white\/10) {
+  background-color: var(--dashboard-glass) !important;
 }
 
-.glassless .text-slate-400 {
-  color: #666 !important;
+.dashboard-shell .text-white,
+.dashboard-shell .keep-white {
+  color: var(--dashboard-ink) !important;
 }
 
-.glassless .text-slate-500 {
-  color: #737373 !important;
+.dashboard-shell :is([class*="text-white/"], .text-slate-200, .text-slate-300,
+  .text-slate-400, .text-slate-500) {
+  color: var(--dashboard-muted) !important;
 }
 
-.glassless [class~="bg-[#0f1115]"] {
-  color: #f8f8f8;
+/* Legacy pale status/action colors were designed for dark cards. */
+.dashboard-shell :is(.text-emerald-200, .text-emerald-300, .text-emerald-400) {
+  color: var(--dashboard-positive) !important;
+}
+.dashboard-shell :is(.text-amber-200, .text-amber-300, .text-amber-400) {
+  color: var(--dashboard-warning) !important;
+}
+.dashboard-shell :is(.text-rose-200, .text-rose-300, .text-rose-400) {
+  color: var(--dashboard-danger) !important;
+}
+.dashboard-shell :is(.text-blue-200, .text-blue-300, .text-sky-200, .text-sky-300) {
+  color: var(--dashboard-info) !important;
 }
 
-.glassless [class~="bg-[#0f1115]"] .text-slate-200,
-.glassless [class~="bg-[#0f1115]"] .text-slate-300,
-.glassless [class~="bg-[#0f1115]"] .text-slate-400 {
-  color: #cbd5e1 !important;
+.dashboard-shell :is(button, a, summary, [role="button"]):is(.text-neutral-400, .text-neutral-500),
+.dashboard-shell :is(button, a, summary, [role="button"]) :is(.text-neutral-400, .text-neutral-500) {
+  color: var(--dashboard-muted) !important;
 }
 
-.glassless [class~="bg-[#0f1115]"] .text-slate-500 {
-  color: #94a3b8 !important;
+/* Disabled actions remain legible; cursor, border and native disabled semantics
+   convey unavailability instead of fading the entire label into its surface. */
+.dashboard-shell button:disabled {
+  background: #e5e5e5 !important;
+  color: #525252 !important;
+  border-color: #a3a3a3 !important;
+  opacity: 1 !important;
+}
+.dashboard-shell button:disabled :is(span, strong, svg) {
+  color: inherit !important;
+}
+
+.dashboard-shell :is(button, summary, [role="button"]).truncate,
+.dashboard-shell :is(button, summary, [role="button"]) .truncate {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
 }
 
 @media (prefers-reduced-motion: reduce) {
