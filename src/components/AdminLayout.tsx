@@ -137,6 +137,7 @@ export function AdminLayout({ title, description, actions, children, navItems, m
           <p className="text-lg font-semibold text-[#050505]">Command Center</p>
           <p className="text-xs text-neutral-400">
             {new Date().toLocaleDateString("en-US", {
+              timeZone: "Africa/Cairo",
               weekday: "long",
               month: "short",
               day: "numeric",

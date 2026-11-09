@@ -182,13 +182,13 @@ const safeMetadataLabels: Array<[string, string]> = [
 function formatTimestamp(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("en-US", { timeZone: "Africa/Cairo" });
 }
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-US", { timeZone: "Africa/Cairo" });
 }
 
 function formatCurrency(value?: number | null) {
