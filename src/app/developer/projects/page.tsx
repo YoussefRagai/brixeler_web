@@ -72,6 +72,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import {
   normalizeProjectInventoryView,
   normalizeProjectWorkspaceSection,
+  databaseProjectLaunchStatus,
   projectSectionQuery,
   projectSetupAction,
   type ProjectInventoryView,
@@ -705,7 +706,7 @@ export default async function DeveloperProjectsPage({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {canManageProjects && selectedProject?.lifecycle_state !== "archived" && selectedProject?.launch_status !== "new_release" ? <form action={moveProjectStatusAction}>
+                  {canManageProjects && selectedProject?.lifecycle_state !== "archived" && normalizeLaunchStatus(selectedProject?.launch_status) !== "new_release" ? <form action={moveProjectStatusAction}>
                     <input type="hidden" name="projectId" value={selectedProjectId} />
                     <input type="hidden" name="status" value="new_release" />
                     <button type="submit" className="inline-flex min-h-10 items-center rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-neutral-900 hover:border-black/30">New release</button>
@@ -2145,7 +2146,7 @@ async function upsertProjectAction(formData: FormData) {
     payment_plans: paymentPlans,
     payment_plan_templates: paymentPlanTemplates,
     limited_time_offers: limitedTimeOffers,
-    launch_status: launchStatus,
+    launch_status: databaseProjectLaunchStatus(launchStatus),
     launch_date: launchDate,
     delivery_date: deliveryDate,
     selling_points: sellingPoints,
@@ -2433,14 +2434,15 @@ async function moveProjectStatusAction(formData: FormData) {
   if (!projectId) return;
   const { data, error } = await supabaseServer
     .from("developer_projects")
-    .update({ launch_status: status, approval_status: "pending", rejection_reason: null, reviewed_by: null, reviewed_at: null })
+    .update({ launch_status: databaseProjectLaunchStatus(status), approval_status: "pending", rejection_reason: null, reviewed_by: null, reviewed_at: null })
     .eq("developer_id", session.developerId)
     .eq("id", projectId)
     .neq("lifecycle_state", "archived")
     .select("id")
     .maybeSingle();
   if (error || !data) {
-    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent(error?.message ?? "Project not found or access denied.")}`);
+    console.error("Failed to update project launch status", error);
+    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent("Could not update the launch status. Try again.")}`);
   }
   revalidatePath("/developer/projects");
   redirect(`/developer/projects?status=${status}&project=${projectId}`);

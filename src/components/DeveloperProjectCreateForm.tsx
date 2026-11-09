@@ -442,7 +442,7 @@ export function DeveloperProjectCreateForm({ action, developerId, projects = [],
       <div data-wizard-panel="materials" className="space-y-4">
         <div className="rounded-2xl border border-[#dceaa3] bg-[#f7fbe7] p-4">
           <p className="text-sm font-semibold text-[#405000]">Add what is ready today</p>
-          <p className="mt-1 text-xs leading-5 text-[#52630c]">Upload files or paste hosted URLs. Files are sent only when you create the project; browser drafts never store uploads.</p>
+          <p className="mt-1 text-xs leading-5 text-[#52630c]">Upload files now or paste hosted URLs. Save the project to attach them; browser drafts do not store files.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <DeveloperMediaField directUpload key={`project-logo-${mediaResetKey}`} label="Project logo" description="Used in this project's portal header." fileName="project_logo" urlName="project_logo_url" accept="image/*" />

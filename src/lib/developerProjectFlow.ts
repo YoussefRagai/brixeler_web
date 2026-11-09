@@ -1,6 +1,10 @@
 export type ProjectWorkspaceSection = "overview" | "phases" | "inventory" | "commercial" | "review" | "settings";
 export type ProjectInventoryView = "types" | "units";
 
+export function databaseProjectLaunchStatus(value: "new_release" | "upcoming" | "live"): "new_launch" | "upcoming" | "live" {
+  return value === "new_release" ? "new_launch" : value;
+}
+
 const PROJECT_WORKSPACE_SECTIONS: readonly ProjectWorkspaceSection[] = [
   "overview",
   "phases",

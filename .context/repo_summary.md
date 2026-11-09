@@ -1,5 +1,7 @@
 # Repo Summary: brixeler-web
 
+- 2026-11-09 production user QA: all admin/developer sidebar routes rendered; demo project media upload, draft, phase, unit type, and phase release worked. Project release exposed a `new_release`/`new_launch` database mismatch, and new projects failed to inherit explicit company demo flags. Scoped fixes and copy cleanup passed the 137-test release gate; see TASK_LOG. Demo QA project `b40c13e5-6795-4007-991b-225e2ca0d6dc` was manually flagged under `prelaunch-demo-20260908` and remains draft/mobile-hidden.
+
 - 2026-11-09: Developer project setup/media/release update passed the full 134-test release gate. Production Supabase Storage migration `20261109163240_project_media_bucket_limits.sql` applied; signed image upload/remove succeeded. Dashboard commit `1629674` pushed to GitHub and Railway production deployment `9652b1f9-3d28-4b55-a699-87fc112a602e` succeeded. Login routes and the new authenticated media endpoint verified live. Mobile build remains deferred.
 
 - 2026-09-15: current dashboard/API/database source prepared for GitHub handover with README/HANDOVER, sanitized memory, safe dependency patches (Next.js 16.3.5), zero npm audit findings, build/lint and 131 JS tests passing. Secrets/provider access remain external.

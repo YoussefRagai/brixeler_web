@@ -1,5 +1,5 @@
 {
-  "file_count": 376,
+  "file_count": 377,
   "files": [
     {
       "bytes": 10244,
@@ -8,9 +8,9 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 35747,
+      "bytes": 36259,
       "path": ".context/repo_summary.md",
-      "sha256": "834f1fda23f92cc3d929d29c02543350bbd8e3071421327ac30e15e54b137b7e",
+      "sha256": "29096ac9cb26c534b80d2d842e06745ee42c4c24eb07c6edac678e192b5cedba",
       "summary": "Compressed repository state including local developer project media work."
     },
     {
@@ -80,9 +80,9 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 88318,
+      "bytes": 90651,
       "path": "TASK_LOG.md",
-      "sha256": "55a34a4b81776a9465517a057d3fb224070c34189b928a79406e5e09ceddca56",
+      "sha256": "cc52369cdcd14e7f0f3e2194a8dbd7eeda13287f6b987b7532d60d55fa0f2b55",
       "summary": "Task outcomes and verification history, including developer project work."
     },
     {
@@ -818,9 +818,9 @@
       "summary": "import { NextRequest, NextResponse } from \"next/server\"; import { clearDeveloperImpersonation } from \"@/lib/developerImpersonation\"; import { clearDeveloperSession } from \"@/lib/developerSession\";"
     },
     {
-      "bytes": 25809,
+      "bytes": 25758,
       "path": "src/app/developer/page.tsx",
-      "sha256": "af1f4e6c16fa1d8c0341328835305d0e5d0f81d7169f56ccd749f51cadde5a0f",
+      "sha256": "e470cfc5bac4e13f660e97e35e2a40bdeb1d2233f088cc062782d975f23999ef",
       "summary": "Developer overview with ready-today selling phases and no resale UI."
     },
     {
@@ -836,9 +836,9 @@
       "summary": "import DeveloperProjectsPage from \"../page\"; export const dynamic = \"force-dynamic\";"
     },
     {
-      "bytes": 179464,
+      "bytes": 179637,
       "path": "src/app/developer/projects/page.tsx",
-      "sha256": "e4399e27c175084e81b1e5c367142fdd76486c4354abec2ba1be981e392561e4",
+      "sha256": "da54cb33614aafdcd7aa1366fbbf2e379873304c7fce93a5d32fa33ece47e3f3",
       "summary": "Project portal release actions, 95% media-only display and project media fields."
     },
     {
@@ -1138,8 +1138,8 @@
     {
       "path": "src/components/DeveloperProjectCreateForm.tsx",
       "summary": "Project draft creation with direct media uploads.",
-      "bytes": 29759,
-      "sha256": "b140cd076233af00f5784205aabd6633a50c66186b4599a34f628411c698cc41"
+      "bytes": 29746,
+      "sha256": "7d65196361cb31d8165d47be6fb8e7284c289a7a68fbb75bec0ba23af48f2e93"
     },
     {
       "bytes": 12724,
@@ -1498,13 +1498,13 @@
     {
       "path": "src/lib/developerProjectFlow.ts",
       "summary": "Project setup action ordering prioritizes inventory before media.",
-      "bytes": 3971,
-      "sha256": "1c2c0d5b884ac41469845f3cc633b4dc4271ce393e7be235307e1756442776f4"
+      "bytes": 4157,
+      "sha256": "28cc71b4db862327d541ee50ed3966707be9e34b00b094f9041ab55e5b5bc2b8"
     },
     {
-      "bytes": 84589,
+      "bytes": 85100,
       "path": "src/lib/developerQueries.ts",
-      "sha256": "73c1257d851464a5dac877bc48d83d5614c89c55d7065eab8a3fbede95430bfd",
+      "sha256": "9e645328ae2eb77978c11a2d979a4c6c7ba0c28804ee88166f568f2b49012e31",
       "summary": "import { supabaseServer } from \"./supabaseServer\"; type ProjectMediaPayload = Record<string, unknown> | null | undefined;"
     },
     {
@@ -2124,6 +2124,12 @@
       "summary": "Developer journey reliability; see 2026-09-08 task log.",
       "bytes": 881,
       "sha256": "736f03bc81a4d6b85c37b9deefa44dc3fbfa283a0987eb60f0b19176441f8168"
+    },
+    {
+      "path": "tests/developer-live-qa-regressions.test.mjs",
+      "summary": "Production dashboard QA regression checks.",
+      "bytes": 1913,
+      "sha256": "04ce61c778ae9d3a3ba117aacb07d595f6f108cd1302f620b0dbd8409062e36d"
     },
     {
       "path": "tests/developer-navigation-reliability.test.mjs",

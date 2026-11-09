@@ -1484,9 +1484,16 @@ export async function upsertDeveloperProject(
     .ilike("name", escapeIlikePattern(payload.name.trim()));
   if (duplicateError) return { error: duplicateError, data: null };
   if (duplicateProjects?.length) return { error: new Error("A project with this name already exists in your workspace."), data: null };
+  const { data: developer, error: developerError } = await supabaseServer
+    .from("developers")
+    .select("is_demo, demo_batch")
+    .eq("id", id)
+    .single();
+  if (developerError || !developer) return { error: developerError ?? new Error("Developer not found."), data: null };
+  if (developer.is_demo && !developer.demo_batch) return { error: new Error("Demo company setup is incomplete."), data: null };
   const { data, error } = await supabaseServer
     .from("developer_projects")
-    .insert({ ...projectPayload, developer_id: id, approval_status: "pending" })
+    .insert({ ...projectPayload, developer_id: id, approval_status: "pending", is_demo: Boolean(developer.is_demo), demo_batch: developer.is_demo ? developer.demo_batch : null })
     .select("id")
     .single();
   return { error, data };
