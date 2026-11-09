@@ -271,16 +271,20 @@ const getProjectReadiness = (project: ProjectReadinessInput) => {
     ["Description", Boolean(project.description?.trim())],
     ["Location", Boolean(project.location?.trim())],
     ["Project type", Boolean(project.project_types?.length)],
-    ["Hero media", hasHero],
     ["Unit inventory", unitTypes.length > 0],
     ["Unit details", unitTypes.length > 0 && unitTypes.every((unit) => Boolean(unit.label?.trim()) && Number(unit.min_price) >= 100000 && Number(unit.unit_area_min) >= 10 && Boolean(unit.description?.trim()))],
+    ["Hero media", hasHero],
   ] as const;
   const complete = checks.filter(([, value]) => value).length;
   // The persisted quality score describes the last server-side review. It can
   // be stale immediately after a developer edits the project, so the portal
   // score always reflects the current fields rendered in this request.
-  const score = Math.round((complete / checks.length) * 100);
   const missing = checks.filter(([, value]) => !value).map(([label]) => label);
+  // Media is the final optional preparation step. Keep the missing issue and
+  // server publication gate intact while giving complete project data its due.
+  const score = missing.length === 1 && missing[0] === "Hero media"
+    ? 95
+    : Math.round((complete / checks.length) * 100);
   return { score, missing, hasHero };
 };
 
@@ -701,6 +705,11 @@ export default async function DeveloperProjectsPage({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {canManageProjects && selectedProject?.lifecycle_state !== "archived" && selectedProject?.launch_status !== "new_release" ? <form action={moveProjectStatusAction}>
+                    <input type="hidden" name="projectId" value={selectedProjectId} />
+                    <input type="hidden" name="status" value="new_release" />
+                    <button type="submit" className="inline-flex min-h-10 items-center rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-neutral-900 hover:border-black/30">New release</button>
+                  </form> : null}
                   {!selectedReadiness?.hasHero && canManageProjects ? <a href={`/developer/projects?project=${selectedProjectId}&${projectSectionQuery("settings", { phaseId: selectedPhaseId })}&settings=1#project-media`} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-black px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800"><ImagePlus aria-hidden="true" size={15} /> Add hero media</a> : null}
                   <details className="relative">
                     <summary aria-label="More project actions" className={`grid size-10 cursor-pointer list-none place-items-center rounded-full ${selectedHeroImage ? "bg-black/60 text-white hover:bg-black/70" : "bg-white/80 text-neutral-700 hover:bg-white"}`}><MoreHorizontal aria-hidden="true" size={18} /></summary>
@@ -732,6 +741,7 @@ export default async function DeveloperProjectsPage({
             updateAction={updateProjectPhaseAction}
             archiveAction={archiveProjectPhaseAction}
             restoreAction={restoreProjectPhaseAction}
+            markNewReleaseAction={markPhaseNewReleaseAction}
             hrefForPhase={(phaseId) => `/developer/projects/${selectedProjectId}?section=phases${phaseId ? `&phase=${phaseId}` : ""}#project-phases`}
             canManagePhases={canManageProjects}
             unitTypeSummaries={selectedProject?.project_unit_types ?? []}
@@ -1024,7 +1034,7 @@ export default async function DeveloperProjectsPage({
                       }
                     />
                   </div>
-                  <DeveloperMediaField
+                  <DeveloperMediaField directUpload
                     label="Project logo"
                     description="Shown beside the project name in this portal."
                     fileName="project_logo"
@@ -1033,21 +1043,22 @@ export default async function DeveloperProjectsPage({
                     currentValue={selectedProject?.project_logo_url ?? null}
                   />
                   <div id="project-media" className="scroll-mt-28">
-                    <DeveloperMediaField
+                    <DeveloperMediaField directUpload
                       label="Project images"
                       description="Upload, drop, or paste image URLs to refresh the project gallery."
                       fileName="project_images"
                       urlName="project_image_urls"
                       accept="image/*"
                       multiple
+                      defaultUrl={selectedHeroMedia?.images?.join("\n") ?? ""}
                       currentValue={phaseHeroImageFromMedia((selectedProject?.hero_media as ProjectMedia | null) ?? null)}
                     />
                   </div>
-                  <DeveloperMediaField label="Project brochure (PDF)" fileName="project_brochure" urlName="project_brochure_url" accept="application/pdf" currentValue={(selectedProject?.hero_media as ProjectMedia | null)?.brochureUrl ?? null} />
-                  <DeveloperMediaField label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" currentValue={selectedHeroMedia?.masterplanUrl ?? null} />
-                  <DeveloperMediaField label="Voice notes" fileName="voice_notes" urlName="voice_note_urls" accept="audio/*" multiple currentValue={selectedProject?.voice_notes?.length ? `${selectedProject.voice_notes.length} existing notes` : null} />
-                  <DeveloperMediaField label="HD project videos" description="Upload originals or paste hosted HD video URLs." fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple currentValue={selectedProject?.video_links?.length ? `${selectedProject.video_links.length} existing videos` : null} />
-                  <DeveloperMediaField label="Inventory template" description={selectedProject?.inventory_url ? "Replace with a new .xlsx upload or hosted URL. Current template is retained when both stay blank." : "Upload the filled Brixeler .xlsx template or paste a hosted file URL."} fileName="project_inventory" urlName="project_inventory_url" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" currentValue={selectedProject?.inventory_url ? "Current template available" : null} />
+                  <DeveloperMediaField directUpload label="Project brochure (PDF)" fileName="project_brochure" urlName="project_brochure_url" accept="application/pdf" currentValue={(selectedProject?.hero_media as ProjectMedia | null)?.brochureUrl ?? null} />
+                  <DeveloperMediaField directUpload label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" currentValue={selectedHeroMedia?.masterplanUrl ?? null} />
+                  <DeveloperMediaField directUpload label="Voice notes" fileName="voice_notes" urlName="voice_note_urls" accept="audio/*" multiple defaultUrl={selectedProject?.voice_notes?.join("\n") ?? ""} currentValue={selectedProject?.voice_notes?.length ? `${selectedProject.voice_notes.length} existing notes` : null} />
+                  <DeveloperMediaField directUpload label="HD project videos" description="Upload originals or paste hosted HD video URLs." fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple defaultUrl={selectedProject?.video_links?.join("\n") ?? ""} currentValue={selectedProject?.video_links?.length ? `${selectedProject.video_links.length} existing videos` : null} />
+                  <DeveloperMediaField directUpload label="Inventory template" description={selectedProject?.inventory_url ? "Replace with a new .xlsx upload or hosted URL. Current template is retained when both stay blank." : "Upload the filled Brixeler .xlsx template or paste a hosted file URL."} fileName="project_inventory" urlName="project_inventory_url" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" currentValue={selectedProject?.inventory_url ? "Current template available" : null} />
                   <div className="rounded-2xl border border-black/10 bg-neutral-50 p-3">
                     <p className="text-xs uppercase tracking-[0.3em] text-neutral-500">Add amenities</p>
                     <p className="mt-1 text-xs text-neutral-500">
@@ -2425,6 +2436,7 @@ async function moveProjectStatusAction(formData: FormData) {
     .update({ launch_status: status, approval_status: "pending", rejection_reason: null, reviewed_by: null, reviewed_at: null })
     .eq("developer_id", session.developerId)
     .eq("id", projectId)
+    .neq("lifecycle_state", "archived")
     .select("id")
     .maybeSingle();
   if (error || !data) {
@@ -2432,6 +2444,33 @@ async function moveProjectStatusAction(formData: FormData) {
   }
   revalidatePath("/developer/projects");
   redirect(`/developer/projects?status=${status}&project=${projectId}`);
+}
+
+async function markPhaseNewReleaseAction(formData: FormData) {
+  "use server";
+  const session = await requireDeveloperCapability("manage_projects");
+  const projectId = formData.get("projectId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString();
+  if (!projectId || !phaseId) return;
+  const phases = await fetchDeveloperProjectPhases(session.developerId, projectId);
+  const phase = phases.find((item) => item.id === phaseId && !item.archived_at && item.lifecycle_state !== "archived");
+  if (!phase) redirect(`${phaseWorkspaceHref(projectId, phaseId)}&error=${encodeURIComponent("Phase not found or access denied.")}`);
+  const result = await updateDeveloperProjectPhase(session.developerId, phaseId, session.accountId, {
+    name: phase.name,
+    description: phase.description,
+    phaseOrder: phase.phase_order,
+    launchStatus: "new_launch",
+    launchDate: phase.launch_date,
+    heroMedia: phase.hero_media,
+    facilities: phase.facilities ?? [],
+    sellingPoints: phase.selling_points ?? [],
+    deliveryDate: phase.delivery_date,
+    salesStatus: phase.sales_status ?? "upcoming",
+    masterplanUrl: phase.masterplan_url,
+  });
+  if (result.error) redirect(`${phaseWorkspaceHref(projectId, phaseId)}&error=${encodeURIComponent(result.error.message)}`);
+  revalidatePath("/developer/projects");
+  redirect(`${phaseWorkspaceHref(projectId, phaseId)}&success=${encodeURIComponent("Phase marked as a new release. Submit the project for review before it becomes public.")}`);
 }
 
 async function upsertProjectCommissionRule(input: {

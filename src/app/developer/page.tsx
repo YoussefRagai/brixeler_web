@@ -2,15 +2,14 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import {
   ArrowUpRight,
+  Building2,
   CalendarClock,
   Check,
   ChevronRight,
   CircleAlert,
   ClipboardCheck,
-  Eye,
   FileCheck2,
   MessageCircle,
-  Plus,
   Radio,
 } from "lucide-react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
@@ -21,12 +20,8 @@ import {
 } from "@/components/DeveloperNotificationInbox";
 import { currentDeveloperImpersonation, hasDeveloperCapability, requireDeveloperCapability, requireDeveloperSession } from "@/lib/developerAuth";
 import {
-  fetchDeveloperListings,
   fetchDeveloperProfile,
   fetchDeveloperProjects,
-  fetchDeveloperResales,
-  fetchDeveloperStats,
-  type DeveloperListing,
 } from "@/lib/developerQueries";
 import { fetchDeveloperFunnel, fetchDeveloperSalesLeads, type DeveloperFunnel, type DeveloperSalesLead } from "@/lib/developerSalesOps";
 import { supabaseServer } from "@/lib/supabaseServer";
@@ -47,6 +42,8 @@ type DeveloperProject = {
   }> | null;
   developer_project_phases?: Array<{
     id: string;
+    name: string;
+    sales_status?: string | null;
     approval_status?: string | null;
     lifecycle_state?: string | null;
     published_at?: string | null;
@@ -56,7 +53,7 @@ type DeveloperProject = {
 
 type QueueItem = {
   id: string;
-  kind: "request" | "project" | "listing" | "renewal";
+  kind: "request" | "project";
   title: string;
   detail: string;
   ageDays: number;
@@ -76,13 +73,10 @@ export default async function DeveloperDashboardPage({ searchParams }: { searchP
   // scope, so never call it for a project manager or render it as a fallback.
   const canViewAnalytics = hasDeveloperCapability(session.role, "view_analytics")
     && (session.role === "developer_super_admin" || Boolean(projectId));
-  const canViewPortfolioMetrics = session.role === "developer_super_admin";
   // Sales managers use the dedicated contacts and inventory tracks; the
   // overview must not become an alternate inventory-management surface.
   const canViewPortfolio = session.role !== "sales_manager";
-  const [stats, resales, projects, profile, impersonation, notificationResult, listings, contactRequests, projectDatesResult] = await Promise.all([
-    canViewPortfolioMetrics ? fetchDeveloperStats(session.developerId) : Promise.resolve(emptyDashboardStats()),
-    canViewPortfolio ? fetchDeveloperResales(session.developerId) : Promise.resolve([] as DeveloperListing[]),
+  const [projects, profile, impersonation, notificationResult, contactRequests, projectDatesResult] = await Promise.all([
     canViewPortfolio ? fetchDeveloperProjects(session.developerId, { limit: 50 }) : Promise.resolve([]),
     fetchDeveloperProfile(session.developerId),
     currentDeveloperImpersonation(),
@@ -92,23 +86,19 @@ export default async function DeveloperDashboardPage({ searchParams }: { searchP
       .eq("developer_id", session.developerId)
       .order("created_at", { ascending: false })
       .limit(10) : Promise.resolve({ data: [], error: null }),
-    canViewPortfolio ? fetchDeveloperListings(session.developerId, { limit: 100 }) : Promise.resolve([] as DeveloperListing[]),
     canViewContacts ? fetchDeveloperSalesLeads(session.developerId, { limit: 100 }).then((result) => result.data) : Promise.resolve([] as DeveloperSalesLead[]),
     canViewPortfolio ? supabaseServer.from("developer_projects").select("id, updated_at").eq("developer_id", session.developerId) : Promise.resolve({ data: [], error: null }),
   ]);
   const funnelResult = canViewAnalytics ? await fetchDeveloperFunnel(session.developerId, session.accountId, projectId) : { data: null, error: null };
 
-  const developerListings = listings.filter((listing) => !listing.listed_by_agent_id && !listing.archived_at);
-  const agentResales = resales.filter((listing) => Boolean(listing.listed_by_agent_id));
   const projectRecords = projects as DeveloperProject[];
+  const sellingPhases = projectRecords.flatMap((project) => (project.developer_project_phases ?? []).filter((phase) => phase.sales_status === "selling" && !phase.archived_at && (project.project_unit_types ?? []).some((unit) => unit.phase_id === phase.id && !unit.archived_at)));
   const projectUpdatedAt = new Map((projectDatesResult.data ?? []).map((project) => [project.id, project.updated_at]));
   const queue = buildActionQueue({
     contactRequests,
-    listings: developerListings,
     projects: projectRecords,
     projectUpdatedAt,
   });
-  const metrics = canViewPortfolio ? getDisplayMetrics(stats, developerListings, projectRecords, profile, contactRequests) : { active: 0, hidden: 0, pending: 0, inquiries: contactRequests.length };
   const salesSlaAttention = contactRequests.filter((lead) => isSlaOverdue(lead.sla_due_at, lead.status)).length;
   const developerNotifications = (notificationResult.data ?? []) as Array<{
     id: string;
@@ -122,7 +112,7 @@ export default async function DeveloperDashboardPage({ searchParams }: { searchP
   return (
     <DeveloperLayout
       title="Developer overview"
-      description="Portfolio pulse across listings, inquiries, and launch activity."
+      description="Portfolio pulse across projects, inquiries, and launch activity."
       impersonation={impersonation}
     >
       <section className="relative overflow-hidden rounded-3xl bg-[#101110] p-6 text-white sm:p-8">
@@ -146,9 +136,6 @@ export default async function DeveloperDashboardPage({ searchParams }: { searchP
               </Link> : null}
               {canViewContacts ? <Link href="/developer/activity" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 px-5 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10">
                 View activity <ArrowUpRight aria-hidden="true" size={16} />
-              </Link> : null}
-              {canViewPortfolio ? <Link href="/developer/listings/new?saleType=resale" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 px-5 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10">
-                <Plus aria-hidden="true" size={16} /> Add resale
               </Link> : null}
               <Link href="/developer/support" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 px-5 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/10">
                 Get support <ArrowUpRight aria-hidden="true" size={16} />
@@ -176,10 +163,10 @@ export default async function DeveloperDashboardPage({ searchParams }: { searchP
       </section>
 
       {canViewPortfolio ? <section aria-label="Portfolio metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard href="/developer/listings?view=developer" icon={<Eye aria-hidden="true" size={17} />} label="Live inventory" value={metrics.active} detail="Visible to agents" tone="green" />
-        <MetricCard href="/developer/listings?view=developer" icon={<ClipboardCheck aria-hidden="true" size={17} />} label="Needs review" value={metrics.pending} detail="Pending or changes requested" tone="amber" />
-        <MetricCard href={canViewContacts ? "/developer/contacts" : "/developer/projects"} icon={<MessageCircle aria-hidden="true" size={17} />} label="Open requests" value={metrics.inquiries} detail="Agent conversations" tone="ink" />
-        <MetricCard href="/developer/listings?view=developer" icon={<Radio aria-hidden="true" size={17} />} label="Hidden inventory" value={metrics.hidden} detail="Not visible to agents" tone="purple" />
+        <MetricCard href="/developer/projects" icon={<Building2 aria-hidden="true" size={17} />} label="Projects" value={projectRecords.length} detail="Your project workspace" tone="green" />
+        <MetricCard href="/developer/projects" icon={<Radio aria-hidden="true" size={17} />} label="Ready today" value={sellingPhases.length} detail="Selling phases with inventory" tone="amber" />
+        <MetricCard href="/developer/projects" icon={<ClipboardCheck aria-hidden="true" size={17} />} label="Needs review" value={projectRecords.filter((project) => project.approval_status !== "approved").length} detail="Project drafts and changes" tone="purple" />
+        <MetricCard href={canViewContacts ? "/developer/contacts" : "/developer/projects"} icon={<MessageCircle aria-hidden="true" size={17} />} label="Open requests" value={contactRequests.length} detail="Agent conversations" tone="ink" />
       </section> : canViewContacts ? <section aria-label="Sales metrics" className="grid gap-3 sm:grid-cols-2"><MetricCard href="/developer/contacts?status=new" icon={<MessageCircle aria-hidden="true" size={17} />} label="New leads" value={contactRequests.filter((lead) => lead.status === "new").length} detail="Requests awaiting first action" tone="ink" /><MetricCard href="/developer/contacts?age=sla_overdue" icon={<CalendarClock aria-hidden="true" size={17} />} label="SLA attention" value={salesSlaAttention} detail="Open leads past due" tone="amber" /></section> : null}
 
       {funnelResult.data ? <DeveloperFunnelPanel funnel={funnelResult.data} projectId={projectId} /> : canViewAnalytics ? <section className="dashboard-panel rounded-3xl border border-black/5 bg-white p-5 sm:p-6"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Demand funnel</p><p className="mt-2 text-sm text-neutral-600">Funnel data is not available for this scope yet.</p></section> : null}
@@ -193,20 +180,17 @@ export default async function DeveloperDashboardPage({ searchParams }: { searchP
       </section>
 
       {canViewPortfolio ? <section className="grid gap-4 lg:grid-cols-2">
-        <article className="dashboard-panel overflow-hidden rounded-3xl border border-black/5 bg-white">
-          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/5 p-5 sm:p-6">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Agent resales</p>
-              <h2 className="mt-1 text-lg font-semibold tracking-tight text-[#050505]">Latest submissions</h2>
-              <p className="mt-1 text-sm text-neutral-500">Read-only inventory submitted by app agents.</p>
-            </div>
-            <Link href="/developer/listings?view=agent" className="inline-flex items-center gap-1 text-xs font-semibold text-neutral-600 underline-offset-4 hover:text-black hover:underline">View all <ArrowUpRight aria-hidden="true" size={14} /></Link>
+        <article className="dashboard-panel overflow-hidden rounded-3xl border border-black/5 bg-white p-5 sm:p-6">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Ready today</p>
+          <h2 className="mt-1 text-lg font-semibold tracking-tight text-[#050505]">What is selling now</h2>
+          <p className="mt-1 text-sm text-neutral-500">Phases marked as selling with unit types entered. Publication still requires Brixeler approval.</p>
+          <div className="mt-4 space-y-2">
+            {sellingPhases.length ? sellingPhases.slice(0, 5).map((phase) => {
+              const project = projectRecords.find((item) => item.developer_project_phases?.some((entry) => entry.id === phase.id));
+              return <Link key={phase.id} href={`/developer/projects?project=${project?.id}&section=inventory&phase=${phase.id}`} className="flex items-center justify-between rounded-xl border border-black/10 px-3 py-2 text-sm font-semibold text-neutral-800 hover:border-black/30"><span>{project?.name} · {phase.name}</span><ChevronRight aria-hidden="true" size={15} /></Link>;
+            }) : <p className="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-600">No selling phases with inventory yet. Open a project, add a phase, then mark it as selling.</p>}
           </div>
-          <div className="divide-y divide-black/5">
-            {!agentResales.length ? (
-              <p className="px-5 py-7 text-sm text-neutral-500 sm:px-6">No agent resale submissions yet.</p>
-            ) : agentResales.slice(0, 5).map((listing) => <ResaleRow key={listing.id} listing={listing} />)}
-          </div>
+          <Link href="/developer/projects" className="mt-4 inline-flex text-xs font-semibold text-neutral-700 underline underline-offset-4">Open projects</Link>
         </article>
 
         <article className="dashboard-panel overflow-hidden rounded-3xl border border-black/5 bg-white">
@@ -276,10 +260,6 @@ function DeveloperFunnelPanel({ funnel, projectId }: { funnel: DeveloperFunnel; 
   return <section className="dashboard-panel rounded-3xl border border-black/5 bg-white p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Demand funnel {projectId ? "· project scope" : "· portfolio"}</p><p className="mt-1 text-sm text-neutral-600">Observed demand from the shared mobile counters and operational rows.</p></div><span className="rounded-full bg-neutral-100 px-3 py-1.5 text-[11px] font-semibold text-neutral-600">No estimates</span></div><div className={`mt-5 grid gap-3 ${stages.length === 4 ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>{stages.map((stage) => <div key={stage.label} className={`rounded-2xl p-4 ${stage.tone}`}><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-neutral-500">{stage.label}</p><p className="dashboard-number mt-2 text-2xl font-semibold leading-none text-[#050505]">{stage.value.toLocaleString()}</p></div>)}</div>{!funnel.reservationsAvailable ? <p className="mt-4 text-xs text-neutral-500">Reservations are not shown for a project filter because the legacy reservation stage does not carry a project identifier.</p> : null}<p className="mt-4 text-[11px] text-neutral-400">Sources: {funnel.sourceNotes.join(" · ")}</p></section>;
 }
 
-function emptyDashboardStats() {
-  return { listings: 0, hidden: 0, pending: 0, inquiries: 0, eois: 0, cils: 0, reservations: 0, salesClaims: 0, stageShifts: 0, dealsThisMonth: 0 };
-}
-
 function ActionQueue({ items }: { items: QueueItem[] }) {
   return (
     <article className="dashboard-panel overflow-hidden rounded-3xl border border-black/5 bg-white">
@@ -299,7 +279,7 @@ function ActionQueue({ items }: { items: QueueItem[] }) {
         {!items.length ? (
           <div className="flex items-start gap-3 px-5 py-7 text-sm text-neutral-600 sm:px-6">
             <Check aria-hidden="true" className="mt-0.5 shrink-0 text-[#718224]" size={17} />
-            <div><p className="font-semibold text-neutral-800">You are caught up.</p><p className="mt-1 text-neutral-500">No open review, request, or renewal action needs attention.</p></div>
+            <div><p className="font-semibold text-neutral-800">You are caught up.</p><p className="mt-1 text-neutral-500">No open review or request needs attention.</p></div>
           </div>
         ) : null}
       </div>
@@ -308,7 +288,7 @@ function ActionQueue({ items }: { items: QueueItem[] }) {
 }
 
 function QueueRow({ item }: { item: QueueItem }) {
-  const icon = item.kind === "request" ? <MessageCircle aria-hidden="true" size={16} /> : item.kind === "renewal" ? <CalendarClock aria-hidden="true" size={16} /> : item.kind === "project" ? <FileCheck2 aria-hidden="true" size={16} /> : <ClipboardCheck aria-hidden="true" size={16} />;
+  const icon = item.kind === "request" ? <MessageCircle aria-hidden="true" size={16} /> : <FileCheck2 aria-hidden="true" size={16} />;
   const ageLabel = item.ageLabel ?? (item.ageDays === 0 ? "Today" : item.ageDays === 1 ? "1 day old" : `${item.ageDays} days old`);
   return (
     <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -317,25 +297,10 @@ function QueueRow({ item }: { item: QueueItem }) {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-[#050505]">{item.title}</p>
           <p className="mt-1 line-clamp-1 text-xs text-neutral-500">{item.detail}</p>
-          <p className={`mt-1.5 flex items-center gap-1 text-[11px] font-semibold ${item.kind === "renewal" || item.ageDays > 3 ? "text-[#a44d2f]" : "text-neutral-400"}`}><CalendarClock aria-hidden="true" size={12} /> {ageLabel}</p>
+          <p className={`mt-1.5 flex items-center gap-1 text-[11px] font-semibold ${item.ageDays > 3 ? "text-[#a44d2f]" : "text-neutral-400"}`}><CalendarClock aria-hidden="true" size={12} /> {ageLabel}</p>
         </div>
       </div>
       <Link href={item.href} className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1 rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold text-neutral-800 transition hover:border-black/30 hover:bg-neutral-50">Next: {item.actionLabel}<ChevronRight aria-hidden="true" size={14} /></Link>
-    </div>
-  );
-}
-
-function ResaleRow({ listing }: { listing: DeveloperListing }) {
-  return (
-    <div className="flex items-center justify-between gap-3 px-5 py-4 sm:px-6">
-      <div className="min-w-0">
-        <p className="flex items-center gap-2 truncate text-sm font-semibold text-[#050505]">
-          {listing.name}
-          {listing.is_demo ? <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-800">Demo</span> : null}
-        </p>
-        <p className="mt-1 truncate text-xs text-neutral-500">{capitalize(listing.status)} · {capitalize(listing.visibility)} · Updated {formatDate(listing.updated_at)}</p>
-      </div>
-      <div className="shrink-0 text-right"><p className="text-sm font-semibold text-[#050505]">EGP {listing.price.toLocaleString()}</p><p className="mt-1 text-[11px] text-neutral-400">{listing.inquiries} inquiries</p></div>
     </div>
   );
 }
@@ -355,59 +320,12 @@ function ProjectRow({ project }: { project: DeveloperProject }) {
   );
 }
 
-function getDisplayMetrics(
-  stats: Awaited<ReturnType<typeof fetchDeveloperStats>>,
-  listings: DeveloperListing[],
-  projects: DeveloperProject[],
-  developer: Awaited<ReturnType<typeof fetchDeveloperProfile>>,
-  contactRequests: DeveloperSalesLead[],
-) {
-  const projectsById = new Map(projects.map((project) => [project.id, project]));
-  const developerIsPublished = Boolean(
-    developer?.is_active &&
-    !developer.is_demo &&
-    developer.lifecycle_state === "published" &&
-    developer.published_at,
-  );
-  const active = listings.filter((listing) => isMobileVisibleListing(listing, projectsById, developerIsPublished)).length;
-  const hidden = listings.filter((listing) => !isMobileVisibleListing(listing, projectsById, developerIsPublished)).length;
-  const pending = listings.filter((listing) => ["pending", "rejected"].includes(listing.status.toLowerCase())).length;
-  const inquiries = contactRequests.filter((request) => !["won", "lost"].includes(request.status)).length;
-  return {
-    active,
-    hidden,
-    pending,
-    inquiries: stats.inquiries > 0 ? stats.inquiries : inquiries,
-  };
-}
-
-function isMobileVisibleListing(listing: DeveloperListing, projectsById: Map<string, DeveloperProject>, developerIsPublished: boolean) {
-  if (!developerIsPublished || listing.is_demo || listing.archived_at || !listing.published_at || !isLiveListing(listing)) return false;
-  if (listing.availability_state && !["available", "released"].includes(listing.availability_state)) return false;
-  if (listing.expires_at && new Date(listing.expires_at).getTime() <= Date.now()) return false;
-  if (!listing.project_id) return true;
-  const project = projectsById.get(listing.project_id);
-  if (!project || project.is_demo || project.approval_status !== "approved" || project.lifecycle_state !== "published" || !project.published_at) return false;
-  if (!listing.phase_id) return true;
-  const phase = project.developer_project_phases?.find((item) => item.id === listing.phase_id);
-  return Boolean(
-    phase &&
-    !phase.archived_at &&
-    phase.approval_status === "approved" &&
-    phase.lifecycle_state === "published" &&
-    phase.published_at &&
-    project.project_unit_types?.some((unitType) => unitType.phase_id === phase.id && !unitType.archived_at),
-  );
-}
-
 function buildActionQueue({
   contactRequests,
-  listings,
   projects,
   projectUpdatedAt,
 }: {
   contactRequests: DeveloperSalesLead[];
-  listings: DeveloperListing[];
   projects: DeveloperProject[];
   projectUpdatedAt: Map<string, string | null>;
 }) {
@@ -442,40 +360,7 @@ function buildActionQueue({
       priority: status === "rejected" ? 4 : 3,
     });
   }
-  for (const listing of listings) {
-    const status = listing.status.toLowerCase();
-    if (status === "pending" || status === "rejected") {
-      queue.push({
-        id: listing.id,
-        kind: "listing",
-        title: status === "rejected" ? `Update ${listing.name}` : `Review ${listing.name}`,
-        detail: status === "rejected" ? "Changes are needed before this inventory can publish." : "Inventory is waiting for admin review.",
-        ageDays: ageInDays(listing.updated_at),
-        actionLabel: "open listing",
-        href: `/developer/listings/${listing.id}`,
-        priority: status === "rejected" ? 4 : 3,
-      });
-      continue;
-    }
-    if (listing.expires_at && isLiveListing(listing) && new Date(listing.expires_at).getTime() <= Date.now() + 14 * 24 * 60 * 60 * 1000) {
-      queue.push({
-        id: listing.id,
-        kind: "renewal",
-        title: `Renew ${listing.name}`,
-        detail: `Expires ${formatDate(listing.expires_at)} · ${listing.inquiries} inquiries`,
-        ageDays: Math.max(0, ageInDays(listing.expires_at)),
-        ageLabel: expiryLabel(listing.expires_at),
-        actionLabel: "review expiry",
-        href: `/developer/listings/${listing.id}`,
-        priority: 2,
-      });
-    }
-  }
   return queue.sort((left, right) => right.priority - left.priority || right.ageDays - left.ageDays).slice(0, 7);
-}
-
-function isLiveListing(listing: DeveloperListing) {
-  return ["approved", "published", "active"].includes(listing.status.toLowerCase()) && listing.visibility === "public";
 }
 
 function projectStatus(project: DeveloperProject) {
@@ -497,22 +382,6 @@ function isSlaOverdue(value: string | null, status: string) {
   if (!value || ["won", "lost"].includes(status)) return false;
   const timestamp = new Date(value).getTime();
   return Number.isFinite(timestamp) && timestamp < Date.now();
-}
-
-function expiryLabel(value: string) {
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "Expiry date unavailable";
-  const days = Math.ceil((timestamp - Date.now()) / (24 * 60 * 60 * 1000));
-  if (days <= 0) return "Expired";
-  if (days === 1) return "Expires tomorrow";
-  return `Expires in ${days} days`;
-}
-
-function formatDate(value: string | null) {
-  if (!value) return "—";
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "—";
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(timestamp));
 }
 
 function capitalize(value: string) {

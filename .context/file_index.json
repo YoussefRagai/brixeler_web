@@ -1,17 +1,17 @@
 {
-  "file_count": 372,
+  "file_count": 376,
   "files": [
-    {
-      "bytes": 34484,
-      "path": ".context/repo_summary.md",
-      "sha256": "b155c2adefec265b71bc50d1a8b2335ae7ea29f858eb21430f99b5b707799e8e",
-      "summary": "Launch verification and selective release; see task log."
-    },
     {
       "bytes": 10244,
       "path": ".DS_Store",
       "sha256": "be586436a944b5d13a7d230ca9385b0fb4f20c6c5b80fc6d210a4a69c443dfbc",
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
+    },
+    {
+      "bytes": 35605,
+      "path": ".context/repo_summary.md",
+      "sha256": "e40f927c838f51dbfc818b500b353024a04b3ce0fddab86b25aba0612043b083",
+      "summary": "Compressed repository state including local developer project media work."
     },
     {
       "bytes": 1503,
@@ -50,10 +50,46 @@
       "summary": "# Council Protocol Use external agents for bounded, cheap, or repetitive work. Codex keeps final architecture, safety, and integration judgment."
     },
     {
-      "bytes": 17234,
+      "bytes": 17979,
       "path": "DECISIONS.md",
-      "sha256": "e614f5b68fb51e26b076903ac4027fb1016aab672fbb814f0c7d3a4ccb2ea0d7",
-      "summary": "Launch verification and selective release; see task log."
+      "sha256": "658e3d3b0a94f56771d85a3a4c616e3d818830704709cec2bb568e8b5f9ca630",
+      "summary": "Architecture decisions, including signed project media and release state."
+    },
+    {
+      "path": "HANDOVER.md",
+      "summary": "Current workspace implementation or handover documentation; see task log.",
+      "bytes": 2497,
+      "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
+    },
+    {
+      "bytes": 20536,
+      "path": "PROJECT_MAP.md",
+      "sha256": "9551577cebb326616aa2a88eb41724a1581878a4d84574e308700c7be61139aa",
+      "summary": "Repository map and developer media/release paths."
+    },
+    {
+      "bytes": 768,
+      "path": "README.md",
+      "sha256": "cb5316bf3c9ba7daf843c7fd66493fb94503cd0f3df4fb118399128d7b376164",
+      "summary": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app). ## Getting Started"
+    },
+    {
+      "bytes": 950,
+      "path": "SECURITY_SCANNING.md",
+      "sha256": "957f22577bb8e4a35d0e12fb7bf77e5c7601b274f04de43362195796cdba0e53",
+      "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
+    },
+    {
+      "bytes": 87762,
+      "path": "TASK_LOG.md",
+      "sha256": "a450bbe9406c0ba524d465752c1d687b306bae54dbd5de3fb80eaa37a5b8c9ee",
+      "summary": "Task outcomes and verification history, including developer project work."
+    },
+    {
+      "bytes": 378,
+      "path": "changelog.md",
+      "sha256": "b7a02c279b0f4cdcff82a28ce8f4f657222d0859fb2de534cc0b4629a4b970ad",
+      "summary": "Release notes for developer project media and release workflow."
     },
     {
       "bytes": 1607,
@@ -110,12 +146,6 @@
       "summary": "import { defineConfig, globalIgnores } from \"eslint/config\"; import nextVitals from \"eslint-config-next/core-web-vitals\"; import nextTs from \"eslint-config-next/typescript\";"
     },
     {
-      "path": "HANDOVER.md",
-      "summary": "Current workspace implementation or handover documentation; see task log.",
-      "bytes": 2497,
-      "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
-    },
-    {
       "bytes": 288,
       "path": "next-env.d.ts",
       "sha256": "1862ac4bbbc5192d4bf562161df66ea547ed3e67173100656ab606ae9797db2b",
@@ -128,9 +158,9 @@
       "summary": "import type { NextConfig } from \"next\"; const securityHeaders = ["
     },
     {
-      "bytes": 240689,
+      "bytes": 240438,
       "path": "package-lock.json",
-      "sha256": "e2f5df5b2f2c301b8fe37e11fa271fbfafdd9095ad6f8a02cf512212a382350e",
+      "sha256": "4ae698f22ebc39671a5db65d125177b256a20cba42ec1d0914d3dc5b8c428b2e",
       "summary": "{ \"name\": \"brixeler-web\", \"version\": \"0.1.0\","
     },
     {
@@ -144,12 +174,6 @@
       "path": "postcss.config.mjs",
       "sha256": "dfac7ac2d86d326a0e5adb024e7943c181393ed17a5fcb8f0315b24c7da6ddde",
       "summary": "const config = { plugins: { \"@tailwindcss/postcss\": {},"
-    },
-    {
-      "bytes": 19709,
-      "path": "PROJECT_MAP.md",
-      "sha256": "90b4ff3a6e31ab2486fa1c638dfeafd618d6884789808c5295b2650eeeacff3b",
-      "summary": "Launch verification and selective release; see task log."
     },
     {
       "bytes": 391,
@@ -188,12 +212,6 @@
       "summary": "<svg fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.7"
     },
     {
-      "bytes": 768,
-      "path": "README.md",
-      "sha256": "cb5316bf3c9ba7daf843c7fd66493fb94503cd0f3df4fb118399128d7b376164",
-      "summary": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app). ## Getting Started"
-    },
-    {
       "bytes": 2038,
       "path": "scripts/bootstrap-supabase-baseline.sh",
       "sha256": "553e29a74d9207d8fbee3e1a345693bfc38f4fdbc6542d7f4c2864c57e092cb3",
@@ -216,12 +234,6 @@
       "path": "scripts/test-database-reliability.sh",
       "sha256": "5a2c237c02d25a2d4c2efe1b2e611f9d3bddd0f2c441c5a0cdda66b68afba261",
       "summary": "#!/usr/bin/env bash set -euo pipefail"
-    },
-    {
-      "bytes": 950,
-      "path": "SECURITY_SCANNING.md",
-      "sha256": "957f22577bb8e4a35d0e12fb7bf77e5c7601b274f04de43362195796cdba0e53",
-      "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
       "bytes": 2561,
@@ -614,6 +626,12 @@
       "summary": "import { NextResponse, type NextRequest } from \"next/server\"; import { logAdminActivity } from \"@/lib/adminQueries\"; import {"
     },
     {
+      "bytes": 3755,
+      "path": "src/app/api/developer/project-media/sign/route.ts",
+      "sha256": "225efc9c61d1e1fc4225a9f6c5adabd2797997dca045a89c970ad10dac3dbad9",
+      "summary": "Authenticated signed project media upload; fails closed until bucket limits exist."
+    },
+    {
       "bytes": 546,
       "path": "src/app/api/developer/projects/route.ts",
       "sha256": "9f903f717d906e68c8d52a7a7edaa0dfe6bb53a738be531d688bb317a393a298",
@@ -800,10 +818,10 @@
       "summary": "import { NextRequest, NextResponse } from \"next/server\"; import { clearDeveloperImpersonation } from \"@/lib/developerImpersonation\"; import { clearDeveloperSession } from \"@/lib/developerSession\";"
     },
     {
-      "bytes": 32178,
+      "bytes": 25809,
       "path": "src/app/developer/page.tsx",
-      "sha256": "2228c1bbf55a8bd59ffe2344cd5fbea3b207f241d6e6c00ccccd3daa1362467f",
-      "summary": "import Link from \"next/link\"; import { revalidatePath } from \"next/cache\"; import {"
+      "sha256": "af1f4e6c16fa1d8c0341328835305d0e5d0f81d7169f56ccd749f51cadde5a0f",
+      "summary": "Developer overview with ready-today selling phases and no resale UI."
     },
     {
       "bytes": 20531,
@@ -818,10 +836,10 @@
       "summary": "import DeveloperProjectsPage from \"../page\"; export const dynamic = \"force-dynamic\";"
     },
     {
-      "bytes": 176737,
+      "bytes": 179464,
       "path": "src/app/developer/projects/page.tsx",
-      "sha256": "0ee5ec4d0a82c3264a6bec51f1c3ce6320d7f3c08052ecf0ca86ae19f8518deb",
-      "summary": "import { revalidatePath } from \"next/cache\"; import { redirect } from \"next/navigation\"; import Link from \"next/link\";"
+      "sha256": "e4399e27c175084e81b1e5c367142fdd76486c4354abec2ba1be981e392561e4",
+      "summary": "Project portal release actions, 95% media-only display and project media fields."
     },
     {
       "path": "src/app/developer/support/[ticketId]/page.tsx",
@@ -974,16 +992,16 @@
       "summary": "\"use client\"; import { useCallback, useEffect, useId, useRef, useState } from \"react\";"
     },
     {
-      "bytes": 55425,
-      "path": "src/components/AdminDevelopersTable.tsx",
-      "sha256": "9f4493b504657f4cd6dac5aeb87ad362eb54209efbfab778cf785bba8b0bba41",
-      "summary": "\"use client\"; import Link from \"next/link\";"
-    },
-    {
       "path": "src/components/AdminDeveloperSupportQueue.tsx",
       "summary": "Current workspace implementation or validation; see task log for scope.",
       "bytes": 1786,
       "sha256": "9607443bd5fd088c0953b7218b6e8716eb9ca6f216fed18317424a81d628b9d9"
+    },
+    {
+      "bytes": 55425,
+      "path": "src/components/AdminDevelopersTable.tsx",
+      "sha256": "9f4493b504657f4cd6dac5aeb87ad362eb54209efbfab778cf785bba8b0bba41",
+      "summary": "\"use client\"; import Link from \"next/link\";"
     },
     {
       "bytes": 7951,
@@ -1053,9 +1071,9 @@
     },
     {
       "path": "src/components/DeveloperLayoutClient.tsx",
-      "summary": "Developer journey reliability; see 2026-09-08 task log.",
-      "bytes": 13156,
-      "sha256": "f7e7c65b860acbbf2dbdc35dbcf91777f2673edf0599257e7a34bcd8bf8101f7"
+      "summary": "Developer navigation without resale entry point.",
+      "bytes": 13069,
+      "sha256": "29de3e1f9f2adff450ec2253f1e1ee8ce14d0806a4ffb8335676797f53332058"
     },
     {
       "bytes": 15106,
@@ -1082,10 +1100,10 @@
       "summary": "\"use client\"; import { useEffect, useRef, useState } from \"react\";"
     },
     {
-      "bytes": 5676,
+      "bytes": 9979,
       "path": "src/components/DeveloperMediaField.tsx",
-      "sha256": "56f9e0ddd626ae4694f1e46a4633d67f85f06ac8b6c864d84af166203794866a",
-      "summary": "\"use client\"; import { useId, useRef, useState } from \"react\";"
+      "sha256": "8596cd35419e86528a3b6af374b332edb6d927f3f03e71ae3f9e19ce0acb6f25",
+      "summary": "Direct signed upload for project and phase fields with URL fallback."
     },
     {
       "bytes": 5568,
@@ -1095,15 +1113,15 @@
     },
     {
       "path": "src/components/DeveloperPhaseForm.tsx",
-      "summary": "Developer project-flow revamp; see 2026-09-08 task log.",
-      "bytes": 11212,
-      "sha256": "959ee5857b0ef808c71075fabbb9fce2b245cfec17f4e796eb293c5457713384"
+      "summary": "Phase form with direct signed image upload.",
+      "bytes": 11225,
+      "sha256": "f9913bb87d8d51054facb06193533b45f40c62dcb37852eec474ba60a2ff85fb"
     },
     {
-      "bytes": 2791,
+      "bytes": 2804,
       "path": "src/components/DeveloperPhaseMerchandisingFields.tsx",
-      "sha256": "bed617058a6af9e94cdb1ba0c6d438d6ed72fcec294f8b48ec04e7f0ea056468",
-      "summary": "Project and phase merchandising implementation or validation."
+      "sha256": "91db193801d0043b4de3f8127eb674edf154d7697a94473aec18c8098883fc63",
+      "summary": "Phase masterplan direct signed upload."
     },
     {
       "bytes": 1699,
@@ -1119,20 +1137,20 @@
     },
     {
       "path": "src/components/DeveloperProjectCreateForm.tsx",
-      "summary": "Developer project-flow revamp; see 2026-09-08 task log.",
-      "bytes": 29681,
-      "sha256": "1e2591983c6be9743313148f2db2869a7355617c5e289e82254fe33ca5968c1d"
+      "summary": "Project draft creation with direct media uploads.",
+      "bytes": 29759,
+      "sha256": "b140cd076233af00f5784205aabd6633a50c66186b4599a34f628411c698cc41"
     },
     {
-      "bytes": 12093,
+      "bytes": 12724,
       "path": "src/components/DeveloperProjectPhaseBoard.tsx",
-      "sha256": "2dcc773151ad79190556f13f200b2ba4c12d9de5e5a7d9354399629c88de8758",
-      "summary": "import { CalendarDays, Check, Layers3, Plus, RotateCcw } from \"lucide-react\"; import { ConfirmSubmitButton } from \"@/components/ConfirmSubmitButton\"; import { DeveloperMediaField } from \"@/components/DeveloperMediaField\";"
+      "sha256": "6cfa9edb0ee74b78dfdd8885f401b4429052ce00f24739db4d85766359b64807",
+      "summary": "Launch and phase board with new-release action."
     },
     {
-      "bytes": 2821,
+      "bytes": 2928,
       "path": "src/components/DeveloperProjectRequestTabs.tsx",
-      "sha256": "1eda9dce0a11ff6e14c060ea17b5c7dbaa094b5c1164ddb95db4ceeca2b11211",
+      "sha256": "cba4e9e85de730c3b38ea3a1cb036199cfa1f0582caef102f06b5e9d32f5839d",
       "summary": "\"use client\"; import { useEffect, useState, type ReactNode } from \"react\";"
     },
     {
@@ -1190,9 +1208,9 @@
       "summary": "\"use client\"; import Link from \"next/link\";"
     },
     {
-      "bytes": 26329,
+      "bytes": 26543,
       "path": "src/components/GiftClaimsWorkspace.tsx",
-      "sha256": "23d45858c3c95b56f6828f7ce5272fda3334416f39066912a6623beaaa75d552",
+      "sha256": "4ccc83af78d48546687aaf5ed51e258eefbbc6a48cc2135bf34011f5abf2aea5",
       "summary": "\"use client\"; /* eslint-disable @next/next/no-img-element */"
     },
     {
@@ -1208,9 +1226,9 @@
       "summary": "\"use client\"; import { useState } from \"react\";"
     },
     {
-      "bytes": 41230,
+      "bytes": 41339,
       "path": "src/components/GiftRuleBuilder.tsx",
-      "sha256": "16e22ca5041e22c5bb93fd8d99e04a93a9fd63e95c9671087fd4d8dc2f4fe07f",
+      "sha256": "b56a072c0976d90bfdc7554a2d2502e7135b1032348c7cd9bc2c28bb24a7d708",
       "summary": "\"use client\"; /* eslint-disable @next/next/no-img-element */"
     },
     {
@@ -1262,10 +1280,10 @@
       "summary": "\"use client\"; import { useMemo, useRef, useState } from \"react\";"
     },
     {
-      "bytes": 17297,
+      "bytes": 17776,
       "path": "src/components/ProjectWizard.tsx",
-      "sha256": "e9bf8dfdcd77295459bd5dfb5049af3b697adeaa1813818da9955eeca2e57d5a",
-      "summary": "\"use client\"; import { useEffect, useRef, useState, type ReactNode } from \"react\";"
+      "sha256": "256e6c1205e76a58358b91a4ac9b79a0179740dea6b1e147a7c8e6519f3a6e99",
+      "summary": "Project draft wizard with immediate save and media upload guard."
     },
     {
       "path": "src/components/ProjectWorkflowSubmitButton.tsx",
@@ -1274,9 +1292,9 @@
       "sha256": "51b9287bb408de31055d00cd8ac1587178b5bb611dfb2031a2d537cda05c8cc8"
     },
     {
-      "bytes": 18046,
+      "bytes": 18153,
       "path": "src/components/PropertyApprovalQueue.tsx",
-      "sha256": "2786d9c250e218c18dc9d0ab76fc4b6e9954234acfcc4ae9e47f324cdfd18c48",
+      "sha256": "75ac773c43b4227177c3950779690bd30c8c8981f67e8bdc029bb14a3a56cd2c",
       "summary": "\"use client\"; import { useEffect, useMemo, useRef, useState, useTransition } from \"react\";"
     },
     {
@@ -1316,16 +1334,16 @@
       "summary": "\"use client\"; import { useState } from \"react\";"
     },
     {
-      "bytes": 50083,
-      "path": "src/components/RewardsRuleBuilder.tsx",
-      "sha256": "484a548e063fd0816e016a86e08a17b0797be4b85d98f5a15e65389a8efd41ac",
-      "summary": "\"use client\"; /* Reward artwork is supplied by the existing storage URLs; keep the compact catalog preview unoptimized. */"
-    },
-    {
       "bytes": 7873,
       "path": "src/components/RewardTierLadder.tsx",
       "sha256": "3bf2c750bad8ec250038a59a8e935b7cce1e36a8ebf3c65e48c0231c741d21bb",
       "summary": "import { ArrowDown, ArrowUp, Check, CircleHelp, Layers3, LockKeyhole } from \"lucide-react\"; import { GrowthApprovalControls } from \"@/components/GrowthApprovalControls\"; import { GrowthVersionHistory } from \"@/components/GrowthVersionHistor"
+    },
+    {
+      "bytes": 50192,
+      "path": "src/components/RewardsRuleBuilder.tsx",
+      "sha256": "a8204bf56f44901596652a3a597d337f8fed8535e3feef52664f709f5a1c20cb",
+      "summary": "\"use client\"; /* Reward artwork is supplied by the existing storage URLs; keep the compact catalog preview unoptimized. */"
     },
     {
       "bytes": 4997,
@@ -1364,9 +1382,9 @@
       "summary": "\"use client\"; import { useMemo, useState } from \"react\";"
     },
     {
-      "bytes": 15933,
+      "bytes": 16040,
       "path": "src/components/VerificationCarousel.tsx",
-      "sha256": "af5a69b468a5ab5c0fc09311f70be9c11e76e3c4717d41073594d30baaa5612a",
+      "sha256": "bc6e931d6ec341d1f30830a5bfa167bd6ab694de528266ad05fdbc1dbd9029d5",
       "summary": "\"use client\"; import { useEffect, useMemo, useState } from \"react\";"
     },
     {
@@ -1479,9 +1497,9 @@
     },
     {
       "path": "src/lib/developerProjectFlow.ts",
-      "summary": "Developer project-flow revamp; see 2026-09-08 task log.",
+      "summary": "Project setup action ordering prioritizes inventory before media.",
       "bytes": 3971,
-      "sha256": "ed83ac465b69b8ae962a112a9f68e520b53fec0df03d2cd7a0d4d139e2e167f0"
+      "sha256": "1c2c0d5b884ac41469845f3cc633b4dc4271ce393e7be235307e1756442776f4"
     },
     {
       "bytes": 84589,
@@ -1580,10 +1598,10 @@
       "summary": "import type { NextRequest } from \"next/server\"; export function getRequestBaseUrl(request: NextRequest) {"
     },
     {
-      "bytes": 6958,
+      "bytes": 7337,
       "path": "src/lib/storageServer.ts",
-      "sha256": "e1f6dd085fa0a7d10d339bf15e8e90589cd875e2fa56896171131a0e669274bc",
-      "summary": "import { createClient, type SupabaseClient } from \"@supabase/supabase-js\"; const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;"
+      "sha256": "94fd948a35568dbd84b3a383470ea733fd1535f794dc9b0745f72921a9a2b7d6",
+      "summary": "Storage upload validation and content-type normalization."
     },
     {
       "bytes": 1926,
@@ -1662,6 +1680,12 @@
       "path": "supabase/.temp/storage-version",
       "sha256": "d45cad56c9a89e7fe9c9169f68e45763794e948976b9d4b7b175c1959313abe0",
       "summary": "v1.54.0"
+    },
+    {
+      "bytes": 1609,
+      "path": "supabase/README.md",
+      "sha256": "dda3f38fb1d49a1e4161b329b2009016f1a7919c981c2c100c59eeef3c253d84",
+      "summary": "# Supabase schema history The files in `migrations/` mirror the production Supabase migration ledger by"
     },
     {
       "bytes": 172813,
@@ -2000,10 +2024,10 @@
       "sha256": "049c3ac66026ec902bd06cb8cf9dfbbf2ed578b654588c512591b82a4c4a1fb5"
     },
     {
-      "bytes": 1609,
-      "path": "supabase/README.md",
-      "sha256": "dda3f38fb1d49a1e4161b329b2009016f1a7919c981c2c100c59eeef3c253d84",
-      "summary": "# Supabase schema history The files in `migrations/` mirror the production Supabase migration ledger by"
+      "bytes": 853,
+      "path": "supabase/migrations/20261109163240_project_media_bucket_limits.sql",
+      "sha256": "8fff1b4ce89a55f0bb00e9af580b2d12f10ac21671bb771d1071202a4006f35a",
+      "summary": "Storage byte and MIME limits for signed project media uploads."
     },
     {
       "path": "supabase/tests/app_usage_analytics.sql",
@@ -2072,12 +2096,6 @@
       "summary": "begin; do $$"
     },
     {
-      "bytes": 85260,
-      "path": "TASK_LOG.md",
-      "sha256": "b56d89551498e564ec98378bdee0c5f0aba00a201190824ae49431fc47b35036",
-      "summary": "Launch verification and selective release; see task log."
-    },
-    {
       "path": "tests/app-usage-analytics.test.mjs",
       "summary": "Current workspace implementation or validation; see task log for scope.",
       "bytes": 595,
@@ -2114,10 +2132,10 @@
       "sha256": "2c6b592eb15d15c6e5e36d2b03f9c186926149a80a58d353826250db21616ad3"
     },
     {
-      "bytes": 6327,
+      "bytes": 6126,
       "path": "tests/developer-operations-contracts.test.mjs",
-      "sha256": "3909d3a6b6ab3f502ba44aaeb255781986d3333d01cc7aeaa42861a0fe728036",
-      "summary": "import assert from \"node:assert/strict\"; import { readFile } from \"node:fs/promises\"; import test from \"node:test\";"
+      "sha256": "9781a32ea3f34559a03931dfad856e89b8eed5b82a2bc49c2b67d0e070a7ad47",
+      "summary": "Developer operations contracts, including ready-today portal without resale entry points."
     },
     {
       "bytes": 6685,
@@ -2178,6 +2196,12 @@
       "summary": "Developer project-flow revamp; see 2026-09-08 task log.",
       "bytes": 3480,
       "sha256": "a55765d2a043e44d5cd3bb196a14ca5adc48ab9bb6376b3f79720e73d132c7b6"
+    },
+    {
+      "bytes": 2353,
+      "path": "tests/project-media-upload.test.mjs",
+      "sha256": "7f738cf726f290b51e1f8d71c84db528560b3a9d48079440d26a6cdbf7f03e6d",
+      "summary": "Project media validation, signer safety and draft regression tests."
     },
     {
       "bytes": 2030,

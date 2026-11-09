@@ -12,7 +12,6 @@ import type { DeveloperCapability } from "@/lib/developerRbac";
 
 const navItems = [
   { href: "/developer", label: "Overview" },
-  { href: "/developer/listings", label: "Inventory", capability: "manage_inventory" },
   { href: "/developer/contacts", label: "Contacts", capability: "view_contacts" },
   { href: "/developer/activity", label: "Sales activity", capability: "view_contacts" },
   { href: "/developer/profile", label: "Profile" },

@@ -265,7 +265,7 @@ export function DeveloperPhaseForm({
             <span className="text-xs font-medium text-neutral-700">Phase brief</span>
             <textarea className="min-h-20 rounded-xl border border-black/10 bg-white px-3 py-2" name="phaseDescription" maxLength={2000} defaultValue={phase?.description ?? ""} placeholder="What opens in this release, and what should agents know?" />
           </label>
-          <DeveloperMediaField label="Phase cover image" description="Optional. Upload a file or paste an http(s) image URL." fileName="phaseHeroImage" urlName="phaseHeroImageUrl" accept="image/*" defaultUrl={editing ? currentHero : undefined} currentValue={editing ? currentHero : null} />
+          <DeveloperMediaField directUpload label="Phase cover image" description="Optional. Upload a file or paste an http(s) image URL." fileName="phaseHeroImage" urlName="phaseHeroImageUrl" accept="image/*" defaultUrl={editing ? currentHero : undefined} currentValue={editing ? currentHero : null} />
         </div>
       </details>
 

@@ -128,6 +128,11 @@ const sanitizeFilename = (name: string) =>
     .replace(/\s+/g, "-")
     .replace(/[^a-zA-Z0-9._-]/g, "");
 
+export const uploadContentType = (file: Pick<File, "name" | "type">) =>
+  file.type || (file.name.toLowerCase().endsWith(".xlsx")
+    ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    : undefined);
+
 const uploadRules: Record<string, { maxBytes: number; mimeTypes: string[]; extensions?: string[] }> = {
   [STORAGE_BUCKETS.developerLogos]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
   [STORAGE_BUCKETS.projectImages]: { maxBytes: 10 * 1024 * 1024, mimeTypes: ["image/*"] },
@@ -144,7 +149,7 @@ const uploadRules: Record<string, { maxBytes: number; mimeTypes: string[]; exten
   [STORAGE_BUCKETS.giftIcons]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
 };
 
-function isAllowedMimeType(file: File, rule: (typeof uploadRules)[string]) {
+function isAllowedMimeType(file: Pick<File, "name" | "type">, rule: (typeof uploadRules)[string]) {
   const mimeType = file.type.toLowerCase();
   if (rule.mimeTypes.some((allowed) => allowed.endsWith("/*") ? mimeType.startsWith(allowed.slice(0, -1)) : mimeType === allowed)) {
     return true;
@@ -153,14 +158,22 @@ function isAllowedMimeType(file: File, rule: (typeof uploadRules)[string]) {
   return Boolean(extension && rule.extensions?.includes(extension));
 }
 
+export function validateStorageUpload(bucket: string, file: Pick<File, "name" | "type" | "size">) {
+  const rule = uploadRules[bucket];
+  if (!rule) throw new Error("Uploads are not enabled for this storage bucket.");
+  if (file.size <= 0 || file.size > rule.maxBytes) {
+    throw new Error(`File is too large. Maximum allowed size is ${Math.floor(rule.maxBytes / (1024 * 1024))} MB.`);
+  }
+  if (!isAllowedMimeType(file, rule)) throw new Error("File type is not allowed for this upload.");
+}
+
 export async function uploadFileToBucket(params: {
   bucket: string;
   pathPrefix: string;
   file: File;
 }) {
   const { bucket, pathPrefix, file } = params;
-  const rule = uploadRules[bucket];
-  if (!rule) throw new Error("Uploads are not enabled for this storage bucket.");
+  validateStorageUpload(bucket, file);
   if (
     pathPrefix.length > 400 ||
     !/^[a-zA-Z0-9][a-zA-Z0-9/_-]*$/.test(pathPrefix) ||
@@ -169,18 +182,12 @@ export async function uploadFileToBucket(params: {
   ) {
     throw new Error("Upload path is invalid.");
   }
-  if (file.size <= 0 || file.size > rule.maxBytes) {
-    throw new Error(`File is too large. Maximum allowed size is ${Math.floor(rule.maxBytes / (1024 * 1024))} MB.`);
-  }
-  if (!isAllowedMimeType(file, rule)) {
-    throw new Error("File type is not allowed for this upload.");
-  }
   const filename = sanitizeFilename(file.name || "upload");
   const path = `${pathPrefix}/${crypto.randomUUID()}-${filename}`;
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const { data, error } = await storageServer.storage.from(bucket).upload(path, buffer, {
-    contentType: file.type || undefined,
+    contentType: uploadContentType(file),
     upsert: false,
   });
   if (error || !data) {

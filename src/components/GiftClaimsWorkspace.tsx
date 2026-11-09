@@ -123,11 +123,13 @@ export function GiftClaimsWorkspace({ claims, initialStatus = "pending", dataWar
   const [isRefreshing, startTransition] = useTransition();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize external route/data changes
     setNotes((current) => Object.fromEntries(claims.map((claim) => [claim.id, current[claim.id] ?? claim.notes ?? ""])));
     setReferences((current) => Object.fromEntries(claims.map((claim) => [claim.id, current[claim.id] ?? claim.fulfillment?.reference ?? ""])));
   }, [claims]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize external route/data changes
     setSelected([]);
   }, [activeStatus]);
 

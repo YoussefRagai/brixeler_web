@@ -24,6 +24,7 @@ export function DeveloperProjectRequestTabs({
   const leadsTabId = `${leadsId}-tab`;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize external route/data changes
     setActiveTab(initialTab);
   }, [initialTab]);
 

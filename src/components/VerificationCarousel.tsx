@@ -68,6 +68,7 @@ export function VerificationCarousel({ queue }: Props) {
   const next = filteredQueue[activeIndex + 1];
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize external route/data changes
     setActiveIndex((currentIndex) => Math.min(currentIndex, Math.max(filteredQueue.length - 1, 0)));
     setActiveDocIndex(0);
   }, [filteredQueue.length]);

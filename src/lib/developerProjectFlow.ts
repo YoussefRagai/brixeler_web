@@ -45,9 +45,6 @@ export function projectSetupAction(input: {
   if (input.missing.includes("Project name") || input.missing.includes("Description") || input.missing.includes("Location") || input.missing.includes("Project type")) {
     return { label: "Complete project details", href: `/developer/projects/${input.projectId}?${projectSectionQuery("settings", { phaseId: input.selectedPhaseId })}&settings=1#project-settings` };
   }
-  if (input.missing.includes("Hero media")) {
-    return { label: "Add hero media", href: `/developer/projects/${input.projectId}?${projectSectionQuery("settings", { phaseId: input.selectedPhaseId })}&settings=1#project-media` };
-  }
   if (input.missing.includes("Unit inventory")) {
     return input.activePhaseCount
       ? { label: "Add a unit type", href: `/developer/projects/${input.projectId}?${projectSectionQuery("inventory", { inventoryView: "types", phaseId: input.selectedPhaseId })}&addUnitType=1#add-property-types` }
@@ -62,6 +59,9 @@ export function projectSetupAction(input: {
       return { label: "Complete unit details", href: `/developer/projects/${input.projectId}?${projectSectionQuery("inventory", { inventoryView: "types", phaseId })}&editUnitType=${encodeURIComponent(input.incompleteUnitTypeId)}#unit-type-editor-${encodeURIComponent(input.incompleteUnitTypeId)}` };
     }
     return { label: "Complete unit details", href: `/developer/projects/${input.projectId}?${projectSectionQuery("inventory", { inventoryView: "types", phaseId: input.selectedPhaseId })}&addUnitType=1#add-property-types` };
+  }
+  if (input.missing.includes("Hero media")) {
+    return { label: "Add hero media", href: `/developer/projects/${input.projectId}?${projectSectionQuery("settings", { phaseId: input.selectedPhaseId })}&settings=1#project-media` };
   }
   return { label: "Open review", href: `/developer/projects/${input.projectId}?${projectSectionQuery("review", { phaseId: input.selectedPhaseId })}#project-review` };
 }

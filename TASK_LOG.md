@@ -449,3 +449,17 @@ Append meaningful work after each task.
 - Supabase `zihysavpjeyurshpohqf`: applied only `20260907120000_developer_project_merchandising.sql`; follow-up dry-run reports up to date. Verified seven new columns and single 14-argument phase RPC signatures, service-role execute only. Pre-change public schema backup: `/tmp/brixeler-pre-merchandising-20260907.sql` (schema only).
 - Railway production deployment `b2505f83-a4f0-48a4-a369-9888824a0259`: SUCCESS. Exact snapshot `npm run release:check` passed (71 contract tests, lint, production build); new merchandising suite 5/5. Dependency gate reported three moderate advisories, no high/critical blockers. Log: `/tmp/brixeler-release-20260907-check.log`.
 - Live checks: authenticated developer login, project Overview, Phases and Commercial render; new phase facilities, selling points, delivery, sales status and masterplan fields visible. Public login pages respond and unauthenticated protected routes redirect to login. No production save/upload test or mobile build/OTA performed.
+## 2026-11-08 - Developer project setup, media, and release controls
+
+- Task: Make project setup easier to finish, remove resale entry points from the developer dashboard, expose project/phase releases and ready-today inventory, and stop project media from crashing the save flow.
+- Files: developer overview/project pages, project wizard/media/phase components, project-flow and storage helpers, signed-upload API, Storage bucket-limit migration, and project media tests.
+- Result: Project and phase media upload directly to Supabase via short-lived signed tokens; draft project creation can finish after the essentials, with materials optional. Resale links/panel/navigation are hidden while routes and backend remain. The overview shows selling phases with inventory, and project/phase new-release actions are visible. A project missing only hero media shows 95% while publication remains blocked until the image is supplied.
+- Verification: `npm run test:project-flow` 32/32, `npm run test:developer-phases` 5/5, `npm run test:developer-operations` 17/17, TypeScript, lint, production build, and diff check passed. A disposable signed upload and removal passed against the Brixeler Supabase Storage project.
+- Risks: Browser-authenticated project upload has not been run against the new code; local developer session secrets and Docker are unavailable. The media migration was subsequently applied on 2026-11-09. No mobile build was performed.
+
+## 2026-11-09 - Developer dashboard release
+
+- Task: Release the project setup, media, readiness, and resale-visibility updates to the production dashboard.
+- Database: Applied the project-media Storage limits migration to Brixeler Supabase project `zihysavpjeyurshpohqf`; Supabase assigned ledger version `20261109163240`, and the local filename was aligned. Read-back confirmed bucket MIME and byte limits. A signed image upload and removal succeeded against production Storage.
+- Verification: `npm run release:check` passed with 134 tests, lint, typecheck, production build, and dependency audit at the high-severity threshold. `git diff --check` and the renamed-migration contract test passed. `npm audit fix` updated the lockfile to remove critical/high advisories; eight moderate development-tool advisories remain.
+- Deployment: GitHub push and Railway production verification are pending at this entry. Railway CLI credentials are expired, so the connected GitHub deployment will be monitored after push. No mobile build or update is included.

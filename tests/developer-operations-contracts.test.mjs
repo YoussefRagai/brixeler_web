@@ -87,17 +87,12 @@ test("optional developer integration surfaces are removed", async () => {
   assert.doesNotMatch(salesOps, /DeveloperIntegrationSummary|fetchDeveloperIntegrations|developer_(api_credentials|webhook_endpoints|import_schedules|sync_runs)/);
 });
 
-test("developer overview counts the same inventory the mobile app can actually see", async () => {
+test("developer overview surfaces ready-today phases without resale entry points", async () => {
   const dashboard = await readFile(new URL("../src/app/developer/page.tsx", import.meta.url), "utf8");
-
-  assert.match(dashboard, /isMobileVisibleListing/);
-  assert.match(dashboard, /project\.approval_status !== "approved"/);
-  assert.match(dashboard, /project\.lifecycle_state !== "published"/);
-  assert.match(dashboard, /phase\.approval_status === "approved"/);
-  assert.match(dashboard, /phase\.lifecycle_state === "published"/);
-  assert.match(dashboard, /developer\?\.is_active/);
-  assert.match(dashboard, /developer\.lifecycle_state === "published"/);
-  assert.match(dashboard, /project\.project_unit_types\?\.some/);
-  assert.match(dashboard, /\["available", "released"\]\.includes\(listing\.availability_state\)/);
-  assert.doesNotMatch(dashboard, /active:\s*stats\.listings > 0/);
+  const layout = await readFile(new URL("../src/components/DeveloperLayoutClient.tsx", import.meta.url), "utf8");
+  assert.match(dashboard, /phase\.sales_status === "selling"/);
+  assert.match(dashboard, /project\.project_unit_types \?\? \[\]/);
+  assert.match(dashboard, /Publication still requires Brixeler approval/);
+  assert.doesNotMatch(dashboard, /Add resale|Agent resales|fetchDeveloperResales|\/developer\/listings/);
+  assert.doesNotMatch(layout, /href: "\/developer\/listings"/);
 });

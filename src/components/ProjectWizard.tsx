@@ -271,6 +271,11 @@ export function ProjectWizard({
     persistDraft();
     const form = formRef.current;
     if (!form) return;
+    if (form.querySelector('[data-media-uploading="true"]')) {
+      event.preventDefault();
+      setError("Wait for media uploads to finish before creating the project.");
+      return;
+    }
     const invalidControl = getDraftControls(form).find(({ control }) => !control.checkValidity())?.control;
     if (invalidControl) {
       event.preventDefault();
@@ -351,9 +356,12 @@ export function ProjectWizard({
           </button>
           <span className="hidden text-xs text-neutral-500 sm:block">Step {activeStep + 1}: {steps[activeStep].hint}</span>
           {activeStep < steps.length - 1 ? (
-            <button type="button" onClick={moveForward} className="min-h-11 rounded-full bg-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800">
-              Continue to {steps[activeStep + 1].label}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <ProjectSubmitButton locked={submitLocked} onSettled={() => setSubmitLocked(false)} label="Create draft now" />
+              <button type="button" onClick={moveForward} className="min-h-11 rounded-full border border-black/20 bg-white px-5 py-2 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-50">
+                {activeStep === 1 ? "Review materials" : "Continue"}
+              </button>
+            </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <MobilePreviewButton formId="project-creator" titleField="name" bodyField="description" typeField="launchStatus" />
@@ -366,7 +374,7 @@ export function ProjectWizard({
   );
 }
 
-function ProjectSubmitButton({ locked, onSettled }: { locked: boolean; onSettled: () => void }) {
+function ProjectSubmitButton({ locked, onSettled, label = "Create project" }: { locked: boolean; onSettled: () => void; label?: string }) {
   const { pending } = useFormStatus();
   const previousPending = useRef(false);
   useEffect(() => {
@@ -376,7 +384,7 @@ function ProjectSubmitButton({ locked, onSettled }: { locked: boolean; onSettled
   const disabled = pending || locked;
   return (
     <button type="submit" disabled={disabled} aria-busy={pending} className="min-h-11 rounded-full bg-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-60">
-      {pending ? "Creating…" : locked ? "Saving…" : "Create project"}
+      {pending ? "Creating…" : locked ? "Saving…" : label}
     </button>
   );
 }

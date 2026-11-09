@@ -20,6 +20,7 @@ type PhaseBoardProps = {
   updateAction: DeveloperPhaseAction;
   archiveAction: DeveloperPhaseAction;
   restoreAction: DeveloperPhaseAction;
+  markNewReleaseAction: DeveloperPhaseAction;
   hrefForPhase: (phaseId?: string | null) => string;
   phaseForm?: "create" | "edit" | null;
   canManagePhases?: boolean;
@@ -59,6 +60,7 @@ export function DeveloperProjectPhaseBoard({
   updateAction,
   archiveAction,
   restoreAction,
+  markNewReleaseAction,
   hrefForPhase,
   phaseForm,
   canManagePhases = true,
@@ -82,7 +84,7 @@ export function DeveloperProjectPhaseBoard({
           initialOpen={phaseForm === "create"}
           ariaLabel="Open new release phase form"
           className="inline-flex min-h-10 items-center gap-2 rounded-full bg-black px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800"
-        ><Plus aria-hidden="true" size={15} /> Add phase</DeveloperPhaseFormTrigger> : null}
+        ><Plus aria-hidden="true" size={15} /> Add launch / phase</DeveloperPhaseFormTrigger> : null}
       </div>
 
       {canManagePhases ? <DeveloperPhaseFormDisclosure id="new-project-phase" initialOpen={phaseForm === "create"} className="mt-4">
@@ -97,7 +99,7 @@ export function DeveloperProjectPhaseBoard({
               <a key={phase.id} href={hrefForPhase(phase.id)} className={`rounded-2xl border p-3 text-left text-neutral-800 transition ${salesStatusTone(phase.sales_status)} ${active ? "ring-2 ring-neutral-900 ring-offset-2" : "hover:brightness-95"}`} aria-current={active ? "page" : undefined}>
                 <div className="flex items-start justify-between gap-3">
                   <span className="flex min-w-0 items-center gap-2 text-sm font-semibold"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-white/70 text-xs text-neutral-600">{phase.phase_order}</span><span className="truncate">{phase.name}</span></span>
-                  {phase.is_default ? <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-neutral-500">Default</span> : null}
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-neutral-600">{launchStatusLabel(phase.launch_status)}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-neutral-600">
                   <span className="font-semibold">{salesStatusLabel(phase.sales_status)}</span>
@@ -117,6 +119,11 @@ export function DeveloperProjectPhaseBoard({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-semibold text-neutral-900">{selectedPhase.name} <span className="font-normal text-neutral-500">· {launchStatusLabel(selectedPhase.launch_status)}{selectedPhase.delivery_date ? ` · Delivery ${selectedPhase.delivery_date.slice(0, 10)}` : ""}</span></div>
             <div className="flex flex-wrap items-center gap-3">
+              {canManagePhases && selectedPhase.launch_status !== "new_launch" && selectedPhase.launch_status !== "new_release" ? <form action={markNewReleaseAction}>
+                <input type="hidden" name="projectId" value={projectId} />
+                <input type="hidden" name="phaseId" value={selectedPhase.id} />
+                <button type="submit" className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 hover:border-black/30">Mark as new release</button>
+              </form> : null}
               {canManagePhases ? <DeveloperPhaseFormTrigger targetId={`edit-project-phase-${selectedPhase.id}`} initialOpen={phaseForm === "edit"} className="text-xs font-semibold underline underline-offset-4">Edit phase</DeveloperPhaseFormTrigger> : null}
               {hrefForInventory ? <a href={hrefForInventory(selectedPhase.id)} className="text-xs font-semibold underline underline-offset-4">{(inventoryCounts[selectedPhase.id] ?? 0) > 0 ? "Open phase inventory →" : "Next: add phase inventory →"}</a> : null}
             </div>

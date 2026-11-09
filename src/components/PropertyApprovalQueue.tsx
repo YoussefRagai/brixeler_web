@@ -73,6 +73,7 @@ export function PropertyApprovalQueue({ entries, activeTab: initialTab = "Propos
 
   useEffect(() => {
     const nextTab = TABS.includes(initialTab as Tab) ? initialTab as Tab : "Proposed";
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize external route/data changes
     setActiveTab(nextTab);
   }, [initialTab]);
 

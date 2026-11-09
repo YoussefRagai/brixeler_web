@@ -342,6 +342,7 @@ export function GiftRuleBuilder({ gifts, rules = [], agentDirectory = [], savedA
 
   useEffect(() => {
     if (previewResult && previewFingerprint !== currentPreviewFingerprint) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize external route/data changes
       setPreviewResult(null);
       setPreviewFingerprint(null);
     }

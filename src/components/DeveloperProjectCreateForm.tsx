@@ -445,12 +445,12 @@ export function DeveloperProjectCreateForm({ action, developerId, projects = [],
           <p className="mt-1 text-xs leading-5 text-[#52630c]">Upload files or paste hosted URLs. Files are sent only when you create the project; browser drafts never store uploads.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <DeveloperMediaField key={`project-logo-${mediaResetKey}`} label="Project logo" description="Used in this project's portal header." fileName="project_logo" urlName="project_logo_url" accept="image/*" />
-          <DeveloperMediaField key={`project-images-${mediaResetKey}`} label="Project images" description="Upload, drop, or paste image URLs to build the project gallery." fileName="project_images" urlName="project_image_urls" accept="image/*" multiple />
-          <DeveloperMediaField key={`project-brochure-${mediaResetKey}`} label="Project brochure (PDF)" fileName="project_brochure" urlName="project_brochure_url" accept="application/pdf" />
-          <DeveloperMediaField key={`project-masterplan-${mediaResetKey}`} label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" />
-          <DeveloperMediaField key={`voice-notes-${mediaResetKey}`} label="Voice notes" fileName="voice_notes" urlName="voice_note_urls" accept="audio/*" multiple />
-          <DeveloperMediaField key={`project-videos-${mediaResetKey}`} label="HD project videos" description="Upload originals or paste hosted HD video URLs." fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple />
+          <DeveloperMediaField directUpload key={`project-logo-${mediaResetKey}`} label="Project logo" description="Used in this project's portal header." fileName="project_logo" urlName="project_logo_url" accept="image/*" />
+          <DeveloperMediaField directUpload key={`project-images-${mediaResetKey}`} label="Project images" description="Upload, drop, or paste image URLs to build the project gallery." fileName="project_images" urlName="project_image_urls" accept="image/*" multiple />
+          <DeveloperMediaField directUpload key={`project-brochure-${mediaResetKey}`} label="Project brochure (PDF)" fileName="project_brochure" urlName="project_brochure_url" accept="application/pdf" />
+          <DeveloperMediaField directUpload key={`project-masterplan-${mediaResetKey}`} label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" />
+          <DeveloperMediaField directUpload key={`voice-notes-${mediaResetKey}`} label="Voice notes" fileName="voice_notes" urlName="voice_note_urls" accept="audio/*" multiple />
+          <DeveloperMediaField directUpload key={`project-videos-${mediaResetKey}`} label="HD project videos" description="Upload originals or paste hosted HD video URLs." fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple />
         </div>
         <p className="text-xs text-neutral-500">Inventory spreadsheets are added from the project workspace after creation, where the filled Brixeler template can be checked before import.</p>
       </div>
