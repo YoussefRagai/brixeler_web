@@ -1,16 +1,13 @@
 import "server-only";
 import { isFile, removeUploadedStorageObjects, STORAGE_BUCKETS, uploadFileToBucket } from "./storageServer";
+import { normalizeExternalMediaUrl } from "./externalMediaUrl";
 
 function validatedOptionalUrl(value: string, label: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
-  try {
-    const parsed = new URL(trimmed);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
-    return parsed.toString();
-  } catch {
-    throw new Error(`${label} must be a valid http(s) URL.`);
-  }
+  const normalized = normalizeExternalMediaUrl(trimmed);
+  if (!normalized) throw new Error(`${label} must use HTTPS and an approved media host.`);
+  return normalized;
 }
 
 export async function resolveDeveloperListingMedia(formData: FormData, developerId: string, listingKey: string) {

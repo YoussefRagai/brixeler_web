@@ -13,6 +13,7 @@ import {
 import { fetchDeveloperProfile } from "@/lib/developerQueries";
 import { STORAGE_BUCKETS, isFile, removeUploadedStorageObjects, uploadFileToBucket } from "@/lib/storageServer";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { normalizeExternalMediaUrl } from "@/lib/externalMediaUrl";
 
 type ProfileRevision = {
   id: string;
@@ -349,13 +350,9 @@ async function discardUploadedLogo(url: string | null) {
 function validatedOptionalHttpUrl(value: string, label: string) {
   const normalized = value.trim();
   if (!normalized) return null;
-  try {
-    const parsed = new URL(normalized);
-    if (parsed.protocol !== "https:") throw new Error("unsupported protocol");
-    return parsed.toString();
-  } catch {
-    redirect(`/developer/profile?error=${encodeURIComponent(`${label} must be a valid HTTPS URL.`)}`);
-  }
+  const safeUrl = normalizeExternalMediaUrl(normalized);
+  if (!safeUrl) redirect(`/developer/profile?error=${encodeURIComponent(`${label} must use HTTPS and an approved media host.`)}`);
+  return safeUrl;
 }
 
 function formatRevisionStatus(value: string) {

@@ -100,6 +100,7 @@ export function DeveloperProfileForm({
                   width={80}
                   height={80}
                   unoptimized
+                  referrerPolicy="no-referrer"
                   className="h-full w-full object-contain"
                 />
               ) : (
@@ -215,7 +216,7 @@ export function DeveloperProfileForm({
             description={onboarding ? "Required to unlock the workspace. Upload a PNG, JPG, or WebP logo up to 5 MB." : "Upload a PNG, JPG, or WebP logo up to 5 MB. The current logo stays in place when you submit without a new file."}
             fileName="logo_file"
             urlName="logo_url"
-            urlLabel="Or paste your hosted logo URL"
+            urlLabel="Or paste a supported logo URL"
             accept="image/png,image/jpeg,image/webp"
             required={onboarding}
             currentValue={initialLogoUrl}

@@ -9,7 +9,7 @@ export function DeveloperPhaseMerchandisingFields({ phase, compact = false }: { 
     <div className="grid gap-3 sm:grid-cols-2">
       <label className="flex flex-col gap-1 text-sm"><span className="font-medium text-neutral-700">Phase facilities</span><textarea name="phaseFacilities" defaultValue={phase?.facilities?.join("\n") ?? ""} placeholder={"Pool\nClubhouse"} maxLength={6000} className={`${inputClass} min-h-20 py-3`} /><span className="text-xs text-neutral-500">One facility per line.</span></label>
       <label className="flex flex-col gap-1 text-sm"><span className="font-medium text-neutral-700">Selling points</span><textarea name="phaseSellingPoints" defaultValue={phase?.selling_points?.join("\n") ?? ""} placeholder={"Park-facing homes\nWalkable retail"} maxLength={6000} className={`${inputClass} min-h-20 py-3`} /><span className="text-xs text-neutral-500">One selling point per line.</span></label>
-      <div className="sm:col-span-2"><DeveloperMediaField directUpload label="Phase masterplan" description="Upload or drop an image or PDF, or paste its URL." fileName="phaseMasterplan" urlName="phaseMasterplanUrl" accept="image/*,application/pdf,.pdf" defaultUrl={phase?.masterplan_url ?? ""} currentValue={phase?.masterplan_url ?? null} /></div>
+      <div className="sm:col-span-2"><DeveloperMediaField directUpload label="Phase masterplan" description="Upload or drop an image or PDF, or paste a supported HTTPS URL." fileName="phaseMasterplan" urlName="phaseMasterplanUrl" accept="image/*,application/pdf,.pdf" defaultUrl={phase?.masterplan_url ?? ""} currentValue={phase?.masterplan_url ?? null} /></div>
     </div>
   );
 

@@ -31,6 +31,7 @@ export default async function NewListingPage({
   const params = (await searchParams) ?? {};
   const preselectedProjectId = typeof params.project === "string" ? params.project : "";
   const preselectedSaleType = typeof params.saleType === "string" && SALE_TYPES.includes(params.saleType) ? params.saleType : "developer_sale";
+  if (preselectedSaleType === "resale") redirect("/developer/projects");
   const emphasizeCreateProject = params.createProject === "1";
   const errorMessage = typeof params.error === "string" ? params.error : null;
 

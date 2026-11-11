@@ -1,5 +1,7 @@
 # Project Map: brixeler-web
 
+- Current cross-surface contracts: `supabase/migrations/20261111141109_agent_lifetime_resume.sql` owns private resume rows, document storage, and redacted share RPCs; `src/app/resume/[token]/page.tsx` bridges share links into the app. `supabase/migrations/20261111142652_transactional_notification_pushes.sql` queues and safely retries opt-in deal/support Expo pushes. `src/lib/externalMediaUrl.ts` validates pasted developer media; `src/proxy.ts` preserves the public developer inventory template asset. `DeveloperProjectCreateForm.tsx` and `src/app/developer/projects/page.tsx` capture extended structured payment-plan terms.
+
 - Handover entry points: `README.md` and `HANDOVER.md` describe the two dashboards, database ownership, required environment names, verification and external provider transfers.
 
 - Dashboard contrast: `src/app/globals.css` nearest-surface tokens, `tests/dashboard-contrast.test.mjs` palette/source guards. Demo flag maintenance: migration `20260908110000_safe_demo_metadata_maintenance.sql`, SQL test `supabase/tests/demo_metadata_maintenance.sql`. Release/recovery evidence: `docs/dashboard-contrast-and-demo-completion-2026-09-08.md`.

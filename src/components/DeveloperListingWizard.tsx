@@ -271,7 +271,7 @@ export function DeveloperListingWizard({
         </header>
 
         {error ? <p id="listing-wizard-error" role="alert" aria-live="assertive" className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{error}</p> : null}
-        {duplicateWarning ? <p id="listing-wizard-duplicate" role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">A matching developer resale already exists for this project, price, and area. Review the existing record before submitting another.</p> : null}
+        {duplicateWarning ? <p id="listing-wizard-duplicate" role="status" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">A matching listing already exists for this project, price, and area. Review the existing record before submitting another.</p> : null}
 
         <section hidden={step !== 0} className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -329,12 +329,12 @@ export function DeveloperListingWizard({
         </section>
 
         <section hidden={step !== 3} className="space-y-5">
-          <DeveloperMediaField label="Property photos" description="Add at least three clear property images by dropping files, browsing, or pasting URLs." fileName="photoFiles" urlName="photoUrls" accept="image/*" multiple required />
+          <DeveloperMediaField label="Property photos" description="Add at least three clear property images by dropping files, browsing, or pasting supported URLs." fileName="photoFiles" urlName="photoUrls" accept="image/*" multiple required />
           <div className="grid gap-4 sm:grid-cols-2">
             <DeveloperMediaField label="Brochure / floor plan" fileName="brochureFile" urlName="brochureUrl" accept="application/pdf,image/*,.xlsx" />
             <DeveloperMediaField label="Video tour" fileName="videoFile" urlName="videoUrl" accept="video/*" />
           </div>
-          <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><p className="font-semibold">Final review</p><p className="mt-1 text-xs text-emerald-700">Submitting creates a developer-owned resale. It remains pending until the Brixeler team approves it; approval and mobile publication are separate from the launch label.</p><ul className="mt-3 space-y-1 text-xs text-emerald-700"><li>✓ Project ownership and linked project are checked on submit.</li><li>✓ Pricing, area, payment terms, and description are validated.</li><li>✓ Three unique property photos are required before review.</li><li>✓ Publication remains controlled by the Brixeler review workflow.</li></ul></div>
+          <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><p className="font-semibold">Final review</p><p className="mt-1 text-xs text-emerald-700">Submitting creates a developer-owned listing. It remains pending until the Brixeler team approves it; approval and mobile publication are separate from the launch label.</p><ul className="mt-3 space-y-1 text-xs text-emerald-700"><li>✓ Project ownership and linked project are checked on submit.</li><li>✓ Pricing, area, payment terms, and description are validated.</li><li>✓ Three unique property photos are required before review.</li><li>✓ Publication remains controlled by the Brixeler review workflow.</li></ul></div>
         </section>
       </div>
 
@@ -354,5 +354,5 @@ function ListingSubmitButton() {
 function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) { return <label className={`flex flex-col gap-1.5 text-sm ${className}`}><span className="text-xs font-semibold text-neutral-600">{label}</span>{children}</label>; }
 function TextField({ label, className = "", icon, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; className?: string; icon?: React.ReactNode }) { return <Field label={label} className={className}><span className="relative flex">{icon ? <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400">{icon}</span> : null}<input className={`${inputClass} w-full ${icon ? "pl-11" : ""}`} {...props} /></span></Field>; }
 function SelectField({ label, options, labels = {}, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; options: string[]; labels?: Record<string, string> }) { return <Field label={label}><select className={inputClass} {...props}>{options.map((option) => <option key={option} value={option}>{labels[option] ?? option.replaceAll("_", " ")}</option>)}</select></Field>; }
-function stepTitle(step: number) { return ["Where does this resale belong?", "Describe the unit", "Set the commercial terms", "Add media and submit"][step]; }
+function stepTitle(step: number) { return ["Where does this listing belong?", "Describe the unit", "Set the commercial terms", "Add media and submit"][step]; }
 function stepDescription(step: number) { return ["Use an existing project or create a lightweight project record now.", "Keep the information focused on what agents need to sell it.", "Add the payment and delivery details shown in the mobile app.", "Strong media helps the Brixeler team approve and publish it faster."][step]; }

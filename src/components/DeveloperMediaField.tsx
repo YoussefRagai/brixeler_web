@@ -140,7 +140,7 @@ export function DeveloperMediaField({
     <fieldset className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
       <legend className="px-1 text-sm font-semibold text-neutral-950">{label}</legend>
       {description ? <p className="mt-1 text-xs leading-5 text-neutral-500">{description}</p> : null}
-      {directUpload ? <p className="mt-1 text-xs text-neutral-600">Files upload separately, then attach when you save. You can also paste a hosted URL.</p> : null}
+      {directUpload ? <p className="mt-1 text-xs text-neutral-600">Files upload separately, then attach when you save. Pasted URLs are limited to the approved hosts below.</p> : null}
       {currentValue && ["project_images", "project_logo", "project_brochure", "project_masterplan", "voice_notes", "project_videos", "project_inventory", "phaseHeroImage", "phaseMasterplan"].includes(fileName) ? <label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" name={`${fileName}_remove`} value="1" />Remove current media when saved (a new upload takes precedence)</label> : null}
       <label
         htmlFor={inputId}
@@ -208,6 +208,9 @@ export function DeveloperMediaField({
               className="mt-2 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-neutral-950 outline-none focus:border-black/40 focus:ring-2 focus:ring-[#dff579]"
             />
           )}
+          <span className="mt-1 block text-xs leading-5 text-neutral-500">
+            Images and documents: Brixeler Storage, admin.brixeler.com, or images.unsplash.com. Videos: youtube.com, www.youtube.com, youtu.be, vimeo.com, or player.vimeo.com.
+          </span>
         </label>
       ) : null}
     </fieldset>

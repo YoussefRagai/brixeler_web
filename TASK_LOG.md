@@ -1,5 +1,13 @@
 # Task Log
 
+## 2026-11-11 — Dormant resale, developer media, payment plans, and resume contracts
+
+- Hid developer resale portal entry routes while retaining backend and data. Fixed the public inventory XLSX on the developer host by exempting the exact asset from host rewriting. Restricted pasted media URLs to exact approved hosts and suppressed referrers in portal images.
+- Expanded structured project payment plans/offers with compound, unit type, standard price, distribution, maintenance, finishing fees, and exclusive delivery conditions in both creation and editing. Added private agent resume tables/storage and redacted authenticated share RPCs; Brixeler-verified rows derive from paid non-demo Sales Claims whose details now freeze after payment.
+- Added transactional Expo pushes for admin deal updates and support replies. Generic lock-screen copy, opt-in checks, source ownership, active-account checks, token revalidation, and retry cancellation protect privacy. Legacy campaign behavior remains compatible.
+- Checks: full web release gate passed, including lint/build and 141 JS tests. A disposable Supabase database applied the baseline and every pending migration; all 13 rollback-only SQL suites passed and `supabase db lint --level error` found no errors. The resume and push migrations were applied to production under ledger versions `20261111141109` and `20261111142652` and their objects/job were verified. Dashboard deployment remains pending at this checkpoint.
+
+
 ## 2026-09-15 — GitHub handover publication
 
 - Prepared the complete current admin/developer dashboard, mobile APIs, authoritative Supabase migrations/tests, operational documentation and a new handover guide for `main`. Removed local Serena state and personal inbox/account identifiers from the publishable documentation; `.env`, recovery and local tool artifacts remain excluded.

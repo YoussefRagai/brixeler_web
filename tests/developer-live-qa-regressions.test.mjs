@@ -26,6 +26,6 @@ test("projects created under demo developers inherit explicit demo metadata", ()
 
 test("project setup copy matches direct upload behavior", () => {
   const form = read("../src/components/DeveloperProjectCreateForm.tsx");
-  assert.match(form, /Upload files now or paste hosted URLs\. Save the project to attach them/);
+  assert.match(form, /Upload files now or paste URLs from the supported hosts listed below\. Save the project to attach them/);
   assert.doesNotMatch(form, /Files are sent only when you create the project/);
 });

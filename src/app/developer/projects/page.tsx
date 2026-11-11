@@ -17,11 +17,12 @@ import { DeveloperPublicationFeedbackPanel } from "@/components/DeveloperPublica
 import { DeveloperPriceHistoryPanel } from "@/components/DeveloperPriceHistoryPanel";
 import { ProjectImportPanel } from "@/components/ProjectImportPanel";
 import { PROJECT_WIZARD_DRAFT_KEY } from "@/components/ProjectWizard";
-import { DeveloperProjectCreateForm } from "@/components/DeveloperProjectCreateForm";
+import { DeveloperProjectCreateForm, PlanDetailFields } from "@/components/DeveloperProjectCreateForm";
 import { LocalStorageCleanup } from "@/components/LocalStorageCleanup";
 import { MobilePreviewButton } from "@/components/MobilePreviewButton";
 import { DeveloperMediaField } from "@/components/DeveloperMediaField";
 import { retainedMediaInput } from "@/lib/mediaEdit";
+import { normalizeExternalMediaUrl } from "@/lib/externalMediaUrl";
 import { VariantOutdoorFields } from "@/components/VariantOutdoorFields";
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { DeveloperProjectPortfolioBoard, type DeveloperPortfolioProject } from "@/components/DeveloperProjectPortfolioBoard";
@@ -300,14 +301,7 @@ const decodeFeedback = (value: string) => {
 };
 
 const normalizeHttpMediaUrl = (value?: string | null) => {
-  const raw = value?.trim() ?? "";
-  if (!raw) return null;
-  try {
-    const url = new URL(raw);
-    return ["http:", "https:"].includes(url.protocol) ? url.toString() : null;
-  } catch {
-    return null;
-  }
+  return normalizeExternalMediaUrl(value);
 };
 
 const parseHttpMediaUrls = (value: FormDataEntryValue | null, label: string, limit: number) => {
@@ -315,7 +309,7 @@ const parseHttpMediaUrls = (value: FormDataEntryValue | null, label: string, lim
   if (rawValues.length > limit) throw new Error(`${label} accepts no more than ${limit} URLs.`);
   return rawValues.map((entry) => {
     const normalized = normalizeHttpMediaUrl(entry);
-    if (!normalized) throw new Error(`${label} must contain only valid http(s) URLs.`);
+    if (!normalized) throw new Error(`${label} must use HTTPS and an approved media host.`);
     return normalized;
   });
 };
@@ -334,6 +328,23 @@ const toPlanNumber = (value?: string | null) => {
   return parsed;
 };
 
+const readPlanDetails = (formData: FormData, prefix: string) => {
+  const text = (field: string) => formData.get(`${prefix}${field}`)?.toString().trim().slice(0, 120) || null;
+  const number = (field: string) => toPlanNumber(formData.get(`${prefix}${field}`)?.toString());
+  const distribution = text("Distribution") || "equal";
+  if (!["equal", "front_loaded", "back_loaded"].includes(distribution)) throw new Error("Choose a valid installment distribution.");
+  return {
+    compound_name: text("Compound"),
+    unit_type: text("UnitType"),
+    standard_total_price: number("StandardPrice"),
+    maintenance_fees_percent: number("Maintenance"),
+    finishing_fees: number("FinishingFees"),
+    installment_distribution: distribution as "equal" | "front_loaded" | "back_loaded",
+    delivery_after_paid_percent: number("DeliveryPaid"),
+    delivery_after_years: number("DeliveryYears"),
+  };
+};
+
 const isExcelTemplateFile = (file: File) => file.name.trim().toLowerCase().endsWith(".xlsx");
 
 const asStructuredPlans = (value: unknown): StructuredPaymentPlan[] =>
@@ -347,12 +358,18 @@ const asLimitedTimeOffers = (value: unknown): LimitedTimeOffer[] =>
     : [];
 
 const formatPlanSummary = (plan: StructuredPaymentPlan) => {
+  const compound = plan.compound_name || null;
+  const unit = plan.unit_type || null;
+  const price = plan.standard_total_price != null ? `EGP ${plan.standard_total_price.toLocaleString("en-EG")} standard` : null;
   const down = plan.down_payment_percent != null ? `${plan.down_payment_percent}% upfront` : null;
   const stages = plan.down_payment_stages?.map((stage) => `${stage.percent}% after ${stage.after_months} months`).join(" + ");
   const years = plan.installment_years != null ? `rest over ${plan.installment_years} years` : null;
   const frequency = plan.payment_frequency ? `${plan.payment_frequency.toLowerCase()} payments` : null;
   const discount = plan.discount_percent ? `${plan.discount_percent}% discount` : null;
-  return [plan.title, down, stages, years, frequency, discount].filter(Boolean).join(" · ");
+  const maintenance = plan.maintenance_fees_percent != null ? `${plan.maintenance_fees_percent}% maintenance` : null;
+  const finishing = plan.finishing_fees ? `EGP ${plan.finishing_fees.toLocaleString("en-EG")} finishing` : null;
+  const delivery = plan.delivery_after_paid_percent != null ? `delivery at ${plan.delivery_after_paid_percent}% paid` : plan.delivery_after_years != null ? `delivery after ${plan.delivery_after_years} years` : null;
+  return [plan.title, compound, unit, price, down, stages, years, frequency, plan.installment_distribution?.replace("_", " "), discount, maintenance, finishing, delivery].filter(Boolean).join(" · ");
 };
 
 export default async function DeveloperProjectsPage({
@@ -678,7 +695,7 @@ export default async function DeveloperProjectsPage({
           <header id="project-overview" className="relative scroll-mt-24 overflow-hidden rounded-[1.75rem] border border-black/5 bg-[#ece7dc]">
             {selectedHeroImage ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={selectedHeroImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={selectedHeroImage} alt="" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover" />
             ) : null}
             <div className={`absolute inset-0 ${selectedHeroImage ? "bg-gradient-to-r from-black/80 via-black/70 to-black/60" : "bg-[radial-gradient(circle_at_90%_20%,rgba(255,255,255,0.9),transparent_42%)]"}`} />
             <div data-dashboard-surface={selectedHeroImage ? "dark" : "light"} className={`relative p-4 sm:p-6 ${selectedHeroImage ? "text-white" : "text-neutral-950"}`}>
@@ -690,7 +707,7 @@ export default async function DeveloperProjectsPage({
                   <div className={`grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl border ${selectedHeroImage ? "border-white/25 bg-white/90" : "border-black/10 bg-white"}`}>
                     {selectedProject?.project_logo_url ?? profile?.logo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={selectedProject?.project_logo_url ?? profile!.logo_url!} alt={`${selectedProject?.name ?? profile?.name ?? "Developer"} logo`} className="size-12 object-contain" />
+                      <img src={selectedProject?.project_logo_url ?? profile!.logo_url!} alt={`${selectedProject?.name ?? profile?.name ?? "Developer"} logo`} referrerPolicy="no-referrer" className="size-12 object-contain" />
                     ) : <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">Logo</span>}
                   </div>
                   <div className="min-w-0">
@@ -931,6 +948,7 @@ export default async function DeveloperProjectsPage({
                                 </select>
                               </label>
                               <DownPaymentStages prefix={`paymentPlan${index}`} stages={plan?.down_payment_stages} />
+                              <PlanDetailFields prefix={`paymentPlan${index}`} plan={plan ?? null} />
                             </div>
                           );
                         });
@@ -963,6 +981,7 @@ export default async function DeveloperProjectsPage({
                               </select>
                             </label>
                             <div className="md:col-span-5"><DownPaymentStages prefix="offer0" stages={offer?.down_payment_stages} /></div>
+                            <div className="md:col-span-5"><PlanDetailFields prefix="offer0" plan={offer ?? null} /></div>
                           </>
                         );
                       })()}
@@ -1962,8 +1981,10 @@ async function upsertProjectAction(formData: FormData) {
       const discount = toPlanNumber(formData.get(`paymentPlanDiscount_${index}`)?.toString());
       const frequency = formData.get(`paymentPlanFrequency_${index}`)?.toString().trim() || null;
       const stages = parseDownPaymentStages(formData, `paymentPlan${index}`, downPayment);
-      if (!title && downPayment == null && years == null && discount == null && !stages.length) return null;
+      const details = readPlanDetails(formData, `paymentPlan${index}`);
+      if (!title && downPayment == null && years == null && discount == null && !stages.length && !Object.entries(details).some(([key, value]) => key !== "installment_distribution" && value != null)) return null;
       return {
+        ...details,
         title,
         down_payment_percent: downPayment,
         down_payment_stages: stages,
@@ -1981,8 +2002,10 @@ async function upsertProjectAction(formData: FormData) {
       const discount = toPlanNumber(formData.get(`offerDiscount_${index}`)?.toString());
       const frequency = formData.get(`offerFrequency_${index}`)?.toString().trim() || null;
       const stages = parseDownPaymentStages(formData, `offer${index}`, downPayment);
-      if (!offerTitle && downPayment == null && years == null && discount == null && !stages.length) return null;
+      const details = readPlanDetails(formData, `offer${index}`);
+      if (!offerTitle && downPayment == null && years == null && discount == null && !stages.length && !Object.entries(details).some(([key, value]) => key !== "installment_distribution" && value != null)) return null;
       return {
+        ...details,
         offer_title: offerTitle,
         down_payment_stages: stages,
         title: offerTitle,
@@ -2280,8 +2303,8 @@ function validatePhaseForm(values: ReturnType<typeof phaseFormValues>) {
   if (values.phaseOrder != null && (!Number.isInteger(values.phaseOrder) || values.phaseOrder <= 0)) return "Phase order must be a whole number greater than zero.";
   if (!["upcoming", "new_launch", "live"].includes(values.launchStatus)) return "Choose a valid phase launch status.";
   if (values.launchDate && Number.isNaN(Date.parse(`${values.launchDate}T00:00:00`))) return "Enter a valid phase launch date.";
-  if (values.pastedHero && !normalizeHttpMediaUrl(values.pastedHero)) return "Phase image URLs must use http:// or https://.";
-  if (values.pastedMasterplan && !normalizeHttpMediaUrl(values.pastedMasterplan)) return "Phase masterplan URLs must use http:// or https://.";
+  if (values.pastedHero && !normalizeHttpMediaUrl(values.pastedHero)) return "Phase image URLs must use HTTPS and an approved media host.";
+  if (values.pastedMasterplan && !normalizeHttpMediaUrl(values.pastedMasterplan)) return "Phase masterplan URLs must use HTTPS and an approved media host.";
   if (!["upcoming", "selling", "sold_out", "paused"].includes(values.salesStatus)) return "Choose a valid phase sales status.";
   if (!validDeliveryDate(values.deliveryDate ?? "")) return "Enter a valid phase delivery date.";
   try { parseLineItems(values.facilitiesRaw, "Facilities"); parseLineItems(values.sellingPointsRaw, "Selling points"); }

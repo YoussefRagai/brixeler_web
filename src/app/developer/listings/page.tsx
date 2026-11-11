@@ -27,6 +27,8 @@ export default async function DeveloperListingsPage({
   const session = await requireDeveloperCapability("manage_inventory");
   const feedback = (await searchParams) ?? {};
   const activeView: ResaleView = feedback.view === "developer" || feedback.view === "archived" ? feedback.view : "agent";
+  // The resale workspace is dormant until its later distribution.
+  redirect("/developer/projects");
   const [listings, projects, impersonation] = await Promise.all([
     fetchDeveloperResales(session.developerId),
     fetchDeveloperProjects(session.developerId),

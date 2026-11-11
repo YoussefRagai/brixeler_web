@@ -69,11 +69,19 @@ const PROJECT_STATUS_OPTIONS = [
 
 type PaymentPlan = {
   title?: string | null;
+  compound_name?: string | null;
+  unit_type?: string | null;
+  standard_total_price?: number | null;
   down_payment_percent?: number | null;
   down_payment_stages?: DownPaymentStage[];
   installment_years?: number | null;
   discount_percent?: number | null;
+  installment_distribution?: "equal" | "front_loaded" | "back_loaded" | null;
   payment_frequency?: string | null;
+  maintenance_fees_percent?: number | null;
+  delivery_after_paid_percent?: number | null;
+  delivery_after_years?: number | null;
+  finishing_fees?: number | null;
 };
 
 type Offer = PaymentPlan & { offer_title?: string | null };
@@ -109,11 +117,19 @@ function paymentPlan(value: unknown): PaymentPlan | null {
     : [];
   return {
     title: typeof item.title === "string" ? item.title : null,
+    compound_name: typeof item.compound_name === "string" ? item.compound_name : null,
+    unit_type: typeof item.unit_type === "string" ? item.unit_type : null,
+    standard_total_price: typeof item.standard_total_price === "number" ? item.standard_total_price : null,
     down_payment_percent: typeof item.down_payment_percent === "number" ? item.down_payment_percent : null,
     down_payment_stages: stages,
     installment_years: typeof item.installment_years === "number" ? item.installment_years : null,
     discount_percent: typeof item.discount_percent === "number" ? item.discount_percent : null,
+    installment_distribution: item.installment_distribution === "front_loaded" || item.installment_distribution === "back_loaded" ? item.installment_distribution : "equal",
     payment_frequency: typeof item.payment_frequency === "string" ? item.payment_frequency : null,
+    maintenance_fees_percent: typeof item.maintenance_fees_percent === "number" ? item.maintenance_fees_percent : null,
+    delivery_after_paid_percent: typeof item.delivery_after_paid_percent === "number" ? item.delivery_after_paid_percent : null,
+    delivery_after_years: typeof item.delivery_after_years === "number" ? item.delivery_after_years : null,
+    finishing_fees: typeof item.finishing_fees === "number" ? item.finishing_fees : null,
   };
 }
 
@@ -225,6 +241,28 @@ function SharedAmenities({ templateProject }: { templateProject?: DeveloperProje
   );
 }
 
+export function PlanDetailFields({ prefix, plan }: { prefix: string; plan: PaymentPlan | null }) {
+  const [deliveryMode, setDeliveryMode] = useState<"none" | "paid" | "years">(
+    plan?.delivery_after_paid_percent != null ? "paid" : plan?.delivery_after_years != null ? "years" : "none",
+  );
+  return (
+    <div className="mt-3 space-y-3 border-t border-black/10 pt-3">
+      <div className="grid gap-3 md:grid-cols-3">
+        <Field label="Compound name" name={`${prefix}Compound`} placeholder="Project compound" defaultValue={stringValue(plan?.compound_name)} />
+        <Field label="Unit type" name={`${prefix}UnitType`} placeholder="Apartment, villa..." defaultValue={stringValue(plan?.unit_type)} />
+        <Field label="Standard total price (EGP)" name={`${prefix}StandardPrice`} type="number" min="0" step="0.01" defaultValue={numberValue(plan?.standard_total_price)} />
+        <Field label="Maintenance fees %" name={`${prefix}Maintenance`} type="number" min="0" max="100" step="0.01" defaultValue={numberValue(plan?.maintenance_fees_percent)} />
+        <Field label="Finishing fees (EGP) · optional" name={`${prefix}FinishingFees`} type="number" min="0" step="0.01" defaultValue={numberValue(plan?.finishing_fees)} />
+        <label className="flex flex-col gap-1 text-sm"><span className="text-xs uppercase tracking-[0.2em] text-neutral-500">Installment distribution</span><select name={`${prefix}Distribution`} defaultValue={plan?.installment_distribution || "equal"} className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-neutral-900"><option value="equal">Equal installments</option><option value="front_loaded">Front loaded</option><option value="back_loaded">Back loaded</option></select></label>
+        <label className="flex flex-col gap-1 text-sm"><span className="text-xs uppercase tracking-[0.2em] text-neutral-500">Delivery milestone</span><select value={deliveryMode} onChange={(event) => setDeliveryMode(event.target.value as "none" | "paid" | "years")} className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-neutral-900"><option value="none">Not set</option><option value="paid">After % paid</option><option value="years">After years</option></select></label>
+        {deliveryMode === "paid" ? <Field label="Delivery after paid %" name={`${prefix}DeliveryPaid`} type="number" min="0" max="100" step="0.01" defaultValue={numberValue(plan?.delivery_after_paid_percent)} /> : null}
+        {deliveryMode === "years" ? <Field label="Delivery after years" name={`${prefix}DeliveryYears`} type="number" min="0" max="50" step="0.01" defaultValue={numberValue(plan?.delivery_after_years)} /> : null}
+      </div>
+      <p className="text-xs text-neutral-500">The project delivery date remains visible separately.</p>
+    </div>
+  );
+}
+
 function PaymentPlanFields({ templateProject }: { templateProject?: DeveloperProjectCreateProject | null }) {
   const plans = Array.isArray(templateProject?.payment_plan_templates) ? templateProject.payment_plan_templates.map(paymentPlan) : [];
   const offers = Array.isArray(templateProject?.limited_time_offers) ? templateProject.limited_time_offers.map(offer) : [];
@@ -251,6 +289,7 @@ function PaymentPlanFields({ templateProject }: { templateProject?: DeveloperPro
                 </select>
               </label>
               <DownPaymentStages prefix={`paymentPlan${index}`} stages={plan?.down_payment_stages} />
+              <PlanDetailFields prefix={`paymentPlan${index}`} plan={plan} />
             </details>
           );
         })}
@@ -271,6 +310,7 @@ function PaymentPlanFields({ templateProject }: { templateProject?: DeveloperPro
           </select>
         </label>
         <DownPaymentStages prefix="offer0" stages={offers[0]?.down_payment_stages} />
+        <PlanDetailFields prefix="offer0" plan={offers[0] ?? null} />
       </details>
     </details>
   );
@@ -442,15 +482,15 @@ export function DeveloperProjectCreateForm({ action, developerId, projects = [],
       <div data-wizard-panel="materials" className="space-y-4">
         <div className="rounded-2xl border border-[#dceaa3] bg-[#f7fbe7] p-4">
           <p className="text-sm font-semibold text-[#405000]">Add what is ready today</p>
-          <p className="mt-1 text-xs leading-5 text-[#52630c]">Upload files now or paste hosted URLs. Save the project to attach them; browser drafts do not store files.</p>
+          <p className="mt-1 text-xs leading-5 text-[#52630c]">Upload files now or paste URLs from the supported hosts listed below. Save the project to attach them; browser drafts do not store files.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <DeveloperMediaField directUpload key={`project-logo-${mediaResetKey}`} label="Project logo" description="Used in this project's portal header." fileName="project_logo" urlName="project_logo_url" accept="image/*" />
-          <DeveloperMediaField directUpload key={`project-images-${mediaResetKey}`} label="Project images" description="Upload, drop, or paste image URLs to build the project gallery." fileName="project_images" urlName="project_image_urls" accept="image/*" multiple />
+          <DeveloperMediaField directUpload key={`project-images-${mediaResetKey}`} label="Project images" description="Upload, drop, or paste supported image URLs to build the project gallery." fileName="project_images" urlName="project_image_urls" accept="image/*" multiple />
           <DeveloperMediaField directUpload key={`project-brochure-${mediaResetKey}`} label="Project brochure (PDF)" fileName="project_brochure" urlName="project_brochure_url" accept="application/pdf" />
           <DeveloperMediaField directUpload key={`project-masterplan-${mediaResetKey}`} label="Masterplan" fileName="project_masterplan" urlName="project_masterplan_url" accept="application/pdf,image/*" />
           <DeveloperMediaField directUpload key={`voice-notes-${mediaResetKey}`} label="Voice notes" fileName="voice_notes" urlName="voice_note_urls" accept="audio/*" multiple />
-          <DeveloperMediaField directUpload key={`project-videos-${mediaResetKey}`} label="HD project videos" description="Upload originals or paste hosted HD video URLs." fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple />
+          <DeveloperMediaField directUpload key={`project-videos-${mediaResetKey}`} label="HD project videos" description="Upload originals or paste YouTube or Vimeo video URLs." fileName="project_videos" urlName="project_video_urls" accept="video/*" multiple />
         </div>
         <p className="text-xs text-neutral-500">Inventory spreadsheets are added from the project workspace after creation, where the filled Brixeler template can be checked before import.</p>
       </div>

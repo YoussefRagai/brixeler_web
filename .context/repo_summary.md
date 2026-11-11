@@ -1,5 +1,13 @@
 # Repo Summary: brixeler-web
 
+## 2026-11-11 Current work
+
+- Developer resale portal routes are dormant; developer resale backend and admin data are retained.
+- Public inventory template bypasses developer-host rewriting. Pasted media URLs require exact approved HTTPS hosts and portal images suppress referrers.
+- Developer plan JSON now carries compound, unit type, standard price, installment distribution, maintenance, finishing fees, and delivery condition fields. Mobile displays these and calculates custom estimates separately.
+- Additive resume migration provides owner RLS, private documents, an active-viewer redacted share RPC, and verified history derived from paid non-demo Sales Claims whose details freeze after payment. Transactional deal/support push outbox rechecks opt-in and token ownership before dispatch and retry. Both migrations are live under ledger versions `20261111141109` and `20261111142652`; 13 local SQL suites and DB lint pass.
+
+
 - 2026-11-09 production user QA: all admin/developer sidebar routes rendered; demo project media upload, draft, phase, unit type, and phase release worked. Project release exposed a `new_release`/`new_launch` database mismatch, and new projects failed to inherit explicit company demo flags. Scoped fixes and copy cleanup passed the 137-test release gate; deterministic admin date formatting prepared after a hydration warning. See TASK_LOG. Demo QA project `b40c13e5-6795-4007-991b-225e2ca0d6dc` was manually flagged under `prelaunch-demo-20260908` and remains draft/mobile-hidden.
 
 - 2026-11-09: Developer project setup/media/release update passed the full 134-test release gate. Production Supabase Storage migration `20261109163240_project_media_bucket_limits.sql` applied; signed image upload/remove succeeded. Dashboard commit `1629674` pushed to GitHub and Railway production deployment `9652b1f9-3d28-4b55-a699-87fc112a602e` succeeded. Login routes and the new authenticated media endpoint verified live. Mobile build remains deferred.

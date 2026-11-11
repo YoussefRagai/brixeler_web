@@ -1,5 +1,9 @@
 # Decisions
 
+| 2026-11-11 | Store prior agent deals behind owner RLS and private storage, with a share-token RPC returning only redacted resume fields; keep official paid non-demo claims derived from the transaction table. | Resume links need controlled viewing without exposing clients or documents and without client-controlled verification. | Public resume tables, stored verified flags editable by agents, public document URLs. |
+| 2026-11-11 | Retain developer resale backend while hiding its portal routes, and allow pasted HTTPS media only from exact approved hosts. | The feature returns in a later distribution; direct app media loads must not target private networks or leak portal referrers. | Dropping resale tables; accepting arbitrary hosts, schemes, local addresses, credentials, or custom ports. |
+| 2026-11-11 | Queue deal/support Expo pushes transactionally and recheck consent, account state, source ownership, and token ownership before dispatch or retry. | Admin decisions and support replies should reach opted-in devices without exposing private message content or retrying after opt-out. | Replaying cached token payloads after preference or ownership changes. |
+
 ## 2026-09-15 — GitHub handover boundary
 
 - Publish the full source, migration chain, tests and operating documentation to the existing GitHub repository. Keep provider credentials, local recovery dumps and machine/tool state outside Git; transfer provider access through team membership and rotate credentials after the successor verifies access.

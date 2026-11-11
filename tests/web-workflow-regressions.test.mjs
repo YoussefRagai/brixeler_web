@@ -17,14 +17,14 @@ test('unit type price edit preserves stored image; explicit null removes; upload
       maybeSingle: async () => ({ data: table === 'developer_projects' ? { id: 'project', developer_id: 'developer' } : table === 'developer_project_phases' ? { id: 'phase' } : { id: 'unit', project_id: 'project' }, error: null }), single: async () => ({ data: { id: 'unit' }, error: null }) };
     return query;
   } };
-  const api = load('src/lib/developerQueries.ts', { './supabaseServer': { supabaseServer }, './projectMerchandising': {} });
+  const api = load('src/lib/developerQueries.ts', { './supabaseServer': { supabaseServer }, './projectMerchandising': {}, './externalMediaUrl': load('src/lib/externalMediaUrl.ts') });
   const payload = { id: 'unit', phaseId: 'phase', label: 'Apartment', minPrice: 100 };
   await api.upsertProjectUnitType('developer','project',payload);
   assert.equal(persisted.hero_image_url, 'existing.jpg');
   await api.upsertProjectUnitType('developer','project',{...payload,heroImageUrl:null});
   assert.equal(persisted.hero_image_url, null);
-  await api.upsertProjectUnitType('developer','project',{...payload,heroImageUrl:'new.jpg'});
-  assert.equal(persisted.hero_image_url, 'new.jpg');
+  await api.upsertProjectUnitType('developer','project',{...payload,heroImageUrl:'https://cdn.example.com/new.jpg'});
+  assert.equal(persisted.hero_image_url, 'https://cdn.example.com/new.jpg');
 });
 test('removal ignores existing submitted URLs but an ordinary edit keeps them', () => {
   const { retainedMediaInput } = load('src/lib/mediaEdit.ts');

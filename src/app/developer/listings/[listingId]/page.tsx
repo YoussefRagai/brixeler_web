@@ -13,7 +13,6 @@ import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes 
 const PROPERTY_TYPES = ["apartment", "villa", "townhouse", "penthouse", "duplex"];
 const SALE_TYPES = [
   { value: "developer_sale", label: "Developer sale" },
-  { value: "resale", label: "Resale" },
 ];
 const FINISHING_STATUSES = ["finished", "semi_finished", "core_and_shell", "furnished"];
 
@@ -34,6 +33,7 @@ export default async function EditListingPage({ params, searchParams }: Props) {
   if (!listing) {
     notFound();
   }
+  if (listing.sale_type === "resale") redirect("/developer/projects");
   const activeProjects = projects
     .filter((project) => project.lifecycle_state !== "archived")
     .map((project) => ({

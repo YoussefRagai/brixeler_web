@@ -1,5 +1,6 @@
 import { supabaseServer } from "./supabaseServer";
 import { validateDownPaymentSchedule } from "./projectMerchandising";
+import { normalizeExternalMediaUrl } from "./externalMediaUrl";
 
 type ProjectMediaPayload = Record<string, unknown> | null | undefined;
 
@@ -82,11 +83,19 @@ export type ProjectUnitVariant = {
 
 export type StructuredPaymentPlan = {
   title?: string | null;
+  compound_name?: string | null;
+  unit_type?: string | null;
+  standard_total_price?: number | null;
   down_payment_percent?: number | null;
   down_payment_stages?: Array<{ percent: number; after_months: number }>;
   installment_years?: number | null;
   discount_percent?: number | null;
+  installment_distribution?: "equal" | "front_loaded" | "back_loaded" | null;
   payment_frequency?: string | null;
+  maintenance_fees_percent?: number | null;
+  delivery_after_paid_percent?: number | null;
+  delivery_after_years?: number | null;
+  finishing_fees?: number | null;
 };
 
 export type LimitedTimeOffer = StructuredPaymentPlan & {
@@ -300,15 +309,8 @@ function validateDeveloperListingPayload(payload: DeveloperListingPayload, photo
   if (new Set(normalizedPhotos).size !== normalizedPhotos.length) {
     return "Use three different property photos.";
   }
-  if (photos.some((url) => {
-    try {
-      const parsed = new URL(url);
-      return !["http:", "https:"].includes(parsed.protocol);
-    } catch {
-      return true;
-    }
-  })) {
-    return "Every property photo must use a valid http(s) URL.";
+  if (photos.some((url) => !normalizeExternalMediaUrl(url))) {
+    return "Every property photo must use HTTPS and an approved media host.";
   }
   if (payload.monthlyInstallment != null && (!Number.isFinite(payload.monthlyInstallment) || payload.monthlyInstallment < 0)) {
     return "Monthly installment must be zero or more.";
@@ -1429,6 +1431,30 @@ export async function upsertDeveloperProject(
   try {
     for (const plan of [...(payload.payment_plan_templates ?? []), ...(payload.limited_time_offers ?? [])]) {
       validateDownPaymentSchedule(plan.down_payment_percent, plan.down_payment_stages ?? []);
+      for (const [label, value, max] of [
+        ["standard price", plan.standard_total_price, null],
+        ["finishing fees", plan.finishing_fees, null],
+        ["maintenance fees", plan.maintenance_fees_percent, 100],
+        ["delivery payment threshold", plan.delivery_after_paid_percent, 100],
+        ["delivery years", plan.delivery_after_years, 50],
+        ["discount", plan.discount_percent, 100],
+      ] as const) {
+        if (value != null && (!Number.isFinite(value) || value < 0 || (max != null && value > max))) {
+          throw new Error(`Enter a valid ${label} for each payment plan.`);
+        }
+      }
+      if (plan.standard_total_price != null && plan.standard_total_price <= 0) {
+        throw new Error("Standard price must be greater than zero.");
+      }
+      if (plan.delivery_after_years != null && plan.installment_years != null && plan.delivery_after_years > plan.installment_years) {
+        throw new Error("Delivery cannot be after the installment term.");
+      }
+      if (plan.installment_distribution && !["equal", "front_loaded", "back_loaded"].includes(plan.installment_distribution)) {
+        throw new Error("Choose a valid installment distribution.");
+      }
+      if (plan.delivery_after_paid_percent != null && plan.delivery_after_years != null) {
+        throw new Error("Choose one delivery condition per payment plan.");
+      }
     }
   } catch (error) {
     return { error: error instanceof Error ? error : new Error("Invalid down-payment schedule."), data: null };
