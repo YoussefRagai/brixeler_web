@@ -77,6 +77,20 @@ export function hasAdminRole(userRoles: AdminRole[], required?: AdminRole[]) {
   return required.some((role) => roles.includes(role));
 }
 
+export function developerAdminScope(roles: AdminRole[], developerIds: string[] | null) {
+  if (roles.includes("super_admin")) return null;
+  return roles.includes("developers_admin") ? developerIds ?? [] : [];
+}
+
+export function developerSupportScope(roles: AdminRole[], developerIds: string[] | null) {
+  if (roles.includes("user_support_admin")) return null;
+  return developerAdminScope(roles, developerIds);
+}
+
+export function canAccessScopedDeveloper(scope: string[] | null, developerId: string) {
+  return scope === null || scope.includes(developerId);
+}
+
 export function filterAdminNav(items: AdminNavItem[], roles: AdminRole[]) {
   if (normalizeAdminRoles(roles).includes("super_admin")) return items;
   return items.filter((item) => hasAdminRole(roles, item.roles));

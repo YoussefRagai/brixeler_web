@@ -32,3 +32,20 @@ policies, 28 storage policies, and 18 storage buckets.
 Do not run the baseline against production or any populated project. Do not
 rename or edit the snapshot after it is used; create a new dated baseline and
 cutover manifest instead.
+
+## Isolated database contract runner
+
+Run the rollback-only SQL suites against a disposable migration-built database:
+
+```sh
+BRIXELER_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:55441/postgres?sslmode=disable' \
+  ./scripts/test-database-reliability.sh
+```
+
+When the URL is explicitly loopback (`127.0.0.1`, `localhost`, or `::1`), the
+runner invokes only `transactional_notification_pushes.sql` as the local
+`supabase_admin` role so its rollback-only `net.http_post` stub can be created.
+All other suites use the supplied URL unchanged. A custom local admin URL may
+be supplied through `BRIXELER_DATABASE_ADMIN_URL`; it is rejected for any
+non-loopback target. Remote URLs never receive the local admin substitution and
+no database grants are changed by the runner.

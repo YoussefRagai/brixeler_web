@@ -22,6 +22,11 @@ export async function GET(request: NextRequest) {
     status: request.nextUrl.searchParams.get("status") ?? undefined,
     demo: request.nextUrl.searchParams.get("demo") as "all" | "production" | "demo" | undefined,
   };
+  // Older Workspace pages sent mode as `scope`. Keep their downloads scoped.
+  if (typeParam === "dashboard" && !rawFilters.demo) {
+    const scope = request.nextUrl.searchParams.get("scope");
+    if (scope === "live" || scope === "demo") rawFilters.demo = scope === "live" ? "production" : "demo";
+  }
   const filters = normalizeExportFilters(rawFilters);
 
   try {

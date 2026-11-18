@@ -5,6 +5,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { PrintButton } from "@/components/PrintButton";
 import { summarizeGiftGrowthMetrics } from "@/lib/growthAnalytics";
 import { readReportRows } from "@/lib/reportRows";
+import { normalizeExportFilters } from "@/lib/adminExports";
 
 const formatCurrency = (value: number) =>
   value.toLocaleString("en-EG", {
@@ -13,7 +14,7 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   });
 
-async function loadAnalytics(dateFrom?: string, dateTo?: string) {
+async function loadAnalytics(from?: string, to?: string) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return null;
   }
@@ -23,8 +24,8 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
     .select("status, sale_amount, created_at, payment_approved_at")
     .eq("stage", "SalesClaim")
     .order("created_at", { ascending: false }).order("id");
-  if (dateFrom) dealsQuery = dealsQuery.gte("created_at", new Date(`${dateFrom}T00:00:00Z`).toISOString());
-  if (dateTo) dealsQuery = dealsQuery.lte("created_at", new Date(`${dateTo}T23:59:59.999Z`).toISOString());
+  if (from) dealsQuery = dealsQuery.gte("created_at", from);
+  if (to) dealsQuery = dealsQuery.lt("created_at", to);
   const eligibilityQuery = supabaseServer
     .from("gift_eligibilities")
     .select("status, eligible_at")
@@ -43,21 +44,19 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
     .from("notifications")
     .select("is_read, created_at")
     .eq("type", "admin_message");
-  if (dateFrom) {
-    const from = new Date(`${dateFrom}T00:00:00`).toISOString();
+  if (from) {
     eligibilityQuery.gte("eligible_at", from);
     claimsQuery.gte("claimed_at", from);
     badgesQuery.gte("unlocked_at", from);
     tiersQuery.gte("awarded_at", from);
     notificationsQuery.gte("created_at", from);
   }
-  if (dateTo) {
-    const to = new Date(`${dateTo}T23:59:59`).toISOString();
-    eligibilityQuery.lte("eligible_at", to);
-    claimsQuery.lte("claimed_at", to);
-    badgesQuery.lte("unlocked_at", to);
-    tiersQuery.lte("awarded_at", to);
-    notificationsQuery.lte("created_at", to);
+  if (to) {
+    eligibilityQuery.lt("eligible_at", to);
+    claimsQuery.lt("claimed_at", to);
+    badgesQuery.lt("unlocked_at", to);
+    tiersQuery.lt("awarded_at", to);
+    notificationsQuery.lt("created_at", to);
   }
   const [
     { data: deals, error: dealsError },
@@ -181,18 +180,22 @@ async function loadAnalytics(dateFrom?: string, dateTo?: string) {
 export default async function AnalyticsPage({ searchParams }: { searchParams?: Promise<{ from?: string; to?: string }> }) {
   const ui = await buildAdminUi(["super_admin"]);
   const params = (await searchParams) ?? {};
-  const analytics = await loadAnalytics(params.from, params.to);
+  const filters = normalizeExportFilters(params);
+  const analytics = ui.hasAccess ? await loadAnalytics(filters.from, filters.to) : null;
+  const downloadParams = new URLSearchParams({ type: "dashboard", format: "xlsx" });
+  if (filters.from && params.from) downloadParams.set("from", params.from);
+  if (filters.to && params.to) downloadParams.set("to", params.to);
 
   return (
     <AdminLayout
       title="Performance intelligence"
       description="Funnel, revenue, and activation KPIs with export-ready decks."
-      actions={
+      actions={ui.hasAccess ? (
         <div className="flex gap-2">
-          <a href="/api/admin/exports/download?type=dashboard&format=xlsx" className="rounded-full border border-black/15 bg-white px-5 py-2 text-sm font-semibold text-neutral-800 transition-colors hover:border-black/35 hover:bg-neutral-50">Export XLSX</a>
+          <a href={`/api/admin/exports/download?${downloadParams}`} className="rounded-full border border-black/15 bg-white px-5 py-2 text-sm font-semibold text-neutral-800 transition-colors hover:border-black/35 hover:bg-neutral-50">Export dashboard XLSX</a>
           <PrintButton className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800" />
         </div>
-      }
+      ) : null}
       navItems={ui.navItems}
       meta={ui.meta}
     >

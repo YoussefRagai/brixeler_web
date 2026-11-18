@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { SalesClaimEntry } from "@/lib/adminDeals";
@@ -9,7 +10,7 @@ type Tab = (typeof BASE_TABS)[number] | "History";
 type FeedbackMode = "request_change" | "reject" | null;
 type PaymentMode = "record" | "approve" | null;
 
-const ARCHIVE_CUTOFF = Date.now() - 30 * 24 * 60 * 60 * 1000;
+const ARCHIVE_WINDOW = 30 * 24 * 60 * 60 * 1000;
 
 const formatCurrency = (amount?: string | number | null) => {
   if (amount == null || amount === "") return "—";
@@ -22,7 +23,7 @@ const formatTimestamp = (iso?: string | null) => {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString();
+  return date.toLocaleString("en-US", { timeZone: "Africa/Cairo" });
 };
 
 const formatIdentifier = (value?: string | null) => {
@@ -41,10 +42,14 @@ const statusChipClass = (status?: string | null) => {
 
 type Props = {
   claims: SalesClaimEntry[];
+  currentAdminId: string;
+  now: number;
   isSuperAdmin?: boolean;
 };
 
-export function DealsClaimsTable({ claims, isSuperAdmin = false }: Props) {
+const detailHref = (claim: SalesClaimEntry) => `/deals/${claim.id}?mode=${claim.isDemo ? "demo" : "live"}`;
+
+export function DealsClaimsTable({ claims, currentAdminId, now, isSuperAdmin = false }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("Sales Claim");
   const [ownerFilter, setOwnerFilter] = useState("all");
@@ -75,10 +80,10 @@ export function DealsClaimsTable({ claims, isSuperAdmin = false }: Props) {
       if (activeTab === "Rejected") return claim.status === "Rejected";
       if (activeTab === "Awaiting Payment") return claim.status === "Accepted - Processing";
       if (activeTab === "History") return true;
-      return claim.status === "Paid" && new Date(claim.updatedAt).getTime() >= ARCHIVE_CUTOFF;
+      return claim.status === "Paid" && new Date(claim.updatedAt).getTime() >= now - ARCHIVE_WINDOW;
     });
     return byTab.filter((claim) => (ownerFilter === "all" || claim.agentId === ownerFilter) && (slaFilter === "all" || claim.isOverdue));
-  }, [activeTab, claims, ownerFilter, slaFilter]);
+  }, [activeTab, claims, now, ownerFilter, slaFilter]);
 
   const closeFeedback = () => {
     setFeedbackId(null);
@@ -208,13 +213,13 @@ export function DealsClaimsTable({ claims, isSuperAdmin = false }: Props) {
       return claim.paymentRecordedBy ? (
         <>
           <span className="w-full text-xs text-neutral-600">Evidence recorded; independent approval required.</span>
-          <button type="button" disabled={pendingId === claim.id || isPending} onClick={() => openPayment(claim, "approve")} className="rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 disabled:opacity-50">Approve payment</button>
+          {claim.paymentRecordedBy !== currentAdminId ? <button type="button" disabled={pendingId === claim.id || isPending} onClick={() => openPayment(claim, "approve")} className="rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 disabled:opacity-50">Approve payment</button> : null}
         </>
       ) : (
         <button type="button" disabled={pendingId === claim.id || isPending} onClick={() => openPayment(claim, "record")} className="rounded-full border border-blue-700 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-100 disabled:opacity-50">Record payment evidence</button>
       );
     }
-    return <span className="text-xs text-neutral-500">Archived</span>;
+    return <Link href={detailHref(claim)} className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-black/5">View details</Link>;
   };
 
   return (
@@ -278,7 +283,7 @@ export function DealsClaimsTable({ claims, isSuperAdmin = false }: Props) {
               <div><p className="text-neutral-500">Amount</p><p>{formatCurrency(claim.saleAmount)}</p></div>
               <div><p className="text-neutral-500">Updated</p><p>{formatTimestamp(claim.updatedAt)}</p></div>
             </div>
-            {claim.paymentRecordedBy ? <p className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">Payment evidence recorded{claim.paymentReference ? ` · ${claim.paymentReference}` : ""}; awaiting an independent approval.</p> : null}
+            {claim.status === "Accepted - Processing" && claim.paymentRecordedBy ? <p className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">Payment evidence recorded{claim.paymentReference ? ` · ${claim.paymentReference}` : ""}. An independent approval is pending.</p> : null}
             {claim.feedbackType && claim.feedbackReason ? <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{claim.feedbackReason}</p> : null}
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
               {claim.reservationDocument ? <a href={claim.reservationDocument} target="_blank" rel="noreferrer" className="rounded-full border border-black/10 px-3 py-1 text-neutral-700 hover:bg-black/5">Reservation</a> : null}
@@ -303,7 +308,7 @@ export function DealsClaimsTable({ claims, isSuperAdmin = false }: Props) {
                 <td className="px-4 py-4 text-neutral-700"><div>{claim.agentName}</div>{claim.agentPhone ? <div className="text-xs text-neutral-500">{claim.agentPhone}</div> : null}</td>
                 <td className="px-4 py-4"><div>{formatCurrency(claim.saleAmount)}</div>{claim.commissionRate ? <div className="text-xs text-neutral-500">Commission {claim.commissionRate}%</div> : null}</td>
                 <td className="px-4 py-4 text-neutral-700">{claim.clientName ?? "—"}</td>
-                <td className="px-4 py-4"><span className={`rounded-full border px-3 py-1 text-xs font-medium ${statusChipClass(claim.status)}`}>{claim.status}</span>{claim.isOverdue ? <p className="mt-2 text-xs font-semibold text-rose-800">Overdue SLA</p> : null}{claim.paymentRecordedBy ? <p className="mt-2 text-xs text-blue-800">Evidence recorded; second approval pending</p> : null}{claim.feedbackType && claim.feedbackReason ? <p className="mt-2 text-xs text-neutral-600">{claim.feedbackReason}</p> : null}</td>
+                <td className="px-4 py-4"><span className={`rounded-full border px-3 py-1 text-xs font-medium ${statusChipClass(claim.status)}`}>{claim.status}</span>{claim.isOverdue ? <p className="mt-2 text-xs font-semibold text-rose-800">Overdue SLA</p> : null}{claim.status === "Accepted - Processing" && claim.paymentRecordedBy ? <p className="mt-2 text-xs text-blue-800">Evidence recorded. Second approval pending.</p> : null}{claim.feedbackType && claim.feedbackReason ? <p className="mt-2 text-xs text-neutral-600">{claim.feedbackReason}</p> : null}</td>
                 <td className="px-4 py-4 text-neutral-500">{formatTimestamp(claim.updatedAt)}</td>
                 <td className="px-4 py-4"><div className="flex flex-col gap-2 text-xs">{claim.reservationDocument ? <a href={claim.reservationDocument} target="_blank" rel="noreferrer" className="rounded-full border border-black/10 px-3 py-1 text-neutral-700 hover:bg-black/5">Reservation</a> : <span className="rounded-full border border-black/10 px-3 py-1 text-neutral-500">Reservation</span>}{claim.salesClaimDocument ? <a href={claim.salesClaimDocument} target="_blank" rel="noreferrer" className="rounded-full border border-black/10 px-3 py-1 text-neutral-700 hover:bg-black/5">Sales claim</a> : <span className="rounded-full border border-black/10 px-3 py-1 text-neutral-500">Sales claim</span>}{claim.eoiDocument ? <a href={claim.eoiDocument} target="_blank" rel="noreferrer" className="rounded-full border border-black/10 px-3 py-1 text-neutral-700 hover:bg-black/5">EOI</a> : null}{claim.cilDocument ? <a href={claim.cilDocument} target="_blank" rel="noreferrer" className="rounded-full border border-black/10 px-3 py-1 text-neutral-700 hover:bg-black/5">CIL</a> : null}</div></td>
                 <td className="px-4 py-4 text-right"><div className="flex flex-col items-end gap-2">{renderActions(claim)}</div></td>

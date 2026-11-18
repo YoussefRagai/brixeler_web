@@ -59,10 +59,14 @@ function optionalString(record: RawRecord, keys: string[]): string | null {
 export default async function GiftClaimsPage({
   searchParams,
 }: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const ui = await buildAdminUi(["marketing_admin"]);
-  const params = searchParams instanceof Promise ? await searchParams : searchParams;
+  if (!ui.hasAccess) {
+    return <AdminLayout title="Gift Claims" navItems={ui.navItems} meta={ui.meta}><AdminAccessDenied /></AdminLayout>;
+  }
+  const params = await searchParams;
+  const now = new Date().getTime();
   const requestedStatus = typeof params?.status === "string" ? params.status : "pending";
   const initialStatus: GiftClaimStatus = ["pending", "approved", "fulfilled", "rejected", "cancelled"].includes(requestedStatus) ? (requestedStatus as GiftClaimStatus) : "pending";
 
@@ -75,7 +79,7 @@ export default async function GiftClaimsPage({
   const rawClaims = ((claimsResult.data ?? []) as unknown[]).map(asRecord);
   const agentIds = Array.from(new Set(rawClaims.map((claim) => stringValue(claim, ["agent_id"])).filter(Boolean)));
   const tierResult = agentIds.length
-    ? await supabaseServer.from("user_tiers").select("user_id, tiers(name, level)").in("user_id", agentIds)
+    ? await supabaseServer.from("user_tiers").select("user_id, tiers!user_tiers_tier_id_fkey(name, level)").in("user_id", agentIds)
     : { data: [], error: null };
   const eligibilityMap = new Map<string, RawRecord>();
   for (const row of (eligibilityResult.data ?? []) as unknown[]) {
@@ -128,7 +132,7 @@ export default async function GiftClaimsPage({
       : [];
     const evidence = [
       formatTrigger(rule),
-      eligibility ? `Eligibility record: ${stringValue(eligibility, ["status"], "evaluated")} · last checked ${stringValue(eligibility, ["updated_at", "eligible_at"], "recently")}.` : "Eligibility record is linked to this claim.",
+      eligibility ? `Eligibility record: ${stringValue(eligibility, ["status"], "evaluated")} · last checked ${stringValue(eligibility, ["updated_at", "eligible_at"], "recently")}.` : "No eligibility record was found for this claim.",
       stringValue(agent, ["verification_status"]) === "verified" ? "Agent verification is complete." : "Agent verification status is visible to the reviewer.",
       otherGiftNames.length ? `Duplicate check found ${otherGiftNames.length} active claim${otherGiftNames.length === 1 ? "" : "s"} for this agent.` : "No duplicate active claim was found for this agent.",
     ].filter((item): item is string => Boolean(item));
@@ -182,8 +186,10 @@ export default async function GiftClaimsPage({
     };
   }).filter((claim) => claim.id);
 
-  const dataWarning = claimsResult.error || eligibilityResult.error || rulesResult.error || tierResult.error
-    ? "Some live claim detail is unavailable. The queue remains safe to review, but refresh after permissions or data access are restored."
+  const queryError = claimsResult.error || eligibilityResult.error || rulesResult.error || tierResult.error;
+  if (queryError) console.error("Failed to load gift claim details", queryError);
+  const dataWarning = queryError
+    ? "Some claim details could not be loaded. Refresh before deciding a claim with missing evidence."
     : null;
 
   return (
@@ -194,10 +200,8 @@ export default async function GiftClaimsPage({
       meta={ui.meta}
       actions={<Link href="/gifts" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-neutral-700 hover:border-black/30"><ArrowLeft aria-hidden="true" size={15} />Gifts Studio</Link>}
     >
-      {!ui.hasAccess ? <AdminAccessDenied /> : <>
         <section className="relative overflow-hidden rounded-3xl bg-[#111] px-5 py-7 text-white shadow-[0_18px_50px_rgba(0,0,0,0.14)] sm:px-8 sm:py-8"><div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[#e8bd6b]/20 blur-3xl" /><div className="relative flex flex-wrap items-end justify-between gap-6"><div><p className="text-[10px] font-semibold uppercase tracking-[0.34em] text-[#e8bd6b]">Claims workspace</p><h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Fulfil the promise, not just the status.</h2><p className="mt-3 max-w-xl text-sm leading-6 text-white/65">Every handoff keeps the agent identity, eligibility evidence, contact path, and SLA together.</p></div><div className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/8"><PackageCheck aria-hidden="true" size={24} className="text-[#e8bd6b]" /></div></div></section>
-        <GiftClaimsWorkspace claims={normalizedClaims} initialStatus={initialStatus} dataWarning={dataWarning} />
-      </>}
+        <GiftClaimsWorkspace claims={normalizedClaims} initialStatus={initialStatus} dataWarning={dataWarning} now={now} />
     </AdminLayout>
   );
 }

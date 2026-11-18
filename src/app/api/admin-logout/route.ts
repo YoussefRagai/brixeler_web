@@ -3,7 +3,7 @@ import { clearAdminSession } from "@/lib/adminSession";
 import { getRequestBaseUrl } from "@/lib/requestUrl";
 
 export async function POST(request: NextRequest) {
-  const response = NextResponse.redirect(new URL("/admin/login", getRequestBaseUrl(request)));
+  const response = NextResponse.redirect(new URL("/admin/login", getRequestBaseUrl(request)), 303);
   clearAdminSession(response.cookies);
   return response;
 }

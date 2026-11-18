@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { DeveloperCapabilityError, requireDeveloperCapability } from "@/lib/developerAuth";
 import { boundedRequestId, isUuid, parseDeveloperRole } from "@/lib/developerTeam";
-import { sendDeveloperPortalInvite } from "@/lib/developerAccountInvites";
+import { resendDeveloperPortalInvite } from "@/lib/developerAccountInvites";
+import { describePortalInviteDeliveryError, getPortalInviteSubmissionMessage } from "@/lib/portalInviteDelivery";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(request: Request) {
@@ -47,12 +48,13 @@ export async function POST(request: Request) {
   const role = parseDeveloperRole(member.role);
   if (!role) return NextResponse.json({ error: "This member has an unsupported role and needs administrator review." }, { status: 409 });
   if (member.invite_request_id === requestId) {
-    return NextResponse.json({ success: true, idempotent: true, memberId: member.id, role });
+    return NextResponse.json({ success: true, idempotent: true, memberId: member.id, role, message: "This resend request was already recorded." });
   }
 
   let inviteResult;
   try {
-    inviteResult = await sendDeveloperPortalInvite({
+    inviteResult = await resendDeveloperPortalInvite({
+      authUserId: member.auth_user_id,
       email: member.email,
       developerId: session.developerId,
       developerName: session.developerName ?? "Developer",
@@ -61,11 +63,13 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Failed to resend developer team invite", error);
-    return NextResponse.json({ error: "The invitation email could not be sent." }, { status: 502 });
+    const failure = describePortalInviteDeliveryError(null);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
   if (inviteResult.error || !inviteResult.authUserId) {
-    console.error("Failed to resend developer team invite", inviteResult.error);
-    return NextResponse.json({ error: "The invitation email could not be sent." }, { status: 502 });
+    console.error("Failed to resubmit developer team invite", inviteResult.error?.code, inviteResult.error?.status);
+    const failure = describePortalInviteDeliveryError(inviteResult.error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   const { data: resendRecord, error: resendError } = await supabaseServer.rpc("resend_developer_team_invite", {
@@ -75,12 +79,13 @@ export async function POST(request: Request) {
   });
   if (resendError || !resendRecord?.account_id) {
     console.error("Failed to record developer team invite resend", resendError);
-    return NextResponse.json({ error: "The invite email was sent, but the resend could not be recorded." }, { status: 500 });
+    return NextResponse.json({ error: "The email was submitted. The resend could not be confirmed." }, { status: 500 });
   }
   return NextResponse.json({
     success: true,
     idempotent: Boolean(resendRecord.idempotent),
     memberId: String(resendRecord.account_id),
     role: resendRecord.role ?? role,
+    message: getPortalInviteSubmissionMessage(inviteResult.emailKind),
   });
 }

@@ -1,5 +1,6 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 import type { DeveloperRole } from "@/lib/developerRbac";
+import type { PortalInviteDeliveryError } from "@/lib/portalInviteDelivery";
 
 const DEVELOPER_PORTAL_BASE_URL =
   process.env.DEVELOPER_PORTAL_URL?.replace(/\/$/, "") ?? "https://admin.brixeler.com/developer";
@@ -15,8 +16,9 @@ export type InviteDeveloperPortalMemberParams = {
 
 export type DeveloperPortalInviteResult = {
   authUserId: string | null;
-  error: { message?: string } | null;
+  error: PortalInviteDeliveryError | null;
   createdAuthUser: boolean;
+  emailKind: "invite" | "recovery";
 };
 
 type AuthUser = {
@@ -63,6 +65,7 @@ export function buildDeveloperInviteRedirectUrl(params: {
 
 export async function sendDeveloperPortalInvite(
   params: InviteDeveloperPortalMemberParams,
+  existingUser: AuthUser | null,
 ): Promise<DeveloperPortalInviteResult> {
   const email = params.email.trim().toLowerCase();
   const redirectTo = buildDeveloperInviteRedirectUrl({
@@ -71,10 +74,9 @@ export async function sendDeveloperPortalInvite(
     email,
   });
 
-  const existingUser = await findAuthUserByEmail(email);
   if (existingUser?.id) {
     const { error } = await supabaseServer.auth.resetPasswordForEmail(email, { redirectTo });
-    return { authUserId: existingUser.id, error, createdAuthUser: false };
+    return { authUserId: existingUser.id, error, createdAuthUser: false, emailKind: "recovery" };
   }
 
   const { data, error } = await supabaseServer.auth.admin.inviteUserByEmail(email, {
@@ -91,8 +93,24 @@ export async function sendDeveloperPortalInvite(
   return {
     authUserId: data.user?.id ?? null,
     error,
-    createdAuthUser: Boolean(data.user?.id),
+    createdAuthUser: Boolean(params.inviteRequestId && data.user?.user_metadata?.developer_invite_operation_id === params.inviteRequestId),
+    emailKind: "invite",
   };
+}
+
+export async function resendDeveloperPortalInvite(
+  params: InviteDeveloperPortalMemberParams & { authUserId: string },
+): Promise<DeveloperPortalInviteResult> {
+  const { data, error } = await supabaseServer.auth.admin.getUserById(params.authUserId);
+  if (error || !data.user || data.user.email?.toLowerCase() !== params.email.trim().toLowerCase()) {
+    return {
+      authUserId: null,
+      error: error ?? { code: "invite_recipient_changed" },
+      createdAuthUser: false,
+      emailKind: "recovery",
+    };
+  }
+  return sendDeveloperPortalInvite(params, data.user);
 }
 
 /**
@@ -114,6 +132,9 @@ export async function compensateDeveloperInviteAuthUser(params: {
     console.warn("Unable to inspect invite Auth user for compensation", userError);
     return { deleted: false, reason: "auth_user_not_found" as const };
   }
+  if (userData.user.email_confirmed_at || userData.user.last_sign_in_at) {
+    return { deleted: false, reason: "auth_user_used" as const };
+  }
 
   const metadata = (userData.user.user_metadata ?? {}) as Record<string, unknown>;
   if (
@@ -123,16 +144,15 @@ export async function compensateDeveloperInviteAuthUser(params: {
     return { deleted: false, reason: "invite_marker_mismatch" as const };
   }
 
-  const { data: membership, error: membershipError } = await supabaseServer
-    .from("developer_accounts")
-    .select("id")
-    .eq("auth_user_id", params.authUserId)
-    .maybeSingle();
-  if (membershipError) {
-    console.warn("Unable to verify invite membership for compensation", membershipError);
+  const [membership, admin] = await Promise.all([
+    supabaseServer.from("developer_accounts").select("id").eq("auth_user_id", params.authUserId).maybeSingle(),
+    supabaseServer.from("admins").select("id").eq("id", params.authUserId).maybeSingle(),
+  ]);
+  if (membership.error || admin.error) {
+    console.warn("Unable to verify invite membership for compensation", membership.error?.code, admin.error?.code);
     return { deleted: false, reason: "membership_check_failed" as const };
   }
-  if (membership?.id) {
+  if (membership.data?.id || admin.data?.id) {
     return { deleted: false, reason: "membership_exists" as const };
   }
 

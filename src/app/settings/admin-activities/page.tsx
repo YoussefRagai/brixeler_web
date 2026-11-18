@@ -53,7 +53,9 @@ function readableDetails(metadata: Record<string, unknown> | null) {
   if (typeof metadata.type === "string") details.push(`Type: ${metadata.type}`);
   if (typeof metadata.format === "string") details.push(`Format: ${metadata.format.toUpperCase()}`);
   if (typeof metadata.rows === "number") details.push(`${metadata.rows.toLocaleString()} rows`);
-  if (Array.isArray(metadata.developer_ids)) details.push(`Developer scope: ${metadata.developer_ids.length ? `${metadata.developer_ids.length} selected` : "all"}`);
+  if (Array.isArray(metadata.developer_ids)) {
+    details.push(metadata.developer_ids.length ? `${metadata.developer_ids.length} developer assignments` : "No developer assignments");
+  }
   return details.length ? details.join(" · ") : "Updated configuration";
 }
 

@@ -10,6 +10,7 @@ import {
   findAuthUserByEmail,
   sendDeveloperPortalInvite,
 } from "@/lib/developerAccountInvites";
+import { describePortalInviteDeliveryError, getPortalInviteSubmissionMessage } from "@/lib/portalInviteDelivery";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(request: Request) {
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
   if (existingAuthUser?.id) {
     const { data: membership, error: membershipError } = await supabaseServer
       .from("developer_accounts")
-      .select("id, developer_id, status")
+      .select("id, developer_id, status, role, invite_request_id")
       .eq("auth_user_id", existingAuthUser.id)
       .maybeSingle();
     if (membershipError) {
@@ -76,15 +77,31 @@ export async function POST(request: Request) {
     if (membership?.status === "revoked") {
       return NextResponse.json({ error: "Revoked developer access cannot be reactivated." }, { status: 409 });
     }
+    if (membership?.status === "pending" && membership.invite_request_id === requestId) {
+      return NextResponse.json({
+        success: true,
+        idempotent: true,
+        memberId: membership.id,
+        role: membership.role,
+        message: "This invitation request was already recorded. Access is pending.",
+      });
+    }
   }
 
-  const inviteResult = await sendDeveloperPortalInvite({
-    email,
-    developerId: session.developerId,
-    developerName: session.developerName ?? "Developer",
-    inviteRequestId: requestId,
-    developerRole: role,
-  });
+  let inviteResult;
+  try {
+    inviteResult = await sendDeveloperPortalInvite({
+      email,
+      developerId: session.developerId,
+      developerName: session.developerName ?? "Developer",
+      inviteRequestId: requestId,
+      developerRole: role,
+    }, existingAuthUser);
+  } catch (error) {
+    console.error("Failed to submit developer team invite", error);
+    const failure = describePortalInviteDeliveryError(null);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
+  }
   if (inviteResult.error || !inviteResult.authUserId) {
     if (inviteResult.createdAuthUser) {
       await compensateDeveloperInviteAuthUser({
@@ -93,8 +110,9 @@ export async function POST(request: Request) {
         inviteRequestId: requestId,
       });
     }
-    console.error("Failed to send developer team invite", inviteResult.error);
-    return NextResponse.json({ error: "The invitation email could not be sent." }, { status: 502 });
+    console.error("Failed to submit developer team invite", inviteResult.error?.code, inviteResult.error?.status);
+    const failure = describePortalInviteDeliveryError(inviteResult.error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   const { data: inviteRecord, error: inviteError } = await supabaseServer.rpc("invite_developer_team_member", {
@@ -123,5 +141,6 @@ export async function POST(request: Request) {
     idempotent: Boolean(inviteRecord.idempotent),
     memberId: String(inviteRecord.account_id),
     role: inviteRecord.role ?? role,
+    message: getPortalInviteSubmissionMessage(inviteResult.emailKind),
   });
 }

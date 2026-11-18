@@ -30,7 +30,7 @@
     "clsx": "^2.1.1",
     "fflate": "^0.8.2",
     "lucide-react": "^0.554.0",
-    "next": "^16.2.4",
+    "next": "^16.4.6",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "read-excel-file": "^9.0.9"
@@ -42,7 +42,7 @@
     "@types/react-dom": "^19",
     "baseline-browser-mapping": "^2.10.21",
     "eslint": "^9",
-    "eslint-config-next": "^16.2.4",
+    "eslint-config-next": "^16.4.6",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

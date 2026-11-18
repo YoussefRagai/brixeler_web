@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { getAdminContextFromRequest } from "@/lib/adminAuth";
-import { hasAdminRole } from "@/lib/adminRoles";
+import { canAccessScopedDeveloper, developerAdminScope, hasAdminRole } from "@/lib/adminRoles";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -42,7 +42,8 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (revisionScopeError) return NextResponse.json({ error: "Profile review is not available yet." }, { status: 409 });
   if (!revisionScope?.developer_id) return NextResponse.json({ error: "Profile revision not found." }, { status: 404 });
-  if (admin.developerIds && (!admin.developerIds.length || !admin.developerIds.includes(revisionScope.developer_id))) {
+  const scope = developerAdminScope(admin.roles, admin.developerIds);
+  if (!canAccessScopedDeveloper(scope, revisionScope.developer_id)) {
     return NextResponse.json({ error: "You are not assigned to this developer." }, { status: 403 });
   }
 

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AdminLayout } from "@/components/AdminLayout";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
+import { canExportType } from "@/lib/adminExports";
+import { ADMIN_ROLES, hasAdminRole } from "@/lib/adminRoles";
 import { buildAdminUi } from "@/lib/adminUi";
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -20,7 +22,6 @@ type RecentDeal = {
   status: string;
   amount: string;
   updated: string;
-  isDemo: boolean;
 };
 
 type ActivityItem = {
@@ -46,13 +47,11 @@ type OperationRow = {
   status: string | null;
   sale_amount: string | null;
   updated_at: string | null;
-  is_demo: boolean;
 };
 
 type MetricRow = {
   operation_count: number | null;
   active_agent_count: number | null;
-  pending_verification_count: number | null;
   sales_claim_change_count: number | null;
   overdue_task_count: number | null;
 };
@@ -76,60 +75,53 @@ const formatTimestamp = (value?: string | null) => {
 
 const normalizeMode = (value?: string): DataMode => (value === "demo" ? "demo" : "live");
 
-async function loadMissionControlData(mode: DataMode) {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return {
-      mode,
-      metrics: [
-        { label: "Deals", value: "—", trend: "Unavailable" },
-        { label: "Pipeline agents", value: "—", trend: "Unavailable" },
-        { label: "Pending verification", value: "—", trend: "Unavailable" },
-        { label: "Sales claim changes", value: "—", trend: "Unavailable" },
-        { label: "Overdue tasks", value: "—", trend: "Unavailable" },
-      ] as MetricCard[],
-      recentDeals: [] as RecentDeal[],
-      recentActivity: [] as ActivityItem[],
-      agentQueue: [] as AgentQueueItem[],
-    };
-  }
+type MissionControlAccess = {
+  deals: boolean;
+  listings: boolean;
+  verification: boolean;
+};
 
+async function loadMissionControlData(mode: DataMode, access: MissionControlAccess) {
   const modeFilter = mode === "demo";
-  const [{ data: metricRows, error: metricsError }, { data: recentOperationsRaw }, { data: recentPropertiesRaw }] =
-    await Promise.all([
-      supabaseServer.rpc("workspace_operations_metrics", { p_mode: mode }),
-      supabaseServer
+  const [operationsMetrics, recentOperations, recentProperties, pendingAgents] = await Promise.all([
+    access.deals ? supabaseServer.rpc("workspace_operations_metrics", { p_mode: mode }) : null,
+    access.deals
+      ? supabaseServer
         .from("workspace_operations")
-        .select("id, agent_id, stage, property_name, status, sale_amount, updated_at, is_demo")
+        .select("id, agent_id, stage, property_name, status, sale_amount, updated_at")
         .eq("is_demo", modeFilter)
         .order("updated_at", { ascending: false })
-        .limit(8),
-      (() => {
-        const query = supabaseServer
-          .from("properties")
-          .select("id, property_name, approval_status, updated_at, is_demo")
-          .eq("is_demo", modeFilter)
-          .order("updated_at", { ascending: false })
-          .limit(5);
-        return query;
-      })(),
-    ]);
+        .limit(8)
+      : null,
+    access.listings
+      ? supabaseServer
+        .from("properties")
+        .select("id, property_name, approval_status, updated_at")
+        .eq("is_demo", modeFilter)
+        .order("updated_at", { ascending: false })
+        .limit(5)
+      : null,
+    access.verification
+      ? supabaseServer
+        .from("users_profile")
+        .select("id, display_name, phone, verification_status, updated_at", { count: "exact" })
+        .eq("is_demo", modeFilter)
+        .eq("verification_status", "pending")
+        .eq("account_status", "active")
+        .eq("account_lifecycle_state", "active")
+        .order("updated_at", { ascending: false })
+        .limit(6)
+      : null,
+  ]);
 
+  const metricRows = operationsMetrics?.data;
   const metric = (Array.isArray(metricRows) ? metricRows[0] : metricRows) as MetricRow | null;
-  const operationRows = (recentOperationsRaw ?? []) as OperationRow[];
-  const { data: agentQueueRaw } = await supabaseServer
-    .from("users_profile")
-    .select("id, display_name, phone, verification_status, account_status, updated_at")
-    .eq("verification_status", "pending")
-    .eq("account_status", "active")
-    .order("updated_at", { ascending: false })
-    .limit(6);
-
-  if (metricsError) console.error("Failed to load workspace operation metrics", metricsError);
+  const operationRows = (recentOperations?.data ?? []) as OperationRow[];
   const agentIds = [...new Set(operationRows.map((deal) => deal.agent_id).filter(Boolean))];
-  const { data: agentNamesRaw } = agentIds.length
+  const agentNames = agentIds.length
     ? await supabaseServer.from("users_profile").select("id, display_name").in("id", agentIds)
-    : { data: [] };
-  const agentNameMap = new Map((agentNamesRaw ?? []).map((row) => [row.id, row.display_name ?? "Agent"]));
+    : null;
+  const agentNameMap = new Map((agentNames?.data ?? []).map((row) => [row.id, row.display_name ?? "Agent"]));
 
   const recentDeals: RecentDeal[] = operationRows.map((operation) => ({
     id: operation.id,
@@ -139,7 +131,6 @@ async function loadMissionControlData(mode: DataMode) {
     status: operation.status ?? "Submitted",
     amount: formatCurrency(operation.sale_amount),
     updated: formatTimestamp(operation.updated_at),
-    isDemo: operation.is_demo,
   }));
 
   const recentActivity: ActivityItem[] = [
@@ -149,7 +140,7 @@ async function loadMissionControlData(mode: DataMode) {
       meta: `Pipeline stage updated ${formatTimestamp(operation.updated_at)}`,
       updatedAt: new Date(operation.updated_at ?? 0).getTime() || 0,
     })),
-    ...((recentPropertiesRaw ?? []).map((property) => ({
+    ...((recentProperties?.data ?? []).map((property) => ({
       id: `property-${property.id}`,
       title: `${property.property_name ?? "Property"} · ${property.approval_status ?? "pending"}`,
       meta: `Listing updated ${formatTimestamp(property.updated_at)}`,
@@ -159,7 +150,7 @@ async function loadMissionControlData(mode: DataMode) {
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 8);
 
-  const agentQueue: AgentQueueItem[] = ((agentQueueRaw ?? []) as Array<{
+  const agentQueue: AgentQueueItem[] = ((pendingAgents?.data ?? []) as Array<{
     id: string;
     display_name: string | null;
     phone: string | null;
@@ -173,19 +164,22 @@ async function loadMissionControlData(mode: DataMode) {
     updatedAt: formatTimestamp(agent.updated_at),
   }));
 
-  return {
-    mode,
-    metrics: [
+  const metrics: MetricCard[] = [];
+  if (access.deals) {
+    metrics.push(
       { label: "Deals", value: metric?.operation_count ?? "—", trend: mode === "demo" ? "Demo" : "Live" },
       { label: "Pipeline agents", value: metric?.active_agent_count ?? "—", trend: "Stage entries" },
-      { label: "Pending verification", value: metric?.pending_verification_count ?? "—", trend: "Active only" },
       { label: "Sales claim changes", value: metric?.sales_claim_change_count ?? "—", trend: "Attention" },
       { label: "Overdue tasks", value: metric?.overdue_task_count ?? "—", trend: "SLA" },
-    ] as MetricCard[],
-    recentDeals,
-    recentActivity,
-    agentQueue,
-  };
+    );
+  }
+  if (access.verification) {
+    metrics.push({ label: "Pending verification", value: pendingAgents?.count ?? "—", trend: "Active only" });
+  }
+
+  const dataError = [operationsMetrics, recentOperations, recentProperties, pendingAgents, agentNames].find((result) => result?.error)?.error;
+  if (dataError) console.error("Failed to load workspace overview data", dataError);
+  return { metrics, recentDeals, recentActivity, agentQueue, dataUnavailable: Boolean(dataError) };
 }
 
 function ModeSwitch({ mode, href = "/" }: { mode: DataMode; href?: string }) {
@@ -214,41 +208,36 @@ function ModeSwitch({ mode, href = "/" }: { mode: DataMode; href?: string }) {
 }
 
 export default async function Home({ searchParams }: { searchParams?: Promise<{ mode?: string }> }) {
-  const ui = await buildAdminUi([
-    "super_admin",
-    "user_auth_admin",
-    "user_support_admin",
-    "developers_admin",
-    "listing_admin",
-    "deals_admin",
-    "marketing_admin",
-  ]);
+  const ui = await buildAdminUi([...ADMIN_ROLES]);
+  if (!ui.hasAccess) {
+    return <AdminLayout title="Mission control" navItems={ui.navItems} meta={ui.meta}><AdminAccessDenied /></AdminLayout>;
+  }
   const params = (await searchParams) ?? {};
   const mode = normalizeMode(params.mode);
-  const { metrics, recentDeals, recentActivity, agentQueue } = await loadMissionControlData(mode);
+  const access = {
+    deals: hasAdminRole(ui.roles, ["deals_admin"]),
+    listings: hasAdminRole(ui.roles, ["listing_admin"]),
+    verification: hasAdminRole(ui.roles, ["user_auth_admin"]),
+  };
+  const hasWorkspaceData = access.deals || access.listings || access.verification;
+  const { metrics, recentDeals, recentActivity, agentQueue, dataUnavailable } = await loadMissionControlData(mode, access);
 
   return (
     <AdminLayout
       title="Mission control"
       description="Operational pulse from the mobile deal-stage pipeline, agents, and listings."
-      actions={
-        <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
-          <ModeSwitch mode={mode} />
+      actions={canExportType(ui.roles, "dashboard") ? (
           <a
-            href={`/api/admin/exports/download?type=dashboard&format=xlsx&scope=${mode}`}
+            href={`/api/admin/exports/download?type=dashboard&format=xlsx&demo=${mode === "demo" ? "demo" : "production"}`}
             className="rounded-full border border-black/15 bg-white px-5 py-2 text-sm font-medium text-neutral-700 transition hover:bg-black/5"
           >
             Export dashboard
           </a>
-        </div>
-      }
+      ) : null}
       navItems={ui.navItems}
       meta={ui.meta}
     >
-      {!ui.hasAccess ? (
-        <AdminAccessDenied />
-      ) : (
-        <>
+      {hasWorkspaceData ? (
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3" aria-label="Selected workspace data mode">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">{mode === "demo" ? "Demo workspace" : "Live workspace"}</p>
@@ -258,7 +247,19 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
             </div>
             <ModeSwitch mode={mode} />
           </section>
+      ) : (
+        <section className="rounded-2xl border border-black/10 bg-white p-4" aria-label="Your admin tools">
+          <h2 className="text-sm font-semibold text-neutral-900">Your admin tools</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ui.navItems.filter((item) => item.href !== "/").map((item) => (
+              <Link key={item.href} href={item.href} className="rounded-full border border-black/10 px-3 py-1.5 text-sm text-neutral-700 hover:bg-black/5">{item.label}</Link>
+            ))}
+          </div>
+        </section>
+      )}
+      {dataUnavailable ? <p role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Some workspace data could not be loaded. Refresh to retry.</p> : null}
 
+      {metrics.length ? (
           <section aria-label="Mission control metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {metrics.map((metric) => (
               <article key={metric.label} className="dashboard-kpi rounded-3xl border border-black/5 bg-white p-5 shadow-lg shadow-black/5">
@@ -270,8 +271,11 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
               </article>
             ))}
           </section>
+      ) : null}
 
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,0.95fr)]">
+      {access.deals || access.listings ? (
+          <section className={`grid gap-4 ${access.deals ? "lg:grid-cols-[minmax(0,1.55fr)_minmax(0,0.95fr)]" : ""}`}>
+            {access.deals ? (
             <article className="dashboard-panel rounded-3xl border border-black/5 bg-white p-6 shadow-lg shadow-black/5">
               <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -304,6 +308,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
                 )}
               </div>
             </article>
+            ) : null}
 
             <article className="dashboard-panel rounded-3xl border border-black/5 bg-white p-6 shadow-lg shadow-black/5">
               <header>
@@ -324,15 +329,17 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
               </div>
             </article>
           </section>
+      ) : null}
 
+      {access.verification ? (
           <section>
             <article className="dashboard-panel rounded-3xl border border-black/5 bg-white p-6 shadow-lg shadow-black/5">
               <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Pending agent queue</p>
-        <p className="mt-1 text-sm text-neutral-600">Active agents with pending verification; suspended accounts are excluded</p>
+                  <p className="mt-1 text-sm text-neutral-600">Active agents with pending verification</p>
                 </div>
-                <Link href="/verification" className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold text-neutral-700 underline-offset-4 hover:bg-black/5 hover:text-black hover:underline">Open queue</Link>
+                <Link href={`/verification?mode=${mode}`} className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold text-neutral-700 underline-offset-4 hover:bg-black/5 hover:text-black hover:underline">Open queue</Link>
               </header>
               <div className="mt-3 divide-y divide-black/5 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:divide-y-0">
                 {agentQueue.length ? (
@@ -354,8 +361,7 @@ export default async function Home({ searchParams }: { searchParams?: Promise<{ 
               </div>
             </article>
           </section>
-        </>
-      )}
+      ) : null}
     </AdminLayout>
   );
 }

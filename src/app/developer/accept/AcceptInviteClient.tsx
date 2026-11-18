@@ -1,133 +1,105 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { openPortalInviteSession } from "@/lib/portalInviteSession";
 
-type AcceptState = "verifying" | "ready" | "submitting" | "done";
-
-function createBrowserSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) {
-    throw new Error("Supabase public environment is missing.");
-  }
-  return createClient(url, anonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: false,
-    },
-  });
-}
+type AcceptState = "verifying" | "invalid" | "ready" | "submitting" | "done";
 
 export function AcceptInviteClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const developerNameHint = searchParams.get("developerName") ?? "your developer";
-  const errorHint = searchParams.get("error_description") ?? searchParams.get("error");
+  const verification = useRef<ReturnType<typeof openPortalInviteSession> | null>(null);
   const [state, setState] = useState<AcceptState>("verifying");
-  const [error, setError] = useState<string | null>(errorHint ? decodeURIComponent(errorHint) : null);
+  const [error, setError] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [invite, setInvite] = useState<Awaited<ReturnType<typeof openPortalInviteSession>>>(null);
+  const [passwordSaved, setPasswordSaved] = useState(false);
   const activationRequestId = useId();
-
-  const supabase = useMemo(() => createBrowserSupabase(), []);
 
   useEffect(() => {
     let cancelled = false;
-
-    async function bootstrap() {
-      if (errorHint) {
-        setState("ready");
+    verification.current ??= openPortalInviteSession("developer");
+    void verification.current.then((result) => {
+      if (cancelled) return;
+      if (!result) {
+        setError("This invite is invalid or has expired. Ask the Brixeler team for a new invitation.");
+        setState("invalid");
         return;
       }
-
-      const code = searchParams.get("code");
-      if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) {
-          if (!cancelled) {
-            setError(exchangeError.message);
-            setState("ready");
-          }
-          return;
-        }
-      }
-
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !data.session?.access_token) {
-        if (!cancelled) {
-          setError("This invite link is invalid or has expired. Ask the Brixeler team to send a new invite.");
-          setState("ready");
-        }
-        return;
-      }
-
-      if (!cancelled) {
-        setAccessToken(data.session.access_token);
-        setFullName((data.session.user.user_metadata?.full_name as string | undefined) ?? "");
-        setState("ready");
-      }
-    }
-
-    void bootstrap();
+      const name = result.session.user.user_metadata?.full_name;
+      setFullName(typeof name === "string" ? name : "");
+      setInvite(result);
+      setState("ready");
+    }).catch(() => {
+      if (cancelled) return;
+      setError("We could not verify your invitation. Reload the link to try again.");
+      setState("invalid");
+    });
     return () => {
       cancelled = true;
     };
-  }, [errorHint, searchParams, supabase]);
+  }, []);
 
   const completeSetup = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!invite || state !== "ready") return;
     setError(null);
 
-    if (!accessToken || !activationRequestId) {
-      setError("Your invite session is not ready yet.");
-      return;
-    }
-
-    if (password.length < 8) {
+    if (!passwordSaved && password.length < 8) {
       setError("Use a password with at least 8 characters.");
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (!passwordSaved && password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
 
     setState("submitting");
 
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
-      data: fullName.trim() ? { full_name: fullName.trim() } : undefined,
-    });
+    try {
+      if (!passwordSaved) {
+        const { error: updateError } = await invite.supabase.auth.updateUser({
+          password,
+          data: fullName.trim() ? { full_name: fullName.trim() } : undefined,
+        });
+        if (updateError && updateError.code !== "same_password") {
+          setError(updateError.message);
+          setState("ready");
+          return;
+        }
+        setPasswordSaved(true);
+        setPassword("");
+        setConfirmPassword("");
+      }
 
-    if (updateError) {
-      setError(updateError.message);
+      const response = await fetch("/api/developer/activate-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: invite.session.access_token,
+          fullName: fullName.trim() || null,
+          activationRequestId,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        setError(payload.error ?? "Unable to activate your developer access.");
+        setState("ready");
+        return;
+      }
+    } catch {
+      setError("We could not finish setting up your access. Try again.");
       setState("ready");
       return;
     }
 
-    const response = await fetch("/api/developer/activate-invite", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accessToken,
-        fullName: fullName.trim() || null,
-        activationRequestId,
-      }),
-    });
-
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    if (!response.ok) {
-      setError(payload.error ?? "Unable to activate your developer access.");
-      setState("ready");
-      return;
-    }
-
-    await supabase.auth.signOut();
+    await invite.supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
     setState("done");
     router.replace("/developer/login?message=Access+set+up.+Sign+in+with+your+new+password.");
   };
@@ -144,31 +116,36 @@ export function AcceptInviteClient() {
       </div>
 
       {error ? (
-        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
+        <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
       ) : null}
 
       {state === "verifying" ? (
         <div className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-6 text-sm text-neutral-500">
           Verifying your invite…
         </div>
-      ) : (
+      ) : state === "done" ? (
+        <p role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Access set up. Redirecting to developer login…</p>
+      ) : state === "invalid" ? null : (
         <form onSubmit={completeSetup} className="space-y-4">
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Full name</span>
             <input
               value={fullName}
+              maxLength={200}
+              disabled={passwordSaved || state === "submitting"}
               onChange={(event) => setFullName(event.target.value)}
               className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
               placeholder="Your name"
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm">
+          {!passwordSaved ? <><label className="flex flex-col gap-1 text-sm">
             <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Create password</span>
             <input
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
               autoComplete="new-password"
+              minLength={8}
               required
               className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
               placeholder="••••••••"
@@ -181,13 +158,14 @@ export function AcceptInviteClient() {
               onChange={(event) => setConfirmPassword(event.target.value)}
               type="password"
               autoComplete="new-password"
+              minLength={8}
               required
               className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
               placeholder="••••••••"
             />
-          </label>
+          </label></> : null}
           <button
-            disabled={state === "submitting" || state === "done"}
+            disabled={state === "submitting"}
             className="w-full rounded-full bg-black px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
             type="submit"
           >

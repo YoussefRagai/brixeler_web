@@ -1,17 +1,14 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireDeveloperSession } from "@/lib/developerAuth";
-import { requireAdminRole, type AdminContext } from "@/lib/adminAuth";
+import { requireAdminRole } from "@/lib/adminAuth";
+import { canAccessScopedDeveloper, developerSupportScope } from "@/lib/adminRoles";
 import { supabaseServer } from "@/lib/supabaseServer";
-
-function tenantAllowed(admin: AdminContext, developerId: string) {
-  return admin.roles.includes("super_admin") || admin.developerIds === null || admin.developerIds.includes(developerId);
-}
 
 export async function DeveloperSupportConversation({ developerId, ticketId, admin = false }: { developerId: string; ticketId: string; admin?: boolean }) {
   if (admin) {
     const actor = await requireAdminRole(["user_support_admin", "developers_admin"]);
-    if (!actor || !tenantAllowed(actor, developerId)) return null;
+    if (!actor || !canAccessScopedDeveloper(developerSupportScope(actor.roles, actor.developerIds), developerId)) return null;
   } else {
     const actor = await requireDeveloperSession();
     if (actor.developerId !== developerId) return null;
@@ -41,7 +38,7 @@ async function conversationAction(form: FormData) {
   if (isAdmin) {
     const actor = await requireAdminRole(["user_support_admin", "developers_admin"]);
     developerId = String(form.get("developerId") ?? "");
-    if (!actor || !tenantAllowed(actor, developerId)) throw new Error("Support access denied.");
+    if (!actor || !canAccessScopedDeveloper(developerSupportScope(actor.roles, actor.developerIds), developerId)) throw new Error("Support access denied.");
     actorId = actor.adminId;
   } else {
     const actor = await requireDeveloperSession();

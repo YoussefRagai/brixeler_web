@@ -1,5 +1,11 @@
 # Repo Summary: brixeler-web
 
+## 2026-11-19 current admin patch verification
+
+- The local-only admin access patch remains uncommitted and undeployed: `20261117194804_admin_access_scope.sql`, `supabase/tests/admin_access_scope.sql`, and `supabase/tests/agent_access_restore.sql`. The companion coverage report is `docs/admin-action-sweep-2026-11-17.md`; the production browser boundary remains documented in `docs/admin-live-sweep-2026-11-17.md`.
+- Disposable Supabase stack `supabase_db_brixeler-admin-db.3Ud3NJ` on `127.0.0.1:55441` contains 58 ledger rows (21 frozen baseline + 37 post-baseline) through the admin migration. All 15 SQL suites pass; `transactional_notification_pushes.sql` uses local `supabase_admin` only through the loopback-safe runner path. Error-level database lint is clean; four warning groups remain pre-existing in Growth/webhook preview functions.
+- `scripts/test-database-reliability.sh` keeps remote URLs on their supplied role and rejects a mixed remote target/local admin URL. `tests/database-runner.test.mjs` covers local substitution, remote preservation, and unsafe configuration rejection. No production grant, data, migration, deployment, or secret changed.
+
 ## 2026-11-11 Current work
 
 - Developer resale portal routes are dormant; developer resale backend and admin data are retained.

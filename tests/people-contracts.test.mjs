@@ -148,3 +148,13 @@ test("People API compatibility routes exist without destructive Auth deletion", 
     "../src/app/api/admin/agents/restore/route.ts",
   ]) assert.doesNotMatch(read(route), /auth\.admin\.deleteUser/);
 });
+
+test("agent restore and reactivation verify the target before touching Auth", () => {
+  const restore = read("../src/app/api/admin/agents/restore/route.ts");
+  const suspend = read("../src/app/api/admin/agents/suspend/route.ts");
+  const access = read("../src/lib/agentAccess.ts");
+  assert.match(restore, /restoreAgentAccess\(admin\.adminId, agentId, reason, "archived"\)/);
+  assert.match(suspend, /restoreAgentAccess\(admin\.adminId, agentId, reason, "suspended"\)/);
+  assert.match(access, /await restore\(false, null\)[\s\S]+if \(authorizationError\) return[\s\S]+auth\.admin\.updateUserById[\s\S]+await restore\(true, authorized\.updated_at\)/);
+  assert.doesNotMatch(access, /876000h/);
+});

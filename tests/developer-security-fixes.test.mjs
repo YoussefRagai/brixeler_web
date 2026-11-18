@@ -1,8 +1,22 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { canAccessScopedDeveloper, developerAdminScope, developerSupportScope } from "../src/lib/adminRoles.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+test("developer and support roles enforce company assignments", () => {
+  for (const emptyScope of [null, []]) {
+    assert.equal(canAccessScopedDeveloper(developerAdminScope(["developers_admin"], emptyScope), "company-a"), false);
+    assert.equal(canAccessScopedDeveloper(developerSupportScope(["developers_admin"], emptyScope), "company-a"), false);
+  }
+  const scope = developerAdminScope(["developers_admin"], ["company-a"]);
+  assert.equal(canAccessScopedDeveloper(scope, "company-a"), true);
+  assert.equal(canAccessScopedDeveloper(scope, "company-b"), false);
+  assert.equal(canAccessScopedDeveloper(developerAdminScope(["super_admin"], []), "company-b"), true);
+  assert.equal(canAccessScopedDeveloper(developerSupportScope(["user_support_admin"], []), "company-b"), true);
+  assert.equal(canAccessScopedDeveloper(developerAdminScope(["user_support_admin"], ["company-a"]), "company-a"), false);
+});
 
 test("final-admin, phase, upload, and rollback boundaries are present", async () => {
   const team = await read("supabase/migrations/20260830111500_developer_team_rbac.sql");

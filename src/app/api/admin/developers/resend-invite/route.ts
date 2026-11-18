@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAdminContextFromRequest } from "@/lib/adminAuth";
-import { hasAdminRole } from "@/lib/adminRoles";
+import { canAccessScopedDeveloper, developerAdminScope, hasAdminRole } from "@/lib/adminRoles";
 import { logAdminActivity } from "@/lib/adminQueries";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { sendDeveloperPortalInvite } from "@/lib/developerAccountInvites";
+import { resendDeveloperPortalInvite } from "@/lib/developerAccountInvites";
+import { describePortalInviteDeliveryError, getPortalInviteSubmissionMessage } from "@/lib/portalInviteDelivery";
 
 export async function POST(request: Request) {
   const admin = await getAdminContextFromRequest(request);
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
   }
 
-  const allowedDeveloperIds = admin.developerIds;
+  const allowedDeveloperIds = developerAdminScope(admin.roles, admin.developerIds);
 
   const { data: member, error: memberError } = await supabaseServer
     .from("developer_accounts")
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Developer member not found" }, { status: 404 });
   }
 
-  if (allowedDeveloperIds?.length && !allowedDeveloperIds.includes(member.developer_id)) {
+  if (!canAccessScopedDeveloper(allowedDeveloperIds, member.developer_id)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (member.status === "active") {
@@ -69,9 +70,10 @@ export async function POST(request: Request) {
   const developerRelation = Array.isArray(member.developers) ? member.developers[0] : member.developers;
   const developerName = developerRelation?.name ?? "Developer";
 
-  let inviteResult: Awaited<ReturnType<typeof sendDeveloperPortalInvite>>;
+  let inviteResult: Awaited<ReturnType<typeof resendDeveloperPortalInvite>>;
   try {
-    inviteResult = await sendDeveloperPortalInvite({
+    inviteResult = await resendDeveloperPortalInvite({
+      authUserId: member.auth_user_id,
       email: member.email,
       developerId: member.developer_id,
       developerName,
@@ -79,12 +81,14 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Failed to resend developer invite", error);
-    return NextResponse.json({ error: "The invitation email could not be sent" }, { status: 502 });
+    const failure = describePortalInviteDeliveryError(null);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   if (inviteResult.error || !inviteResult.authUserId) {
-    console.error("Failed to resend developer invite", inviteResult.error);
-    return NextResponse.json({ error: "The invitation email could not be sent" }, { status: 502 });
+    console.error("Failed to resubmit developer invite", inviteResult.error?.code, inviteResult.error?.status);
+    const failure = describePortalInviteDeliveryError(inviteResult.error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   const { data: inviteRecord, error: updateError } = await supabaseServer.rpc("create_developer_account_invite", {
@@ -103,7 +107,7 @@ export async function POST(request: Request) {
   if (updateError || !inviteRecord?.account_id) {
     console.error("Invite sent but developer resend could not be recorded", updateError);
     return NextResponse.json(
-      { error: "Invite email sent, but the resend could not be recorded. Do not resend again until this request is retried." },
+      { error: "The email was submitted. The resend could not be confirmed. Retry this request." },
       { status: 500 },
     );
   }
@@ -121,6 +125,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     idempotent: Boolean(inviteRecord.idempotent),
-    message: inviteRecord.idempotent ? "This resend request was already recorded." : "Invite resent.",
+    message: inviteRecord.idempotent ? "This resend request was already recorded." : getPortalInviteSubmissionMessage(inviteResult.emailKind),
   });
 }

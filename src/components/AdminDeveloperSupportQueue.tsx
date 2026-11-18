@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { requireAdminRole } from "@/lib/adminAuth";
+import { developerSupportScope } from "@/lib/adminRoles";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { DeveloperSupportConversation } from "./DeveloperSupportConversation";
 
 export async function AdminDeveloperSupportQueue({ selectedId }: { selectedId?: string }) {
   const admin = await requireAdminRole(["user_support_admin", "developers_admin"]);
   if (!admin) return null;
+  const scope = developerSupportScope(admin.roles, admin.developerIds);
+  if (scope?.length === 0) return null;
   let query = supabaseServer.from("developer_support_tickets").select("id,developer_id,subject,status,unread_for_admin,developer:developer_id(name)").order("updated_at", { ascending: false });
-  if (!admin.roles.includes("super_admin") && admin.developerIds !== null) query = query.in("developer_id", admin.developerIds);
+  if (scope !== null) query = query.in("developer_id", scope);
   const { data, error } = await query;
   if (error) throw error;
   const selected = data?.find(ticket => ticket.id === selectedId);

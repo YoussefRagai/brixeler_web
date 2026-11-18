@@ -1,5 +1,5 @@
 {
-  "file_count": 385,
+  "file_count": 387,
   "files": [
     {
       "bytes": 10244,
@@ -8,9 +8,9 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 37265,
+      "bytes": 38431,
       "path": ".context/repo_summary.md",
-      "sha256": "2aa7e80d152687051b6160521b91a70fa93143221e30c9bcba1eaccc3e86d09d",
+      "sha256": "cf611c1e5ab799cdca92619a2a47caafd07aaf0ba3790d6201068e2ab9089c45",
       "summary": "Compressed repository state including local developer project media work."
     },
     {
@@ -50,9 +50,9 @@
       "summary": "# Council Protocol Use external agents for bounded, cheap, or repetitive work. Codex keeps final architecture, safety, and integration judgment."
     },
     {
-      "bytes": 19154,
+      "bytes": 19658,
       "path": "DECISIONS.md",
-      "sha256": "c455f3fdc36197adfb5a9db73d811df1db83974ad9843c70bf5f4d6f93643228",
+      "sha256": "0d7c21bbc284fdb2b51db909ade4b352c7c3bb951bfa27708776e4da8d31848b",
       "summary": "Architecture decisions, including signed project media and release state."
     },
     {
@@ -62,9 +62,9 @@
       "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
     },
     {
-      "bytes": 21165,
+      "bytes": 21415,
       "path": "PROJECT_MAP.md",
-      "sha256": "5afab027a4a359663f9c761beef0381129a720393cfb401d382bf77529bfefc1",
+      "sha256": "7467bec20c8df3da4cd6413298d1f55846d8606d9e969b21b4511680f77046fe",
       "summary": "Repository map and developer media/release paths."
     },
     {
@@ -80,9 +80,9 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 92557,
+      "bytes": 93909,
       "path": "TASK_LOG.md",
-      "sha256": "902c0326ffef570662538766e3a425b6e32c3f60e6a9fa5e74dba3cc3b665c1e",
+      "sha256": "d0b313690d611d962f067d3b910e53ad20ca8108f0e296736f37d4d878333830",
       "summary": "Task outcomes and verification history, including developer project work."
     },
     {
@@ -102,6 +102,12 @@
       "summary": "Current workspace implementation or validation; see task log for scope.",
       "bytes": 4787,
       "sha256": "25836e62f632486e53fc135fcdc4fc955c3eb22d38bdfe607dc063a6c10c083a"
+    },
+    {
+      "bytes": 8788,
+      "path": "docs/admin-action-sweep-2026-11-17.md",
+      "sha256": "faefd417253b2ef3d2fcb4b7b4a7ab0357723ad94c8c1b81fff7b5772d687f0a",
+      "summary": "Admin action evidence boundary, isolated SQL verification, and untested-control coverage for 2026-11-17."
     },
     {
       "path": "docs/audit-fixes-2026-09-07.md",
@@ -230,9 +236,9 @@
       "summary": "#!/usr/bin/env bash set -euo pipefail"
     },
     {
-      "bytes": 370,
+      "bytes": 1816,
       "path": "scripts/test-database-reliability.sh",
-      "sha256": "5a2c237c02d25a2d4c2efe1b2e611f9d3bddd0f2c441c5a0cdda66b68afba261",
+      "sha256": "b75d7ddf9707a42f6b87633bd5c2189e05d05a02f8c6db22f092194ded0f6ebd",
       "summary": "#!/usr/bin/env bash set -euo pipefail"
     },
     {
@@ -1694,9 +1700,9 @@
       "summary": "v1.54.0"
     },
     {
-      "bytes": 1609,
+      "bytes": 2388,
       "path": "supabase/README.md",
-      "sha256": "dda3f38fb1d49a1e4161b329b2009016f1a7919c981c2c100c59eeef3c253d84",
+      "sha256": "6de347f4c9d35a7e0a521f23252d29cd935bb96d9358f2df030cd21bf0266bf4",
       "summary": "# Supabase schema history The files in `migrations/` mirror the production Supabase migration ledger by"
     },
     {
@@ -2136,6 +2142,12 @@
       "summary": "Current implementation or regression contract; see TASK_LOG.md.",
       "bytes": 872,
       "sha256": "55fb1a27b210ef8ac3787762b84bc853fc10c4b76edf0ae5755e5da045aaea4f"
+    },
+    {
+      "bytes": 3071,
+      "path": "tests/database-runner.test.mjs",
+      "sha256": "c3e96c63021ee41b8e8c4b62d903e73a9691d915f476149ef46feecf985d8cdc",
+      "summary": "Loopback admin-role substitution and remote URL safety tests for the isolated SQL runner."
     },
     {
       "path": "tests/app-usage-analytics.test.mjs",

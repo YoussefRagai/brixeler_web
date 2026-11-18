@@ -22,7 +22,6 @@ type TaskRow = {
 };
 
 const normalizeMode = (value?: string): DealDataMode => (value === "demo" ? "demo" : "live");
-const TASK_OVERDUE_CUTOFF = Date.now();
 
 function ModeSwitch({ mode }: { mode: DealDataMode }) {
   return (
@@ -56,7 +55,7 @@ export default async function DealsPage({ searchParams }: { searchParams?: Promi
   const ui = await buildAdminUi(["deals_admin"]);
   const feedback = (await searchParams) ?? {};
   const mode = normalizeMode(feedback.mode);
-  const salesClaims = ui.hasAccess ? await fetchSalesClaims(50, mode) : [];
+  const now = new Date().getTime();
   const taskQuery = supabaseServer
     .from("admin_tasks")
     .select("id, title, description, priority, status, due_at, assigned_to, related_entity_id, is_demo")
@@ -64,7 +63,9 @@ export default async function DealsPage({ searchParams }: { searchParams?: Promi
     .eq("is_demo", mode === "demo")
     .order("created_at", { ascending: false })
     .limit(20);
-  const { data: taskRows } = ui.hasAccess ? await taskQuery : { data: [] };
+  const [salesClaims, { data: taskRows }] = ui.hasAccess
+    ? await Promise.all([fetchSalesClaims(50, mode), taskQuery])
+    : [[], { data: [] }];
   const taskData = (taskRows ?? []) as TaskRow[];
   const isSuperAdmin = ui.roles.includes("super_admin");
 
@@ -72,7 +73,6 @@ export default async function DealsPage({ searchParams }: { searchParams?: Promi
     <AdminLayout
       title="Deal room"
       description="Review the mobile deal-stage pipeline from submission to payout with SLA tracking."
-      actions={<ModeSwitch mode={mode} />}
       navItems={ui.navItems}
       meta={ui.meta}
     >
@@ -123,7 +123,7 @@ export default async function DealsPage({ searchParams }: { searchParams?: Promi
 
           <section aria-label="Deal tasks" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {taskData.map((task) => {
-              const overdue = Boolean(task.due_at && new Date(task.due_at).getTime() < TASK_OVERDUE_CUTOFF && !["done", "cancelled"].includes(task.status));
+              const overdue = Boolean(task.due_at && new Date(task.due_at).getTime() < now && !["done", "cancelled"].includes(task.status));
               return (
                 <article key={task.id} className="rounded-2xl border border-black/10 bg-white p-4 shadow-lg shadow-black/5">
                   <div className="flex min-w-0 items-start justify-between gap-3">
@@ -149,7 +149,7 @@ export default async function DealsPage({ searchParams }: { searchParams?: Promi
             {!taskData.length ? <div className="rounded-2xl border border-dashed border-black/15 bg-white px-4 py-6 text-sm text-neutral-500">No {mode} deal tasks.</div> : null}
           </section>
 
-          <DealsClaimsTable claims={salesClaims} isSuperAdmin={isSuperAdmin} />
+          <DealsClaimsTable claims={salesClaims} isSuperAdmin={isSuperAdmin} currentAdminId={ui.context.adminId} now={now} />
         </>
       )}
     </AdminLayout>

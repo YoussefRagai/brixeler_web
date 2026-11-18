@@ -36,7 +36,7 @@ function shortId(value: string) {
 
 function formatDate(value: string | null) {
   if (!value) return "Unknown date";
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString("en-US", { timeZone: "Africa/Cairo" });
 }
 
 export function AgentPurgeOperations({ archivedAgents, pendingRequests, currentAdminId, isSuperAdmin }: Props) {

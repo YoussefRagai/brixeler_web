@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { clsx } from "clsx";
 
 export type RenewalStatus = "pending" | "approved" | "rejected" | "auto_expired";
@@ -59,7 +59,6 @@ async function responseError(response: Response) {
 
 export function PropertyRenewalQueue({ entries, activeStatus = "pending", counts = {}, search = "" }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
@@ -73,12 +72,12 @@ export function PropertyRenewalQueue({ entries, activeStatus = "pending", counts
     [activeRequestId, entries],
   );
 
-  const navigateToStatus = (status: RenewalStatus) => {
+  const statusHref = (status: RenewalStatus) => {
     const query = new URLSearchParams();
     if (search) query.set("q", search);
     query.set("status", status);
     query.set("page", "1");
-    router.push(`${pathname}?${query.toString()}`);
+    return `/properties/renewals?${query.toString()}`;
   };
 
   const performAction = async (entry: PropertyRenewalEntry, approve: boolean, reason?: string) => {
@@ -99,7 +98,7 @@ export function PropertyRenewalQueue({ entries, activeStatus = "pending", counts
       if (!response.ok) throw new Error(await responseError(response));
       setRejectingRequestId(null);
       setRejectionReason("");
-      setSuccess(approve ? "Renewal approved and notifications sent." : "Renewal rejected with the recorded reason.");
+      setSuccess(approve ? "Renewal approved." : "Renewal rejected with the recorded reason.");
       startTransition(() => router.refresh());
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Unable to complete renewal review");
@@ -110,28 +109,26 @@ export function PropertyRenewalQueue({ entries, activeStatus = "pending", counts
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Renewal history">
+      <nav className="flex flex-wrap gap-2" aria-label="Renewal history">
         {tabs.map((tab) => {
           const isActive = activeStatus === tab.key;
           return (
-            <button
+            <a
               key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => navigateToStatus(tab.key)}
+              href={statusHref(tab.key)}
+              aria-current={isActive ? "page" : undefined}
               className={clsx(
-                "min-h-11 rounded-full border px-4 py-2 text-xs font-semibold transition-colors",
+                "inline-flex min-h-11 items-center rounded-full border px-4 py-2 text-xs font-semibold transition-colors",
                 isActive
                   ? "border-black bg-black text-white"
                   : "border-white/20 bg-white/5 text-slate-300 hover:bg-white/10",
               )}
             >
               {tab.label} <span className="ml-1 opacity-70">{counts[tab.key] ?? 0}</span>
-            </button>
+            </a>
           );
         })}
-      </div>
+      </nav>
 
       {error ? (
         <div role="alert" className="mt-4 rounded-2xl border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">

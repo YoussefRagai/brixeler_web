@@ -116,7 +116,7 @@ export default async function RewardsPage() {
       .limit(20),
     supabaseServer
       .from("user_tiers")
-      .select("user_id, tier_id, awarded_at, tiers(name, level), users_profile(display_name, phone)")
+      .select("user_id, tier_id, awarded_at, tiers!user_tiers_tier_id_fkey(name, level), users_profile(display_name, phone)")
       .order("awarded_at", { ascending: false })
       .limit(20),
     supabaseServer

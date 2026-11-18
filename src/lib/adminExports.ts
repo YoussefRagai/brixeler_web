@@ -69,7 +69,7 @@ export function normalizeExportFilters(filters: Partial<AdminExportFilters>): Ad
   return {
     from: filterDate(filters.from),
     to: filterDate(filters.to, true),
-    status: typeof filters.status === "string" && /^[a-z_ ]{1,40}$/i.test(filters.status) ? filters.status : undefined,
+    status: typeof filters.status === "string" && /^[a-z_ -]{1,40}$/i.test(filters.status) ? filters.status : undefined,
     demo,
   };
 }
@@ -87,6 +87,10 @@ function applyDemoFilter<T extends { eq(column: string, value: boolean): T }>(qu
   return query;
 }
 
+function applyDealStatusFilter<T extends { ilike(column: string, pattern: string): T }>(query: T, filters: AdminExportFilters) {
+  return filters.status ? query.ilike("status", filters.status.replaceAll("_", "\\_")) : query;
+}
+
 export async function loadAdminExportRows(type: AdminExportType, rawFilters: AdminExportFilters = {}): Promise<ExportRow[]> {
   const filters = normalizeExportFilters(rawFilters);
   if (type === "agents") {
@@ -96,6 +100,7 @@ export async function loadAdminExportRows(type: AdminExportType, rawFilters: Adm
       .order("created_at", { ascending: false }).order("id");
     query = applyDateFilters(query, "created_at", filters);
     if (filters.status) query = query.eq("account_status", filters.status);
+    query = applyDemoFilter(query, filters);
     return await readReportRows(query) as ExportRow[];
   }
   if (type === "commissions") {
@@ -105,7 +110,7 @@ export async function loadAdminExportRows(type: AdminExportType, rawFilters: Adm
       .eq("stage", "SalesClaim")
       .order("created_at", { ascending: false }).order("id");
     query = applyDateFilters(query, "created_at", filters);
-    if (filters.status) query = query.eq("status", filters.status);
+    query = applyDealStatusFilter(query, filters);
     query = applyDemoFilter(query, filters);
     return await readReportRows(query) as ExportRow[];
   }
@@ -115,7 +120,7 @@ export async function loadAdminExportRows(type: AdminExportType, rawFilters: Adm
       .select("id, agent_id, property_name, developer_name, client_name, unit_code, sale_amount, stage, status, source_entry_id, created_at, updated_at, is_demo")
       .order("created_at", { ascending: false }).order("id");
     query = applyDateFilters(query, "created_at", filters);
-    if (filters.status) query = query.eq("status", filters.status);
+    query = applyDealStatusFilter(query, filters);
     query = applyDemoFilter(query, filters);
     return await readReportRows(query) as ExportRow[];
   }
@@ -135,12 +140,13 @@ export async function loadAdminExportRows(type: AdminExportType, rawFilters: Adm
   let pendingQuery = supabaseServer.from("properties").select("id", { count: "exact", head: true }).eq("approval_status", "pending");
   let dealsQuery = supabaseServer.from("workspace_operations").select("sale_amount, status, is_demo").eq("stage", "SalesClaim").order("id");
   agentsQuery = applyDateFilters(agentsQuery, "created_at", filters);
+  agentsQuery = applyDemoFilter(agentsQuery, filters);
   propertiesQuery = applyDateFilters(propertiesQuery, "created_at", filters);
   pendingQuery = applyDateFilters(pendingQuery, "created_at", filters);
   dealsQuery = applyDateFilters(dealsQuery, "created_at", filters);
   propertiesQuery = applyDemoFilter(propertiesQuery, filters);
   pendingQuery = applyDemoFilter(pendingQuery, filters);
-  if (filters.status) dealsQuery = dealsQuery.eq("status", filters.status);
+  dealsQuery = applyDealStatusFilter(dealsQuery, filters);
   dealsQuery = applyDemoFilter(dealsQuery, filters);
   const results = await Promise.all([
     agentsQuery,

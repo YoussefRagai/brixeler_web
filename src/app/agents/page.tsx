@@ -105,7 +105,7 @@ async function loadAgents(options: { verifiedOnly?: boolean; search?: string; st
   const profileIds = profileRows.map((profile) => profile.id);
   const [{ data: tierRows }, { data: badgeRows }] = profileIds.length
     ? await Promise.all([
-        supabaseServer.from("user_tiers").select("user_id, tiers(name, level, benefit_type, benefit_value)").in("user_id", profileIds),
+        supabaseServer.from("user_tiers").select("user_id, tiers!user_tiers_tier_id_fkey(name, level, benefit_type, benefit_value)").in("user_id", profileIds),
         supabaseServer.from("agent_badges").select("agent_id, badges(name)").in("agent_id", profileIds).order("unlocked_at", { ascending: false }),
       ])
     : [{ data: [] }, { data: [] }];
@@ -208,8 +208,9 @@ export default async function AgentsPage({ searchParams }: { searchParams?: Prom
   const params = (await searchParams) ?? {};
   const verifiedOnly = params.filter === "verified";
   const page = Number.parseInt(params.page ?? "1", 10) || 1;
-  const result = await loadAgents({ verifiedOnly, search: params.q, status: params.status, page });
-  const purgeOperations = ui.hasAccess ? await loadPurgeOperations() : { archivedAgents: [], pendingRequests: [] };
+  const [result, purgeOperations] = ui.hasAccess
+    ? await Promise.all([loadAgents({ verifiedOnly, search: params.q, status: params.status, page }), loadPurgeOperations()])
+    : [null, null];
   const pageHref = (nextPage: number) => {
     const query = new URLSearchParams();
     if (params.q) query.set("q", params.q);
@@ -225,7 +226,7 @@ export default async function AgentsPage({ searchParams }: { searchParams?: Prom
       navItems={ui.navItems}
       meta={ui.meta}
     >
-  {!ui.hasAccess ? (
+  {!result || !purgeOperations ? (
         <AdminAccessDenied />
       ) : (
         <section className="rounded-3xl border border-white/5 bg-white/5 p-4 sm:p-6">

@@ -17,15 +17,16 @@ const SALE_TYPES = [
 const FINISHING_STATUSES = ["finished", "semi_finished", "core_and_shell", "furnished"];
 
 interface Props {
-  params: { listingId: string };
+  params: Promise<{ listingId: string }>;
   searchParams?: Promise<{ success?: string; error?: string }>;
 }
 
 export default async function EditListingPage({ params, searchParams }: Props) {
   const session = await requireDeveloperCapability("manage_inventory");
-  const feedback = (await searchParams) ?? {};
+  const [{ listingId }, resolvedSearchParams] = await Promise.all([params, searchParams]);
+  const feedback = resolvedSearchParams ?? {};
   const [listing, projects, impersonation, profile] = await Promise.all([
-    fetchDeveloperListing(params.listingId, session.developerId),
+    fetchDeveloperListing(listingId, session.developerId),
     fetchDeveloperProjects(session.developerId),
     currentDeveloperImpersonation(),
     fetchDeveloperProfile(session.developerId),
@@ -70,7 +71,7 @@ export default async function EditListingPage({ params, searchParams }: Props) {
       impersonation={impersonation}
       actions={
         <form action={archiveListingFromEditAction}>
-          <input type="hidden" name="listingId" value={params.listingId} />
+          <input type="hidden" name="listingId" value={listingId} />
           <ConfirmSubmitButton
             className="rounded-full border border-amber-200 bg-amber-50 px-5 py-2 text-sm font-semibold text-amber-800 disabled:opacity-50"
             confirmMessage="Archive this listing? It will be hidden and retained so you can restore visibility later."
@@ -105,7 +106,7 @@ export default async function EditListingPage({ params, searchParams }: Props) {
             <p className="text-xs text-amber-600/80">Your listing is active. No action is required.</p>
           ) : (
             <form action={requestRenewalFromEditAction} className="mt-2 inline-flex items-center gap-3">
-              <input type="hidden" name="listingId" value={params.listingId} />
+              <input type="hidden" name="listingId" value={listingId} />
               <button className="rounded-full border border-amber-400 px-4 py-2 text-xs font-semibold text-amber-700" type="submit">
                 Request renewal
               </button>
@@ -116,7 +117,7 @@ export default async function EditListingPage({ params, searchParams }: Props) {
       )}
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <form action={updateListingAction} className="space-y-4 rounded-3xl border border-black/5 bg-white p-6">
-        <input type="hidden" name="listingId" value={params.listingId} />
+        <input type="hidden" name="listingId" value={listingId} />
         <Field label="Listing title" name="name" defaultValue={listing.property_name} readOnly />
         <Field label="Area / location" name="area" defaultValue={listing.specific_location ?? ""} readOnly />
         <DeveloperListingProjectFields

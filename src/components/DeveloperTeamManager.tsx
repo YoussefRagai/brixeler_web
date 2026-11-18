@@ -54,13 +54,13 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId }: Props
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, fullName, role, requestId: crypto.randomUUID() }),
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to send the invitation.");
       await refreshMembers();
       setEmail("");
       setFullName("");
       setRole("project_manager");
-      setFeedback({ kind: "success", text: "Invitation sent. The member will appear as pending until they accept it." });
+      setFeedback({ kind: "success", text: payload?.message ?? "Invitation email submitted for delivery." });
     } catch (error) {
       setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Unable to send the invitation." });
     } finally {
@@ -98,10 +98,10 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId }: Props
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountId: member.id, requestId: crypto.randomUUID() }),
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to resend the invitation.");
       await refreshMembers();
-      setFeedback({ kind: "success", text: "Invitation resent." });
+      setFeedback({ kind: "success", text: payload?.message ?? "Invitation email submitted for delivery." });
     } catch (error) {
       setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Unable to resend the invitation." });
     } finally {

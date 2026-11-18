@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         .order("unlocked_at", { ascending: false }),
       supabaseServer
         .from("user_tiers")
-        .select("tier_id, awarded_at, tiers(name, level, benefit_type, benefit_value)")
+        .select("tier_id, awarded_at, tiers!user_tiers_tier_id_fkey(name, level, benefit_type, benefit_value)")
         .eq("user_id", agentId)
         .maybeSingle(),
       supabaseServer

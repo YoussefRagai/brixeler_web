@@ -28,6 +28,7 @@ type DemoBatchOption = {
 type Props = {
   developers: DeveloperOption[];
   demoBatches: DemoBatchOption[];
+  canCreateDeveloper: boolean;
   action: DeveloperInviteAction;
 };
 
@@ -43,7 +44,7 @@ const initialFormValues = {
 
 type InviteFormValues = typeof initialFormValues;
 
-export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Props) {
+export function AdminDeveloperInviteForm({ developers, demoBatches, canCreateDeveloper, action }: Props) {
   const [existingDeveloperId, setExistingDeveloperId] = useState("");
   const [isDemo, setIsDemo] = useState(false);
   const [formValues, setFormValues] = useState<InviteFormValues>(initialFormValues);
@@ -86,7 +87,7 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
   };
 
   const selectedDeveloper = developers.find((developer) => developer.id === existingDeveloperId) ?? null;
-  const isCreating = !selectedDeveloper;
+  const isCreating = canCreateDeveloper && !selectedDeveloper;
 
   return (
     <form
@@ -99,6 +100,7 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
         <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Existing developer</span>
         <select
           name="existingDeveloperId"
+          required={!canCreateDeveloper}
           value={existingDeveloperId}
           onChange={(event) => {
             resetRequestId();
@@ -106,7 +108,7 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           }}
           className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505]"
         >
-          <option value="">Create new</option>
+          <option value="" disabled={!canCreateDeveloper}>{canCreateDeveloper ? "Create new" : "Select a developer"}</option>
           {developers.map((developer) => (
             <option key={developer.id} value={developer.id}>
               {developer.name}
@@ -114,7 +116,7 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           ))}
         </select>
       </label>
-      <label className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 md:col-span-2">
+      {canCreateDeveloper ? <label className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 md:col-span-2">
         <input
           type="checkbox"
           name="isDemo"
@@ -132,7 +134,7 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
             The invite still sends to the member email, but the records stay out of mobile and can be removed by batch.
           </span>
         </span>
-      </label>
+      </label> : null}
       {isDemo && isCreating ? (
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Demo batch</span>
@@ -154,7 +156,7 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           </select>
         </label>
       ) : null}
-      <label className="flex flex-col gap-1">
+      {isCreating ? <label className="flex flex-col gap-1">
         <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Developer name</span>
         <input
           name="developerName"
@@ -165,8 +167,8 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           placeholder="Atlas Developments"
           className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505] disabled:bg-black/[0.03] disabled:text-neutral-400"
         />
-      </label>
-      <label className="flex flex-col gap-1">
+      </label> : null}
+      {isCreating ? <label className="flex flex-col gap-1">
         <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Contact email</span>
         <input
           type="email"
@@ -177,8 +179,8 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           placeholder="partners@developer.com"
           className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505] disabled:bg-black/[0.03] disabled:text-neutral-400"
         />
-      </label>
-      <label className="flex flex-col gap-1">
+      </label> : null}
+      {isCreating ? <label className="flex flex-col gap-1">
         <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Contact phone</span>
         <input
           name="contactPhone"
@@ -188,7 +190,7 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, action }: Pr
           placeholder="+20 100 000 0000"
           className="rounded-2xl border border-black/10 bg-white px-3 py-2 text-[#050505] disabled:bg-black/[0.03] disabled:text-neutral-400"
         />
-      </label>
+      </label> : null}
       <label className="flex flex-col gap-1 md:col-span-2">
         <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Member email</span>
         <input

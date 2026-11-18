@@ -6,6 +6,7 @@ import type { DeveloperInviteActionState } from "@/components/AdminDeveloperInvi
 import { AdminDevelopersTable } from "@/components/AdminDevelopersTable";
 import { AdminLayout } from "@/components/AdminLayout";
 import { requireAdminRole } from "@/lib/adminAuth";
+import { canAccessScopedDeveloper, developerAdminScope } from "@/lib/adminRoles";
 import { buildAdminUi } from "@/lib/adminUi";
 import { fetchAdminActivity, logAdminActivity } from "@/lib/adminQueries";
 import {
@@ -13,6 +14,7 @@ import {
   findAuthUserByEmail,
   sendDeveloperPortalInvite,
 } from "@/lib/developerAccountInvites";
+import { describePortalInviteDeliveryError, getPortalInviteSubmissionMessage } from "@/lib/portalInviteDelivery";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 type Developer = {
@@ -201,7 +203,7 @@ function isExpired(value: string | null | undefined) {
   return Number.isFinite(timestamp) && timestamp < Date.now();
 }
 
-async function getDeveloperData(developerIds: string[] | null | undefined, requestedPage = 1, search = ""): Promise<DeveloperData> {
+async function getDeveloperData(developerIds: string[] | null, requestedPage = 1, search = ""): Promise<DeveloperData> {
   const page = Math.max(1, requestedPage);
   // Commas and parentheses delimit PostgREST OR operands; normalize them so
   // a search term cannot alter the filter expression.
@@ -548,8 +550,7 @@ async function inviteDeveloperMember(
   if (!admin?.adminId) return inviteActionError("You do not have permission to invite developer members.");
 
   try {
-    const isSuperAdmin = admin.roles.includes("super_admin");
-    const allowedDeveloperIds = isSuperAdmin ? [] : admin.developerIds ?? [];
+    const allowedDeveloperIds = developerAdminScope(admin.roles, admin.developerIds);
     const existingDeveloperId = formData.get("existingDeveloperId")?.toString().trim() ?? "";
     const developerNameInput = formData.get("developerName")?.toString().trim() ?? "";
     const contactEmailInput = formData.get("contactEmail")?.toString().trim().toLowerCase() ?? "";
@@ -563,12 +564,13 @@ async function inviteDeveloperMember(
     if (inviteRequestId.length > 200) return inviteActionError("The invite request could not be identified. Refresh and try again.");
 
     const isCreatingDeveloper = !existingDeveloperId;
-    if (isCreatingDeveloper && allowedDeveloperIds.length) {
+    if (isCreatingDeveloper && allowedDeveloperIds !== null) {
       return inviteActionError("Only a super admin can create a new developer. Select an assigned developer instead.");
     }
 
     let developerId = existingDeveloperId;
     let developerName = developerNameInput;
+    let duplicateCompany = false;
     let contactEmail: string | null = null;
     let contactPhone: string | null = null;
 
@@ -594,15 +596,12 @@ async function inviteDeveloperMember(
         console.error("Failed to validate developer name", duplicateError);
         return inviteActionError("Unable to validate the developer name. Try again.");
       }
-      if (duplicateDeveloper?.id) {
-        return inviteActionError("A developer with this name already exists. Select it instead of creating a duplicate.");
-      }
-
-      developerId = crypto.randomUUID();
+      duplicateCompany = Boolean(duplicateDeveloper?.id);
+      developerId = duplicateDeveloper?.id ?? crypto.randomUUID();
       contactEmail = contactEmailInput || null;
       contactPhone = contactPhoneInput || null;
     } else {
-      if (allowedDeveloperIds.length && !allowedDeveloperIds.includes(existingDeveloperId)) {
+      if (!canAccessScopedDeveloper(allowedDeveloperIds, existingDeveloperId)) {
         return inviteActionError("You are not assigned to that developer.");
       }
       const { data: developer, error: developerError } = await supabaseServer
@@ -643,8 +642,11 @@ async function inviteDeveloperMember(
       }
       if (membership?.status === "pending" && membership.invite_request_id === inviteRequestId) {
         revalidatePath("/developers");
-        return inviteActionSuccess("This invite request was already recorded. The member can use the latest invite email.");
+        return inviteActionSuccess("This invitation request was already recorded. Access is pending.");
       }
+    }
+    if (duplicateCompany) {
+      return inviteActionError("A developer with this name already exists. Select it instead of creating a duplicate.");
     }
 
     const inviteResult = await sendDeveloperPortalInvite({
@@ -652,7 +654,7 @@ async function inviteDeveloperMember(
       developerId,
       developerName,
       inviteRequestId,
-    });
+    }, existingAuthUser);
     if (inviteResult.error || !inviteResult.authUserId) {
       if (inviteResult.createdAuthUser && inviteResult.authUserId) {
         await compensateDeveloperInviteAuthUser({
@@ -661,8 +663,8 @@ async function inviteDeveloperMember(
           inviteRequestId,
         });
       }
-      console.error("Failed to invite developer member", inviteResult.error);
-      return inviteActionError("The invitation email could not be sent. No developer access was recorded.");
+      console.error("Failed to submit developer invite", inviteResult.error?.code, inviteResult.error?.status);
+      return inviteActionError(describePortalInviteDeliveryError(inviteResult.error).message);
     }
 
     const { data: inviteRecord, error: inviteRecordError } = await supabaseServer.rpc("create_developer_account_invite", {
@@ -687,7 +689,7 @@ async function inviteDeveloperMember(
         });
       }
       console.error("Failed to record developer invitation", inviteRecordError);
-      return inviteActionError("The invitation email was sent, but access could not be recorded. Try this action again with the same form.");
+      return inviteActionError("The email was submitted. Access could not be confirmed. Retry with the same form.");
     }
 
     await logAdminActivity({
@@ -699,10 +701,10 @@ async function inviteDeveloperMember(
     });
 
     revalidatePath("/developers");
-    return inviteActionSuccess(`Invite sent to ${memberEmail} for ${developerName}.`);
+    return inviteActionSuccess(getPortalInviteSubmissionMessage(inviteResult.emailKind));
   } catch (error) {
     console.error("Developer invitation action failed", error);
-    return inviteActionError("We could not complete the invitation. No silent changes were made; try again.");
+    return inviteActionError("We could not confirm the invitation. Check the Members list before retrying.");
   }
 }
 
@@ -749,7 +751,7 @@ export default async function DevelopersPage({
   searchParams?: Promise<{ developerSearch?: string; developerPage?: string; developerFilter?: string }>;
 }) {
   const adminContext = await buildAdminUi(["developers_admin"]);
-  const allowedDeveloperIds = adminContext.roles.includes("super_admin") ? null : adminContext.context?.developerIds ?? null;
+  const allowedDeveloperIds = developerAdminScope(adminContext.roles, adminContext.context.developerIds);
   const params = (await searchParams) ?? {};
   const developerSearch = params.developerSearch?.trim().slice(0, 100) ?? "";
   const developerPage = safePage(params.developerPage);
@@ -783,6 +785,7 @@ export default async function DevelopersPage({
         developerError: null,
       } satisfies DeveloperData;
 
+  const canInvite = allowedDeveloperIds === null || data.developers.length > 0;
   const membersByDeveloperId = data.accounts.reduce<Record<string, DeveloperMember[]>>((acc, member) => {
     acc[member.developer_id] = [...(acc[member.developer_id] ?? []), member];
     return acc;
@@ -855,19 +858,21 @@ export default async function DevelopersPage({
     <AdminLayout
       title="Developer operations"
       description="Run partner access, portfolio publication, and mobile visibility from one exception-driven console."
-      actions={
+      actions={canInvite ? (
         <a
           href="#developer-invite"
           className="inline-flex min-h-11 items-center rounded-full border border-black/10 bg-white px-5 py-2 text-sm font-semibold text-neutral-700 hover:bg-black/5"
         >
           Invite member
         </a>
-      }
+      ) : null}
       navItems={adminContext.navItems}
       meta={adminContext.meta}
     >
       {!adminContext.hasAccess ? (
         <AdminAccessDenied />
+      ) : allowedDeveloperIds?.length === 0 ? (
+        <p className="rounded-3xl border border-black/5 bg-white p-5 text-sm text-neutral-600">No developer companies are assigned to your account.</p>
       ) : (
         <div className="space-y-6">
           <section className="rounded-3xl border border-black/5 bg-white p-4 shadow-xl shadow-black/5 sm:p-6">
@@ -921,25 +926,30 @@ export default async function DevelopersPage({
             availability={data.availability}
           />
 
-          <section id="developer-invite" className="scroll-mt-6 rounded-3xl border border-black/5 bg-white p-4 shadow-xl shadow-black/5 sm:p-6">
-            <header className="mb-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Invite developer member</p>
-              <h2 className="mt-1 text-lg font-semibold text-[#050505]">Add controlled portal access</h2>
-              <p className="mt-1 text-sm text-neutral-600">
-                Send a secure invite email. Existing developer identity fields remain unchanged; the member completes signup by setting a password and activating access.
-              </p>
-            </header>
-            <AdminDeveloperInviteForm
-              developers={data.developers.map((developer) => ({
-                id: developer.id,
-                name: developer.name,
-                contact_email: developer.contact_email,
-                contact_phone: developer.contact_phone,
-              }))}
-              demoBatches={data.demoBatches}
-              action={inviteDeveloperMember}
-            />
-          </section>
+          {canInvite ? (
+            <section id="developer-invite" className="scroll-mt-6 rounded-3xl border border-black/5 bg-white p-4 shadow-xl shadow-black/5 sm:p-6">
+              <header className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Invite developer member</p>
+                <h2 className="mt-1 text-lg font-semibold text-[#050505]">Add controlled portal access</h2>
+                <p className="mt-1 text-sm text-neutral-600">Enter a working mailbox for the member. Access stays pending until they finish setup.</p>
+                <p className="mt-1 text-sm text-neutral-600">
+                  If an email is missing, check the address and last submission time in Members, then look up delivery in{" "}
+                  <a href="https://resend.com/emails" target="_blank" rel="noreferrer" className="underline">Resend Emails</a>.
+                </p>
+              </header>
+              <AdminDeveloperInviteForm
+                developers={data.developers.map((developer) => ({
+                  id: developer.id,
+                  name: developer.name,
+                  contact_email: developer.contact_email,
+                  contact_phone: developer.contact_phone,
+                }))}
+                demoBatches={data.demoBatches}
+                canCreateDeveloper={allowedDeveloperIds === null}
+                action={inviteDeveloperMember}
+              />
+            </section>
+          ) : null}
         </div>
       )}
     </AdminLayout>

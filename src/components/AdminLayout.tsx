@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { clsx } from "clsx";
 import {
@@ -83,7 +83,6 @@ interface Props {
 
 export function AdminLayout({ title, description, actions, children, navItems, meta }: Props) {
   const pathname = usePathname();
-  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const items = navItems ?? defaultNavItems;
   const groupedItems = sectionOrder
@@ -167,18 +166,11 @@ export function AdminLayout({ title, description, actions, children, navItems, m
                 {mobileMenuOpen ? <X aria-hidden="true" size={18} /> : <Menu aria-hidden="true" size={18} />}
               </button>
               {actions}
-              <button
-                onClick={async () => {
-                  try {
-                    await fetch("/api/admin-logout", { method: "POST" });
-                  } finally {
-                    router.replace("/admin/login");
-                  }
-                }}
-                className="rounded-full border border-black/10 px-4 py-2 text-sm text-neutral-600 transition-colors hover:border-black/30 hover:text-black"
-              >
-                Logout
-              </button>
+              <form action="/api/admin-logout" method="post">
+                <button type="submit" className="rounded-full border border-black/10 px-4 py-2 text-sm text-neutral-600 transition-colors hover:border-black/30 hover:text-black">
+                  Logout
+                </button>
+              </form>
             </div>
           </div>
           {mobileMenuOpen ? (

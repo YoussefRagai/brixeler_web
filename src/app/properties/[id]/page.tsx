@@ -46,9 +46,13 @@ async function loadProperty(id: string) {
   };
 }
 
-export default async function PropertyDetailPage({ params }: { params: { id: string } }) {
+export default async function PropertyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const ui = await buildAdminUi(["listing_admin"]);
-  const property = await loadProperty(params.id);
+  if (!ui.hasAccess) {
+    return <AdminLayout title="Property detail" navItems={ui.navItems} meta={ui.meta}><AdminAccessDenied /></AdminLayout>;
+  }
+  const { id } = await params;
+  const property = await loadProperty(id);
   if (!property) return notFound();
 
   return (
@@ -66,10 +70,7 @@ export default async function PropertyDetailPage({ params }: { params: { id: str
       navItems={ui.navItems}
       meta={ui.meta}
     >
-      {!ui.hasAccess ? (
-        <AdminAccessDenied />
-      ) : (
-        <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
+      <section className="rounded-3xl border border-white/5 bg-white/5 p-6">
           <p className="text-sm uppercase tracking-[0.3em] text-slate-500">Submission</p>
           <p className="text-lg text-slate-300">
             Submitted by {property.agent} on {property.date}
@@ -81,8 +82,7 @@ export default async function PropertyDetailPage({ params }: { params: { id: str
             <p>Price: {property.price}</p>
             <p>Area: {property.area}</p>
           </div>
-        </section>
-      )}
+      </section>
     </AdminLayout>
   );
 }

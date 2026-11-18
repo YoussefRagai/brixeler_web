@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getAdminContextFromRequest } from "@/lib/adminAuth";
-import { hasAdminRole } from "@/lib/adminRoles";
+import { canAccessScopedDeveloper, developerAdminScope, hasAdminRole } from "@/lib/adminRoles";
 import { logAdminActivity } from "@/lib/adminQueries";
 
 export async function POST(request: Request) {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
   }
 
-  const allowedDeveloperIds = admin.developerIds;
+  const allowedDeveloperIds = developerAdminScope(admin.roles, admin.developerIds);
 
   const { data: devAccount, error: accountError } = await supabaseServer
     .from("developer_accounts")
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Developer member not found" }, { status: 404 });
   }
 
-  if (allowedDeveloperIds?.length && !allowedDeveloperIds.includes(devAccount.developer_id)) {
+  if (!canAccessScopedDeveloper(allowedDeveloperIds, devAccount.developer_id)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -98,7 +98,7 @@ export function AdminRoleEditor({ adminId, roles, developerIds, developers, stat
     setErrorMessage(null);
   };
 
-  const isDevelopersAdmin = currentRoles.includes("developers_admin") || currentRoles.includes("super_admin");
+  const isDelegatedDevelopersAdmin = currentRoles.includes("developers_admin") && !currentRoles.includes("super_admin");
 
   return (
     <div className="space-y-3 text-xs text-slate-300">
@@ -116,10 +116,10 @@ export function AdminRoleEditor({ adminId, roles, developerIds, developers, stat
           </label>
         ))}
       </div>
-      {isDevelopersAdmin ? (
+      {isDelegatedDevelopersAdmin ? (
         <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
           <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Scoped developers</p>
-          <p className="text-xs text-slate-400">Leave empty to allow all developers.</p>
+          <p className="text-xs text-slate-400">Select the companies this admin can manage. An empty selection grants no company access.</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {developerOptions.map((dev) => (
               <label key={dev.id} className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2">
@@ -148,7 +148,7 @@ export function AdminRoleEditor({ adminId, roles, developerIds, developers, stat
             {rolesEqual(savedRoles, currentRoles) ? "Roles unchanged" : `Roles: ${savedRoles.map((role) => ADMIN_ROLE_LABELS[role]).join(", ") || "none"} → ${currentRoles.map((role) => ADMIN_ROLE_LABELS[role]).join(", ") || "none"}`}
           </p>
           {!valuesEqual(savedDevelopers, currentDevelopers) ? (
-            <p className="mt-1 text-xs text-slate-400">Developer scope: {currentDevelopers.length ? `${currentDevelopers.length} selected` : "all developers"}</p>
+            <p className="mt-1 text-xs text-slate-400">Developer assignments {currentDevelopers.length ? `· ${currentDevelopers.length} selected` : "· None"}</p>
           ) : null}
           <label className="mt-3 block text-xs text-slate-400">
             Reason for this access change

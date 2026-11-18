@@ -1,22 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { openPortalInviteSession } from "@/lib/portalInviteSession";
 
-type AcceptState = "verifying" | "ready" | "submitting" | "done";
-
-function createBrowserSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) throw new Error("Supabase public environment is missing.");
-  return createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: false } });
-}
+type AcceptState = "verifying" | "invalid" | "ready" | "submitting" | "done";
 
 export function AdminInviteAcceptClient() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const supabase = useMemo(() => createBrowserSupabase(), []);
+  const verification = useRef<ReturnType<typeof openPortalInviteSession> | null>(null);
+  const [invite, setInvite] = useState<Awaited<ReturnType<typeof openPortalInviteSession>>>(null);
   const [state, setState] = useState<AcceptState>("verifying");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -25,39 +18,31 @@ export function AdminInviteAcceptClient() {
 
   useEffect(() => {
     let cancelled = false;
-    async function loadInviteSession() {
-      const code = searchParams.get("code");
-      if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) {
-          if (!cancelled) {
-            setError("This invite link is invalid or has expired. Ask a super admin to send a new invite.");
-            setState("ready");
-          }
-          return;
-        }
-      }
-      const { data, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !data.session) {
-        if (!cancelled) {
-          setError("This invite link is invalid or has expired. Ask a super admin to send a new invite.");
-          setState("ready");
-        }
+    verification.current ??= openPortalInviteSession("admin");
+    void verification.current.then((result) => {
+      if (cancelled) return;
+      if (!result) {
+        setError("This invite is invalid or has expired. Ask a super admin for a new invitation.");
+        setState("invalid");
         return;
       }
-      if (!cancelled) {
-        setFullName((data.session.user.user_metadata?.full_name as string | undefined) ?? "");
-        setState("ready");
-      }
-    }
-    void loadInviteSession();
+      const name = result.session.user.user_metadata?.full_name;
+      setFullName(typeof name === "string" ? name : "");
+      setInvite(result);
+      setState("ready");
+    }).catch(() => {
+      if (cancelled) return;
+      setError("We could not verify your invitation. Reload the link to try again.");
+      setState("invalid");
+    });
     return () => {
       cancelled = true;
     };
-  }, [searchParams, supabase]);
+  }, []);
 
   async function completeSetup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!invite || state !== "ready") return;
     setError(null);
     if (password.length < 8) {
       setError("Use a password with at least 8 characters.");
@@ -68,16 +53,22 @@ export function AdminInviteAcceptClient() {
       return;
     }
     setState("submitting");
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
-      data: fullName.trim() ? { full_name: fullName.trim(), portal: "admin" } : { portal: "admin" },
-    });
-    if (updateError) {
-      setError(updateError.message);
+    try {
+      const { error: updateError } = await invite.supabase.auth.updateUser({
+        password,
+        data: fullName.trim() ? { full_name: fullName.trim() } : undefined,
+      });
+      if (updateError) {
+        setError(updateError.message);
+        setState("ready");
+        return;
+      }
+    } catch {
+      setError("We could not update your password. Try again.");
       setState("ready");
       return;
     }
-    await supabase.auth.signOut();
+    await invite.supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
     setState("done");
     router.replace("/admin/login?message=Access+set+up.+Sign+in+with+your+new+password.");
   }
@@ -93,7 +84,7 @@ export function AdminInviteAcceptClient() {
           <p className="mt-6 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-5 text-sm text-neutral-500">Verifying your invite…</p>
         ) : state === "done" ? (
           <p className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-5 text-sm text-emerald-800">Access set up. Redirecting to admin login…</p>
-        ) : (
+        ) : state === "invalid" ? null : (
           <form onSubmit={completeSetup} className="mt-6 space-y-4">
             <label className="flex flex-col gap-2 text-sm"><span className="text-xs uppercase tracking-[0.25em] text-neutral-400">Full name</span><input value={fullName} onChange={(event) => setFullName(event.target.value)} className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3" autoComplete="name" /></label>
             <label className="flex flex-col gap-2 text-sm"><span className="text-xs uppercase tracking-[0.25em] text-neutral-400">Password</span><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" minLength={8} required className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3" autoComplete="new-password" /></label>

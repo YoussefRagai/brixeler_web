@@ -134,12 +134,16 @@ export default async function DealDetailPage({
   params,
   searchParams,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
   searchParams?: Promise<{ mode?: string }>;
 }) {
   const ui = await buildAdminUi(["deals_admin"]);
-  const mode = normalizeMode((await searchParams)?.mode);
-  const deal = await loadDeal(params.id, mode);
+  if (!ui.hasAccess) {
+    return <AdminLayout title="Deal detail" navItems={ui.navItems} meta={ui.meta}><AdminAccessDenied /></AdminLayout>;
+  }
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const mode = normalizeMode(query?.mode);
+  const deal = await loadDeal(id, mode);
   if (!deal) return notFound();
 
   return (
@@ -147,40 +151,16 @@ export default async function DealDetailPage({
       title={`Deal ${deal.id}`}
       description={`${deal.stage} · ${deal.agent} · ${deal.amount}`}
       actions={
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <div aria-label="Deal detail data mode" className="flex flex-wrap gap-2">
-            {(["live", "demo"] as const).map((option) => (
-              <Link
-                key={option}
-                href={`/deals/${deal.id}?mode=${option}`}
-                aria-current={mode === option ? "page" : undefined}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                  mode === option
-                    ? option === "demo"
-                      ? "border-amber-700 bg-amber-700 text-white"
-                      : "border-neutral-900 bg-neutral-900 text-white"
-                    : "border-black/15 bg-white text-neutral-700 hover:bg-black/5"
-                }`}
-              >
-                {option === "demo" ? "Demo" : "Live"}
-              </Link>
-            ))}
-          </div>
           <Link
             href={`/deals?mode=${mode}`}
             className="rounded-full border border-black/10 bg-white px-5 py-2 text-sm text-neutral-700 hover:bg-black/5"
           >
             Back to queue
           </Link>
-        </div>
       }
       navItems={ui.navItems}
       meta={ui.meta}
     >
-      {!ui.hasAccess ? (
-        <AdminAccessDenied />
-      ) : (
-        <>
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3" aria-label="Selected deal detail data mode">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">{deal.isDemo ? "Demo deal operation" : "Live deal operation"}</p>
@@ -234,8 +214,6 @@ export default async function DealDetailPage({
               <p className="mt-3 text-xs text-blue-800">Amount confirmation: {deal.paymentAmountConfirmed ? "confirmed" : "not confirmed"}. Payment cannot be marked Paid until a different active administrator approves it.</p>
             </section>
           ) : null}
-        </>
-      )}
     </AdminLayout>
   );
 }
