@@ -216,3 +216,11 @@ The following remain outside the evidence above:
 These limitations are deliberate. The next safe gate is a staged or explicitly
 authorized production run of the high-impact controls, followed by a fresh
 browser sweep after deployment.
+
+## Released verification — 2026-11-19
+
+- Source commit `0333378` pushed to GitHub; Railway deployment `98f6e18d-3aac-492b-9a03-797001ea4fe2` ACTIVE / Deployment successful.
+- Supabase migration applied through project-specific connector as `20261118221855_admin_access_scope`; authenticated callers cannot execute access/restore RPCs; service-role access verified. Exact prior support function retained in ignored mode-600 rollback artifact.
+- Post-release authenticated browser: verification SOP and change reason expand, incomplete-document approval disabled; renewal Approved link navigates to correct status; claim detail warning absent; live Overview excludes demo applicants and export uses `demo=production`.
+- Validation: 154 JS tests, 15 SQL suites, 10/10 synthetic browser journeys, lint/types/build, zero dependency vulnerabilities. Real payment approvals, purge, customer broadcast, and concurrency load tests were not performed in production.
+- Hotmail QA invitation Delivered, accepted, activated, and login recorded; demo project_manager membership only. Sukoon invitation failure was a nonexistent mailbox followed by provider suppression. Existing Gmail identity was preserved.

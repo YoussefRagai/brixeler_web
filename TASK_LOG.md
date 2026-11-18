@@ -490,3 +490,11 @@ Append meaningful work after each task.
 - Result: Loopback URLs automatically derive the local `supabase_admin` URL for only the network-stub suite; an optional `BRIXELER_DATABASE_ADMIN_URL` is accepted only when both URLs are loopback. Remote URLs remain unchanged, and unsafe mixed remote/admin configuration exits before invoking `psql`. No production grants, data, migration, deployment, or secrets changed.
 - Verification: `bash -n scripts/test-database-reliability.sh`; runner behavior tests pass 4/4; the real runner passes all 15 SQL suites against the disposable port-55441 database; database lint is clean at error level; `npm run release:check` passes 154/154 tests with lint, TypeScript, build, and dependency audit clean.
 - Remaining scope: The new migration and admin SQL fixtures remain local and undeployed. Warning-level database lint retains the four pre-existing Growth/webhook warning groups documented in the admin action report.
+
+## Released verification — 2026-11-19
+
+- Source commit `0333378` pushed to GitHub; Railway deployment `98f6e18d-3aac-492b-9a03-797001ea4fe2` ACTIVE / Deployment successful.
+- Supabase migration applied through project-specific connector as `20261118221855_admin_access_scope`; authenticated callers cannot execute access/restore RPCs; service-role access verified. Exact prior support function retained in ignored mode-600 rollback artifact.
+- Post-release authenticated browser: verification SOP and change reason expand, incomplete-document approval disabled; renewal Approved link navigates to correct status; claim detail warning absent; live Overview excludes demo applicants and export uses `demo=production`.
+- Validation: 154 JS tests, 15 SQL suites, 10/10 synthetic browser journeys, lint/types/build, zero dependency vulnerabilities. Real payment approvals, purge, customer broadcast, and concurrency load tests were not performed in production.
+- Hotmail QA invitation Delivered, accepted, activated, and login recorded; demo project_manager membership only. Sukoon invitation failure was a nonexistent mailbox followed by provider suppression. Existing Gmail identity was preserved.
