@@ -539,3 +539,11 @@ Append meaningful work after each task.
 - All 16 SQL suites pass after final migration edits; TypeScript and diff check pass. Full release gate and rollout remain in progress in this entry; later entries supersede this checkpoint. No mobile build/update.
 
 - Final release gate PASS: 171/171 JS tests, lint, TypeScript, build, zero dependency vulnerabilities; 16/16 SQL suites pass. Applied only `20261121083326_harden_developer_inventory_contracts.sql`; provider-assigned timestamp aligned immediately. Unfinished WhatsApp migration excluded. Production readback confirms service wrapper allowed, authenticated wrapper denied, internal helper denied even to service API, and anonymous default-phase trigger execution denied. No unflagged demo-owned developer units remain. Private pre-change RPC/policy/trigger snapshots in ignored `.local/release-20261120/`. Dashboard commit/deployment verification follows.
+
+
+## 2026-11-21 — Developer portal release completed
+
+- Source `4afe9ed` pushed; Railway `08818b05-831f-43ef-b907-522c6c6fdc71` ACTIVE/Deployment successful. Supabase `20261121083326_harden_developer_inventory_contracts` live with verified narrow grants and demo visibility. Both hosts respond (developer login200/admin login307).
+- Final checks:171JS tests,16SQL suites,lint/types/build,audit0; provider-assigned migration filename reconciled and focused contract rerun passed. Actual production service-role archive/readback/restore assertions passed on the exact demo fixture, restored draft/demo.
+- Live browser confirmed released menu, then CDP stalled at confirmation; fresh-tab recovery did not complete archive UI. This specific UI rerun is unverified. Earlier patched loopback wizard/import/hold/support flows passed. No native/mobile release, new invitation/access grant, or real customer mutation. Luna API/review turns hit usage limits; parent finished review/integration and reports the independent review as incomplete.
+- Evidence and recovery: docs/developer-live-sweep-2026-11-20.md; private pre-change definitions in ignored .local/release-20261120/. This entry supersedes earlier pending/concurrent-error notes.

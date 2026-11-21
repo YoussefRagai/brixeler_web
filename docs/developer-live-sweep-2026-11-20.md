@@ -109,3 +109,16 @@ Patched loopback browser checks against the same demo tenant passed:
 The archive trigger fix and all 16 rollback-only SQL suites pass locally. The full release gate, production migration, archive/restore browser rerun and deployment status are recorded below once completed.
 
 Luna Max implemented the project and secondary UI fixes. Its remaining API and independent-review turns ended at the usage limit. Saved API patches were retained; the parent reviewed and finished the archive trigger, server-side import URL checks, demo metadata preservation and final tests. No completed independent review is claimed.
+
+
+### Released verification — 2026-11-21
+
+- Code commit `4afe9ed1182e9aa00585d8b4688c9fd8e05a2a26` pushed to GitHub. Railway deployment `08818b05-831f-43ef-b907-522c6c6fdc71` observed ACTIVE / Deployment successful for this release.
+- Production Supabase migration `20261121083326_harden_developer_inventory_contracts` applied; wrappers/internal grants verified; demo project/unit remain invisible under anon; no unflagged demo-owned developer units remain.
+- Final gate: 171 JS tests, 16 SQL suites, lint, typecheck, build, zero dependency vulnerabilities; renamed-ledger contract rechecked.
+- Production service-role archive → archived readback → restore to draft assertions passed against the exact second demo fixture, retaining demo state and no publication timestamp.
+- Browser post-release confirmed the new action menu before a confirmation/CDP connection stalled. Recovering in a fresh tab did not complete the final archive/restore UI round trip. This remains an explicit UI verification gap, not a database failure; the direct service-role round trip and local SQL regression passed. The viewport override was reset.
+- Earlier patched loopback browser results above cover actual reply/import/hold/wizard interactions. Native mobile, real customer lead mutations, fresh access grants/invitation sends, and load/concurrency tests remain outside this pass. No mobile build/update occurred.
+- Existing security advisor warnings remain for Growth search paths, intentionally authenticated RPCs/RLS helper and leaked-password protection. The default-phase trigger's public execution was removed; no new advisor error was introduced. Provider remediation reference: https://supabase.com/docs/guides/database/database-linter.
+
+Recovery: use the prior known-good dashboard deployment if necessary; prefer an additive database repair. Exact pre-change RPC/policy JSON and timestamp-trigger SQL are in ignored mode-600 files under `.local/release-20261120/`. Do not remove migration ledger entries or disable RLS to roll back.

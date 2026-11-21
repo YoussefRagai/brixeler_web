@@ -64,3 +64,8 @@ Known workspace-wide blockers, not introduced by this pass:
 - `npm run test:project-flow` has stale source-regex expectations for the current project-flow refactor; project-flow ownership remains with the primary agent.
 
 Confidence: **0.88** for the secondary UI contracts and isolated route behavior; **0.65** for live support read/team mutation behavior because those controls were not re-exercised against the deployed service after the patch.
+
+
+## Final integration status (supersedes concurrent-work blockers)
+
+Release `4afe9ed` and migration `20261121083326` are live. Final lint, types, build,171JS tests and16SQL suites pass. Patched loopback browser verified support reply pending/persistence/reset, team email fallback, import diagnostics, draft cleanup and correct hold timestamps/fresh release state. Final archive UI check was blocked by the browser connection; production service-role archive/restore readback passed. See the live sweep report for exact boundaries. No completed independent Luna review is claimed because the reviewer reached its usage limit.

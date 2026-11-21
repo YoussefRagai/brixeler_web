@@ -8,9 +8,9 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 41065,
+      "bytes": 41450,
       "path": ".context/repo_summary.md",
-      "sha256": "5c1a2c3c983b67726ccc2d5a954c86dd7ac7cd089b9a40d049d2d94d0d467966",
+      "sha256": "86baf005bd133e65c47bb9ebbf75da239bd6d2285751cd1a3aecd3b4d83bef88",
       "summary": "Compressed repository state including local developer project media work."
     },
     {
@@ -80,9 +80,9 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 103634,
+      "bytes": 104866,
       "path": "TASK_LOG.md",
-      "sha256": "4007ac48b63c19a6eefb5b8bed534e172b3307a7c7e8eaf70c3f5989457b8ae6",
+      "sha256": "6a8eeb6e1a98d6dcf04c3c4f22fb564ea673aa7212dfe4f10f279a79ce6b282f",
       "summary": "Task outcomes and verification history, including developer project work."
     },
     {
@@ -124,8 +124,8 @@
     {
       "path": "docs/developer-action-sweep-2026-11-19.md",
       "summary": "Exact tested and untested developer secondary-portal controls, isolated route/render checks, and live-evidence boundaries for 2026-11-19.",
-      "bytes": 7246,
-      "sha256": "707f5ebd45a62e8072ffa905c799009430586cd75dc47ed3b8dcefb8e788dba7"
+      "bytes": 7873,
+      "sha256": "cb193750771d5c8a377978729d199692518c1466df4f86e3ad4653ed6a8cd381"
     },
     {
       "path": "docs/developer-journey-verification-2026-09-08.md",
@@ -136,8 +136,8 @@
     {
       "path": "docs/developer-live-sweep-2026-11-20.md",
       "summary": "Developer portal reliability sweep: project, inventory, support, and permission contracts.",
-      "bytes": 7385,
-      "sha256": "d3ad5c036d7e5ac7368375f0411193f066c45fd0a2b5e16c2a4253c29970aa91"
+      "bytes": 9418,
+      "sha256": "049addf963eb62fa927ded1748c03d1f946f004fb685345b9f263c53a36f04e7"
     },
     {
       "path": "docs/developer-project-flow-2026-09-08.md",
