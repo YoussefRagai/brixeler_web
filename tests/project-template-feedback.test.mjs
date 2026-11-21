@@ -137,6 +137,8 @@ test("template workspace keeps the portfolio compact until upload is requested",
   assert.match(workspace, /Download blank template \(individual units\)/);
   assert.match(workspace, /<details className="mt-5 rounded-2xl border border-black\/10 bg-neutral-50">/);
   assert.match(workspace, /Upload a filled template/);
+  assert.match(workspace, /ProjectWorkflowSubmitButton primary pendingLabel="Saving…">Save type \+ variants/);
+  assert.match(workspace, /ProjectWorkflowSubmitButton primary pendingLabel="Importing…">Import individual units/);
   assert.doesNotMatch(workspace, /<details[^>]+\bopen(?:=|\s|>)/);
 });
 

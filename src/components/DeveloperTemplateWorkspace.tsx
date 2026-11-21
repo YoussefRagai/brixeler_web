@@ -4,6 +4,7 @@ import { useActionState, useMemo, useRef, useState, type ChangeEvent } from "rea
 import { readSheet } from "read-excel-file/browser";
 import { Download, FileSpreadsheet, Upload } from "lucide-react";
 import { FeedbackBanner } from "@/components/FeedbackBanner";
+import { ProjectWorkflowSubmitButton } from "@/components/ProjectWorkflowSubmitButton";
 import {
   csvRowsToInventoryObjects,
   parseUnitTypeWorkbookRows,
@@ -190,7 +191,7 @@ export function DeveloperTemplateWorkspace({ projects, templatePaths, typeImport
         <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Unit type preview</p><p className="mt-1 text-sm text-neutral-600">{unitTypes.length} types · {unitTypes.reduce((sum, item) => sum + item.variants.length, 0)} variants parsed for the selected phase.</p></div><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold text-emerald-800">Ready to review</span></div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {unitTypes.map((item, index) => <div key={`${item.baseType}-${index}`} className="rounded-xl border border-black/10 bg-white p-3"><p className="text-sm font-semibold text-neutral-900">{item.baseType}</p><p className="mt-1 text-xs text-neutral-500">{item.variants.length} variant{item.variants.length === 1 ? "" : "s"}{item.finishingStatus ? ` · ${item.finishingStatus.replaceAll("_", " ")}` : ""}</p><form action={typeImportAction} className="mt-3"><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="phaseId" value={phaseId} /><input type="hidden" name="payload" value={JSON.stringify(item)} /><button type="submit" className="min-h-9 rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800">Save type + variants</button></form></div>)}
+            {unitTypes.map((item, index) => <div key={`${item.baseType}-${index}`} className="rounded-xl border border-black/10 bg-white p-3"><p className="text-sm font-semibold text-neutral-900">{item.baseType}</p><p className="mt-1 text-xs text-neutral-500">{item.variants.length} variant{item.variants.length === 1 ? "" : "s"}{item.finishingStatus ? ` · ${item.finishingStatus.replaceAll("_", " ")}` : ""}</p><form action={typeImportAction} className="mt-3"><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="phaseId" value={phaseId} /><input type="hidden" name="payload" value={JSON.stringify(item)} /><ProjectWorkflowSubmitButton primary pendingLabel="Saving…">Save type + variants</ProjectWorkflowSubmitButton></form></div>)}
           </div>
         </div>
       ) : null}
@@ -199,7 +200,7 @@ export function DeveloperTemplateWorkspace({ projects, templatePaths, typeImport
         <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Individual unit preview</p><p className="mt-1 text-sm text-neutral-600">{inventoryRows.length} rows parsed for the selected phase. Existing IDs update rows; blank IDs create pending rows.</p></div><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold text-emerald-800">Ready to review</span></div>
           {inventoryState?.rowErrors?.length ? <div className="mt-3 space-y-1 text-xs text-rose-700" role="alert">{inventoryState.rowErrors.map((row) => <p key={row.row}>Row {row.row}: {row.errors.join(" · ")}</p>)}</div> : null}
-          <form action={submitInventoryAction} className="mt-3"><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="phaseId" value={phaseId} /><input type="hidden" name="rows" value={JSON.stringify(inventoryRows)} /><input type="hidden" name="dryRun" value="false" /><button type="submit" className="min-h-10 rounded-full bg-black px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800">Import individual units</button></form>
+          <form action={submitInventoryAction} className="mt-3"><input type="hidden" name="projectId" value={projectId} /><input type="hidden" name="phaseId" value={phaseId} /><input type="hidden" name="rows" value={JSON.stringify(inventoryRows)} /><input type="hidden" name="dryRun" value="false" /><ProjectWorkflowSubmitButton primary pendingLabel="Importing…">Import individual units</ProjectWorkflowSubmitButton></form>
         </div>
       ) : null}
     </section>
