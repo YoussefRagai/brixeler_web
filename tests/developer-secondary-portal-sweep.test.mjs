@@ -27,7 +27,8 @@ function load(relativePath, mocks = {}, cache = new Map()) {
     if (Object.hasOwn(mocks, id)) return mocks[id];
     if (id.startsWith(".") || id.startsWith("@/")) {
       const resolved = id.startsWith("@/") ? path.join(repositoryRoot, "src", id.slice(2)) : path.resolve(path.dirname(filename), id);
-      return load(resolved.endsWith(".ts") ? resolved : `${resolved}.ts`, mocks, cache);
+      const sourcePath = [resolved, `${resolved}.ts`, `${resolved}.tsx`].find((candidate) => existsSync(candidate));
+      return load(sourcePath ?? resolved, mocks, cache);
     }
     return nativeRequire(id);
   };
@@ -111,7 +112,8 @@ test("team controls use isolated idempotent requests and expose load failures", 
   assert.match(manager, /crypto\.randomUUID\(\)/);
   assert.match(manager, /window\.prompt/);
   assert.match(manager, /role: nextRole/);
-  assert.match(manager, /role="alert"/);
+  assert.match(manager, /FeedbackBanner/);
+  assert.match(manager, /tone=\{feedback\?\.kind === "error" \? "error" : "success"\}/);
   assert.match(manager, /Invitation submitted, but the team list could not refresh/);
   assert.match(manager, /Member role updated, but the team list could not refresh/);
   assert.match(page, /initialLoadError=\{loadError\}/);
@@ -163,8 +165,8 @@ test("support center and conversation cover open, reply, read, and missing-ticke
   assert.match(conversationForm, /value="reply"/);
   assert.match(conversationForm, /value="read"/);
   assert.match(conversationForm, /Already read/);
-  assert.match(conversationForm, /role=\{state\.status === "error" \? "alert" : "status"\}/);
-  assert.match(conversation, /role="alert"/);
+  assert.match(conversationForm, /FeedbackBanner message=\{state\.message\} tone=\{state\.status === "error" \? "error" : "success"\}/);
+  assert.match(conversation, /FeedbackBanner message="Support request not found\." tone="error"/);
   assert.match(conversation, /Return to support/);
   assert.match(page, /fetchDeveloperSupportTickets/);
   assert.match(detailPage, /DeveloperSupportConversation/);

@@ -2,7 +2,13 @@
 
 import { useActionState, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { ProjectWorkflowSubmitButton } from "@/components/ProjectWorkflowSubmitButton";
+import { FeedbackBanner } from "@/components/FeedbackBanner";
 import { readSheet } from "read-excel-file/browser";
+import {
+  csvRowsToInventoryObjects,
+  INVENTORY_TEMPLATE_COLUMNS,
+  workbookRowsToInventoryObjects,
+} from "@/lib/developerImportTemplates";
 import type {
   DeveloperInventoryAvailability,
   DeveloperInventoryRow,
@@ -50,73 +56,7 @@ const AVAILABILITY_STATES: DeveloperInventoryAvailability[] = [
   "released",
 ];
 
-const CSV_COLUMNS = [
-  "id",
-  "property_name",
-  "property_type",
-  "description",
-  "photos",
-  "inventory_code",
-  "building",
-  "floor_number",
-  "unit_number",
-  "price",
-  "unit_area",
-  "availability_state",
-  "price_effective_from",
-] as const;
-
 const emptyValue = (value: unknown) => (value == null ? "" : String(value));
-
-const normalizeHeader = (value: unknown) =>
-  emptyValue(value)
-    .trim()
-    .toLowerCase()
-    .replace(/[()]/g, "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "");
-
-const HEADER_ALIASES: Record<string, string> = {
-  id: "id",
-  property_id: "id",
-  unit_id: "id",
-  name: "property_name",
-  property_name: "property_name",
-  unit_name: "property_name",
-  inventory_code: "inventory_code",
-  code: "inventory_code",
-  building: "building",
-  floor: "floor_number",
-  floor_number: "floor_number",
-  unit_number: "unit_number",
-  unit: "unit_number",
-  price: "price",
-  price_egp: "price",
-  price_egp_: "price",
-  unit_area: "unit_area",
-  unit_area_m: "unit_area",
-  unit_area_m2: "unit_area",
-  photos: "photos",
-  photo_urls: "photos",
-  sale_type: "sale_type",
-  down_payment_percentage: "down_payment_percentage",
-  monthly_installment: "monthly_installment",
-  installment_years: "installment_years",
-  delivery_date: "delivery_date",
-  finishing_status: "finishing_status",
-  floor_plan_url: "floor_plan_url",
-  video_tour_url: "video_tour_url",
-  amenities: "amenities",
-  availability: "availability_state",
-  availability_state: "availability_state",
-  state: "availability_state",
-  price_effective_from: "price_effective_from",
-  effective_from: "price_effective_from",
-  hold_expires_at: "hold_expires_at",
-  hold_expiry: "hold_expires_at",
-  holder_type: "holder_type",
-  holder_reference: "holder_reference",
-};
 
 // Keep this list in sync with public.property_type. The import RPC normalizes
 // values to lower case before checking the enum, so the browser does too.
@@ -152,52 +92,6 @@ const FINISHING_STATUS_VALUES = new Set([
   "furnished",
   "flexi_finished",
 ]);
-
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    const next = text[index + 1];
-    if (character === '"' && quoted && next === '"') {
-      cell += '"';
-      index += 1;
-    } else if (character === '"') {
-      quoted = !quoted;
-    } else if (character === "," && !quoted) {
-      row.push(cell);
-      cell = "";
-    } else if ((character === "\n" || character === "\r") && !quoted) {
-      if (character === "\r" && next === "\n") index += 1;
-      row.push(cell);
-      if (row.some((value) => value.trim())) rows.push(row);
-      row = [];
-      cell = "";
-    } else {
-      cell += character;
-    }
-  }
-  row.push(cell);
-  if (row.some((value) => value.trim())) rows.push(row);
-  return rows;
-}
-
-function workbookRowsToObjects(rows: Array<Array<unknown>>): Array<Record<string, unknown>> {
-  if (rows.length < 2) return [];
-  const keys = rows[0].map((header) => HEADER_ALIASES[normalizeHeader(header)] ?? normalizeHeader(header));
-  return rows.slice(1).map((values) =>
-    Object.fromEntries(
-      keys.map((key, index) => [key, values[index] == null ? "" : values[index]]),
-    ),
-  );
-}
-
-function csvRowsToObjects(text: string) {
-  const rows = parseCsv(text);
-  return workbookRowsToObjects(rows);
-}
 
 const toEditable = (row: DeveloperInventoryRow): EditableInventory => ({
   id: row.id,
@@ -384,8 +278,8 @@ export function DeveloperInventoryGrid({
   const runLocalChecks = () => setShowLocalChecks(true);
 
   const exportCsv = () => {
-    const header = CSV_COLUMNS.join(",");
-    const body = editedRows.map((row) => CSV_COLUMNS.map((column) => toCsvValue(column === "photos" && Array.isArray(row[column]) ? row[column].join("|") : row[column])).join(","));
+    const header = INVENTORY_TEMPLATE_COLUMNS.join(",");
+    const body = editedRows.map((row) => INVENTORY_TEMPLATE_COLUMNS.map((column) => toCsvValue(column === "photos" && Array.isArray(row[column]) ? row[column].join("|") : row[column])).join(","));
     const blob = new Blob([[header, ...body].join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -440,8 +334,8 @@ export function DeveloperInventoryGrid({
     setFileError(null);
     try {
       const candidateRows = file.name.toLowerCase().endsWith(".xlsx")
-        ? workbookRowsToObjects((await readSheet(file, "Import").catch(async () => readSheet(file))) as Array<Array<unknown>>)
-        : csvRowsToObjects(await file.text());
+        ? workbookRowsToInventoryObjects((await readSheet(file, "Import").catch(async () => readSheet(file))) as Array<Array<unknown>>)
+        : csvRowsToInventoryObjects(await file.text());
       if (!candidateRows.length) throw new Error("No inventory rows found in this file.");
       setImportRows(candidateRows);
       validateImportRows(candidateRows);
@@ -534,7 +428,7 @@ export function DeveloperInventoryGrid({
         </div>
       ) : null}
 
-      {displayedFileError ? <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">{displayedFileError}</p> : null}
+      {displayedFileError ? <FeedbackBanner tone="error" message={displayedFileError} compact /> : null}
       {importRows.length ? (
         <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">

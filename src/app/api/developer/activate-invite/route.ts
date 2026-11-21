@@ -67,7 +67,8 @@ export async function POST(request: Request) {
   });
   if (activationError || !activationRecord?.account_id) {
     console.error("Failed to activate developer access", activationError);
-    return NextResponse.json({ error: "Unable to activate access. Try the invite link again." }, { status: 500 });
+    const conflict = /revoked|no longer|available|active/i.test(activationError?.message ?? "");
+    return NextResponse.json({ error: conflict ? "This developer invite is no longer available." : "Unable to activate access. Try the invite link again." }, { status: conflict ? 409 : 500 });
   }
 
   return NextResponse.json({

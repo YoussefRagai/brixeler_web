@@ -2,8 +2,40 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import type { DeveloperRole } from "@/lib/developerRbac";
 import type { PortalInviteDeliveryError } from "@/lib/portalInviteDelivery";
 
-const DEVELOPER_PORTAL_BASE_URL =
-  process.env.DEVELOPER_PORTAL_URL?.replace(/\/$/, "") ?? "https://admin.brixeler.com/developer";
+/**
+ * Developer invitations are delivered by Supabase Auth, but the link they
+ * contain must land on the shared admin origin. `DEVELOPER_PORTAL_URL` has
+ * historically been set to the apex or the developer subdomain in some
+ * environments. Normalize those known aliases here so the generated
+ * `redirectTo` value never sends a member back to the public marketing host.
+ * The Supabase template must still link to `{{ .ConfirmationURL }}` rather
+ * than hard-coding `{{ .SiteURL }}`; templates are provider-owned.
+ */
+const DEFAULT_DEVELOPER_PORTAL_BASE_URL = "https://admin.brixeler.com/developer";
+const CANONICAL_DEVELOPER_HOST = "admin.brixeler.com";
+
+function developerPortalBaseUrl() {
+  const configured = process.env.DEVELOPER_PORTAL_URL?.trim();
+  if (!configured) return DEFAULT_DEVELOPER_PORTAL_BASE_URL;
+
+  try {
+    const url = new URL(configured);
+    const hostname = url.hostname.toLowerCase();
+    if (hostname === "brixeler.com" || hostname === "www.brixeler.com" || hostname === "developer.brixeler.com" || hostname === CANONICAL_DEVELOPER_HOST) {
+      url.hostname = CANONICAL_DEVELOPER_HOST;
+      url.protocol = "https:";
+      url.port = "";
+      url.username = "";
+      url.password = "";
+      url.pathname = "/developer";
+      url.search = "";
+      url.hash = "";
+    }
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return DEFAULT_DEVELOPER_PORTAL_BASE_URL;
+  }
+}
 
 export type InviteDeveloperPortalMemberParams = {
   email: string;
@@ -56,7 +88,7 @@ export function buildDeveloperInviteRedirectUrl(params: {
   developerName: string;
   email: string;
 }) {
-  const url = new URL("/developer/accept", DEVELOPER_PORTAL_BASE_URL);
+  const url = new URL("/developer/accept", developerPortalBaseUrl());
   url.searchParams.set("developerId", params.developerId);
   url.searchParams.set("developerName", params.developerName);
   url.searchParams.set("email", params.email);

@@ -5,6 +5,7 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), "utf8");
 const migration = read("supabase/migrations/20260830111500_developer_team_rbac.sql");
+const reliabilityMigration = read("supabase/migrations/20260830090000_developer_invitation_reliability.sql");
 const auth = read("src/lib/developerAuth.ts");
 const session = read("src/lib/developerSession.ts");
 const clientLayout = read("src/components/DeveloperLayoutClient.tsx");
@@ -90,4 +91,29 @@ test("team listing falls back to the linked Auth identity when account profile f
   assert.match(teamQuery, /metadata\.name/);
   assert.match(teamQuery, /metadata\.display_name/);
   assert.match(teamQuery, /Account profile fields can be empty/);
+});
+
+test("revoke boundaries invalidate stale sessions and keep admin actions tenant-scoped", () => {
+  const adminRevoke = read("src/app/api/admin/developers/revoke/route.ts");
+  const developerRevoke = read("src/app/api/developer/team/revoke/route.ts");
+  const developerAuth = read("src/lib/developerAuth.ts");
+  const adminTable = read("src/components/AdminDevelopersTable.tsx");
+  assert.match(adminRevoke, /isUuid\(accountId\)/);
+  assert.match(adminRevoke, /developerAdminScope\(admin\.roles, admin\.developerIds\)/);
+  assert.match(adminRevoke, /canAccessScopedDeveloper\(allowedDeveloperIds, devAccount\.developer_id\)/);
+  assert.match(adminRevoke, /revoke_developer_account/);
+  assert.doesNotMatch(adminRevoke, /auth\.admin\.deleteUser/);
+  assert.match(adminRevoke, /sessionInvalidated: true/);
+  assert.match(developerRevoke, /eq\("developer_id", session\.developerId\)/);
+  assert.match(developerRevoke, /p_actor_account_id: session\.accountId/);
+  assert.match(developerRevoke, /sessionInvalidated: true/);
+  assert.match(migration, /target_account\.status = 'revoked'[\s\S]*'idempotent', true/);
+  assert.match(migration, /target_account\.id = actor_account\.id/);
+  assert.match(migration, /Cannot remove the final active developer super admin/);
+  assert.match(reliabilityMigration, /set status = 'revoked'/);
+  assert.match(reliabilityMigration, /if account_row\.status <> 'pending'/);
+  assert.match(developerAuth, /findDeveloperAccountByUser\(session\.userId\)/);
+  assert.match(developerAuth, /account\.status !== "active"/);
+  assert.match(adminTable, /\/api\/admin\/developers\/revoke/);
+  assert.match(adminTable, /developerRoleLabel\(member\.role\)/);
 });

@@ -2,138 +2,17 @@
 
 import { useMemo, useRef, useState } from "react";
 import { readSheet } from "read-excel-file/browser";
-
-type ImportedVariant = {
-  bedrooms?: number;
-  bathrooms?: number;
-  hasGarden?: boolean;
-  hasRoof?: boolean;
-  areaMin?: number;
-  areaMax?: number;
-  price?: number;
-  downPayment?: number;
-  installmentYears?: number;
-  stockCount?: number;
-  description?: string;
-  amenities: string[];
-};
-
-type ImportedType = {
-  baseType: string;
-  finishingStatus?: string;
-  description?: string;
-  variants: ImportedVariant[];
-};
+import { FeedbackBanner } from "@/components/FeedbackBanner";
+import {
+  parseUnitTypeWorkbookRows,
+  type ImportedType,
+} from "@/lib/developerImportTemplates";
 
 type Props = {
   projectId: string;
   phaseId?: string | null;
   onImportAction: (formData: FormData) => void;
 };
-
-const AMENITY_COLUMNS: Array<{ label: string; slug: string }> = [
-  { label: "Garden?", slug: "garden" },
-  { label: "Has Roof?", slug: "roof" },
-  { label: "Bicycle Lanes?", slug: "bicycle" },
-  { label: "Disability Support?", slug: "accessibility" },
-  { label: "Jogging Trail?", slug: "jogging" },
-  { label: "Outdoor Pools?", slug: "pools" },
-  { label: "Mosque?", slug: "mosque" },
-  { label: "Sports Clubs?", slug: "sports" },
-  { label: "Business Hub?", slug: "business" },
-  { label: "Commercial Strip?", slug: "commercial" },
-  { label: "Medical Center?", slug: "medical" },
-  { label: "Schools?", slug: "schools" },
-  { label: "Underground Parking?", slug: "parking" },
-  { label: "Clubhouse?", slug: "clubhouse" },
-  { label: "Terrace?", slug: "terrace" },
-  { label: "Sea View?", slug: "sea_view" },
-];
-
-const normalizeBool = (value: unknown) => {
-  if (value == null) return false;
-  const raw = String(value).trim().toLowerCase();
-  return ["yes", "y", "true", "1"].includes(raw);
-};
-
-const normalizeNumber = (value: unknown) => {
-  if (value == null || value === "") return undefined;
-  const num = Number(String(value).replace(/,/g, ""));
-  return Number.isFinite(num) ? num : undefined;
-};
-
-const toStringValue = (value: unknown) => {
-  if (value == null) return "";
-  return String(value).trim();
-};
-
-function parseWorkbook(rows: Array<Array<unknown>>): ImportedType[] {
-  if (rows.length < 2) return [];
-
-  const headers = rows[0].map((header) => toStringValue(header));
-  const idx = (name: string) => headers.indexOf(name);
-
-  const baseTypeIdx = idx("Base Type");
-  const finishingIdx = idx("Finishing Status");
-  const typeDescIdx = idx("Type Description");
-  const bedroomsIdx = idx("Bedrooms");
-  const bathroomsIdx = idx("Bathrooms");
-  const areaMinIdx = idx("Area Min (m²)");
-  const areaMaxIdx = idx("Area Max (m²)");
-  const priceIdx = idx("Price (EGP)");
-  const downIdx = idx("Down Payment (%)");
-  const yearsIdx = idx("Installment Years");
-  const stockIdx = idx("Stock Count");
-  const variantDescIdx = idx("Variant Description");
-
-  const amenityIndices = AMENITY_COLUMNS.map((amenity) => ({
-    slug: amenity.slug,
-    index: idx(amenity.label),
-  }));
-
-  const groups = new Map<string, ImportedType>();
-
-  rows.slice(1).forEach((row) => {
-    const baseType = toStringValue(row[baseTypeIdx]);
-    if (!baseType) return;
-    const finishingStatus = toStringValue(row[finishingIdx]) || undefined;
-    const description = toStringValue(row[typeDescIdx]) || undefined;
-    const key = `${baseType}||${finishingStatus ?? ""}||${description ?? ""}`;
-
-    const amenities = amenityIndices
-      .filter((item) => item.index >= 0 && normalizeBool(row[item.index]))
-      .map((item) => item.slug);
-
-    const variant: ImportedVariant = {
-      bedrooms: normalizeNumber(row[bedroomsIdx]),
-      bathrooms: normalizeNumber(row[bathroomsIdx]),
-      hasGarden: amenities.includes("garden"),
-      hasRoof: amenities.includes("roof"),
-      areaMin: normalizeNumber(row[areaMinIdx]),
-      areaMax: normalizeNumber(row[areaMaxIdx]),
-      price: normalizeNumber(row[priceIdx]),
-      downPayment: normalizeNumber(row[downIdx]),
-      installmentYears: normalizeNumber(row[yearsIdx]),
-      stockCount: normalizeNumber(row[stockIdx]),
-      description: toStringValue(row[variantDescIdx]) || undefined,
-      amenities,
-    };
-
-    const existing = groups.get(key);
-    if (existing) {
-      existing.variants.push(variant);
-    } else {
-      groups.set(key, {
-        baseType,
-        finishingStatus,
-        description,
-        variants: [variant],
-      });
-    }
-  });
-
-  return Array.from(groups.values());
-}
 
 export function ProjectImportPanel({ projectId, phaseId, onImportAction }: Props) {
   const [imports, setImports] = useState<ImportedType[]>([]);
@@ -145,7 +24,7 @@ export function ProjectImportPanel({ projectId, phaseId, onImportAction }: Props
     if (!file) return;
     try {
       const rows = (await readSheet(file, "Import").catch(async () => readSheet(file))) as Array<Array<unknown>>;
-      const parsed = parseWorkbook(rows);
+      const parsed = parseUnitTypeWorkbookRows(rows);
       if (!parsed.length) {
         setError("No rows found in the template.");
         setImports([]);
@@ -187,7 +66,7 @@ export function ProjectImportPanel({ projectId, phaseId, onImportAction }: Props
           </span>
         ) : null}
       </div>
-      {error ? <p className="text-xs text-rose-500">{error}</p> : null}
+      {error ? <FeedbackBanner tone="error" message={error} compact /> : null}
       {imports.length ? (
         <div className="space-y-3 rounded-3xl border border-black/5 bg-white p-4">
           <div className="flex items-center justify-between gap-3">

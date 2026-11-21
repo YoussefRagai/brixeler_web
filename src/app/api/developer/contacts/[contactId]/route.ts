@@ -83,7 +83,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   });
   if (result.error) {
     console.warn("Developer lead update failed", result.error);
-    return NextResponse.json({ error: result.error.message || "Unable to update this lead." }, { status: 409 });
+    return NextResponse.json({ error: "Unable to update this lead. Please retry." }, { status: 409 });
   }
   return NextResponse.json({ ok: true, lead: result.data }, { headers: { "Cache-Control": "private, no-store" } });
 }

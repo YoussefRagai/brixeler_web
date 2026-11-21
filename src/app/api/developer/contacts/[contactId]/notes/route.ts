@@ -64,7 +64,7 @@ export async function POST(request: Request, context: RouteContext) {
   });
   if (result.error) {
     console.warn("Developer lead note failed", result.error);
-    return NextResponse.json({ error: result.error.message || "Unable to save this note." }, { status: 409 });
+    return NextResponse.json({ error: "Unable to save this note. Please retry." }, { status: 409 });
   }
   return NextResponse.json({ ok: true, noteId: result.data }, { status: 201 });
 }

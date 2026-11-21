@@ -5,6 +5,7 @@ import { requireDeveloperSession } from "@/lib/developerAuth";
 import { requireAdminRole } from "@/lib/adminAuth";
 import { canAccessScopedDeveloper, developerSupportScope } from "@/lib/adminRoles";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { FeedbackBanner } from "@/components/FeedbackBanner";
 import { DeveloperSupportConversationForm } from "./DeveloperSupportConversationForm";
 
 export type SupportConversationActionState = {
@@ -24,7 +25,7 @@ export async function DeveloperSupportConversation({ developerId, ticketId, admi
   if (error) throw error;
   if (!ticket) {
     const backHref = admin ? "/support" : "/developer/support";
-    return <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">Support request not found. <Link href={backHref} className="font-semibold underline underline-offset-4">Return to support</Link>.</p>;
+    return <div className="space-y-3"><FeedbackBanner message="Support request not found." tone="error" /><Link href={backHref} className="font-semibold underline underline-offset-4">Return to support</Link>.</div>;
   }
   const { data: messages, error: messageError } = await supabaseServer.from("developer_support_messages").select("id,author_type,body,created_at").eq("ticket_id", ticketId).eq("developer_id", developerId).order("created_at");
   if (messageError) throw messageError;

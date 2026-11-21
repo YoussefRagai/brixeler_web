@@ -1,5 +1,5 @@
 {
-  "file_count": 395,
+  "file_count": 401,
   "files": [
     {
       "bytes": 10244,
@@ -8,9 +8,9 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 41450,
+      "bytes": 42607,
       "path": ".context/repo_summary.md",
-      "sha256": "86baf005bd133e65c47bb9ebbf75da239bd6d2285751cd1a3aecd3b4d83bef88",
+      "sha256": "3df4b7f609d06b44c42bf82a2e293ad348ae7dfc073834d919d9110cf4d18c5e",
       "summary": "Compressed repository state including local developer project media work."
     },
     {
@@ -50,9 +50,9 @@
       "summary": "# Council Protocol Use external agents for bounded, cheap, or repetitive work. Codex keeps final architecture, safety, and integration judgment."
     },
     {
-      "bytes": 20144,
+      "bytes": 20854,
       "path": "DECISIONS.md",
-      "sha256": "6556a38a76b9853470568c6a6ced4e4a1940d3cb946be8725261a106d59c32e0",
+      "sha256": "dd98e077c38ead022eb826c98470fc9afe0a6ff152d82ef77ed0d20be576164c",
       "summary": "Architecture decisions, including signed project media and release state."
     },
     {
@@ -62,9 +62,9 @@
       "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
     },
     {
-      "bytes": 22114,
+      "bytes": 23461,
       "path": "PROJECT_MAP.md",
-      "sha256": "062b6c9d91c000e713cd380e01fac4047f363c06d336d55039dcb8757277e6f0",
+      "sha256": "84f9d2efe33a78ede93724b533396a83cd551929daf9ad51365e966da62df928",
       "summary": "Repository map and developer media/release paths."
     },
     {
@@ -80,9 +80,9 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 104866,
+      "bytes": 108013,
       "path": "TASK_LOG.md",
-      "sha256": "6a8eeb6e1a98d6dcf04c3c4f22fb564ea673aa7212dfe4f10f279a79ce6b282f",
+      "sha256": "05825764b182e0da6f9c829b948c7a0dcccecd12c9a3f2efee2c5d28dd4ed120",
       "summary": "Task outcomes and verification history, including developer project work."
     },
     {
@@ -212,10 +212,16 @@
       "summary": "<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 394 80\"><path fill=\"#000\" d=\"M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6"
     },
     {
-      "bytes": 6749,
+      "bytes": 19949,
       "path": "public/templates/developer-project-import.xlsx",
-      "sha256": "df59432f30d2fa9fb736d98df842b597890dd896f2c0d934422b3a6e3a283f11",
+      "sha256": "908c65e590a942994195b69c82432a6719c1d80a2bb97c2884f95b5e396db657",
       "summary": "PK\u0003\u0004\u0014\u0000\u0000\u0000\b\u0000h\u0004G\\FMH\u0000\u0000\u0000\u0000\u0000\u0000\u0010\u0000\u0000\u0000docProps/app.xmlMM 0 \u0006Rv"
+    },
+    {
+      "bytes": 18739,
+      "path": "public/templates/developer-inventory-import.xlsx",
+      "sha256": "a6caab64c67af9fc63c24e1848dc15fb5db612ba98a94eb7233808d1f29fa4c0",
+      "summary": "Standalone individual-unit import workbook with Instructions and Import sheets."
     },
     {
       "bytes": 128,
@@ -234,6 +240,12 @@
       "path": "scripts/bootstrap-supabase-baseline.sh",
       "sha256": "553e29a74d9207d8fbee3e1a345693bfc38f4fdbc6542d7f4c2864c57e092cb3",
       "summary": "#!/usr/bin/env bash set -euo pipefail"
+    },
+    {
+      "bytes": 16198,
+      "path": "scripts/build-developer-template.mjs",
+      "sha256": "92ce1377d9ca4cdda91697ba6336f28f06041043ebeddec8a9352dee32f03180",
+      "summary": "Optional artifact-tool authoring script for the unit-type and individual-unit XLSX templates."
     },
     {
       "bytes": 1273,
@@ -854,10 +866,10 @@
       "summary": "import DeveloperProjectsPage from \"../page\"; export const dynamic = \"force-dynamic\";"
     },
     {
-      "bytes": 184371,
+      "bytes": 185499,
       "path": "src/app/developer/projects/page.tsx",
-      "sha256": "89d6466935860ed1a85a20dc5ac3f895e6f646b42cf95d401016064c55155243",
-      "summary": "Project portal release actions, 95% media-only display and project media fields."
+      "sha256": "43c741f2f8935e8efa6b612e98df330514cb56c465e9cc30c57c8954077eaa67",
+      "summary": "Project portal, phase/inventory workspace, two template downloads, and feedback routing."
     },
     {
       "path": "src/app/developer/support/[ticketId]/page.tsx",
@@ -1082,10 +1094,10 @@
       "summary": "import type { DeveloperInventoryActivity } from \"@/lib/developerQueries\"; type Props = { activities: DeveloperInventoryActivity[] };"
     },
     {
-      "bytes": 33598,
+      "bytes": 30715,
       "path": "src/components/DeveloperInventoryGrid.tsx",
-      "sha256": "ac86be60f4f006a1f5d6e438d4acd4e70a4c8bcd8659d4928ecd744398b6ee7d",
-      "summary": "\"use client\"; import { useMemo, useRef, useState, type ChangeEvent } from \"react\";"
+      "sha256": "0411c12d001a0dc1ca8d7e5b2c619739827f8f3f55751ca664d943bbf0355249",
+      "summary": "Shared-parser inventory grid with CSV/XLSX preview, validation, and accessible file errors."
     },
     {
       "bytes": 2164,
@@ -1226,6 +1238,18 @@
       "summary": "import type { DeveloperProjectTemplate } from \"@/lib/developerQueries\"; type ServerAction = (formData: FormData) => void | Promise<void>;"
     },
     {
+      "bytes": 13481,
+      "path": "src/components/DeveloperTemplateWorkspace.tsx",
+      "sha256": "332cc7757862ac63462428a864087026d90bf05438112096e4ba1c6ca7347b7a",
+      "summary": "Visible project/phase/template-type selector, matching workbook downloads, import previews, and server actions."
+    },
+    {
+      "bytes": 1973,
+      "path": "src/components/FeedbackBanner.tsx",
+      "sha256": "3e357335970d26952ded650e42c83b197946469086658bc3e2dbb623822ac8a7",
+      "summary": "Accessible persistent alert/status banner with generated ids and reduced-motion-aware redirect focus."
+    },
+    {
       "bytes": 2333,
       "path": "src/components/DeveloperVersionHistory.tsx",
       "sha256": "31f59fe5cb1da18b937058432e72ad04f3a48bfd3a5ff2aec70a89f04ef6669b",
@@ -1310,10 +1334,10 @@
       "summary": "\"use client\"; export function PrintButton({ label = \"Print / save PDF\", className }: { label?: string; className?: string }) {"
     },
     {
-      "bytes": 9358,
+      "bytes": 5466,
       "path": "src/components/ProjectImportPanel.tsx",
-      "sha256": "9f605ef8c67efbf08a2fc2cd929613c0bd16152589c4612441380cc436d118f6",
-      "summary": "\"use client\"; import { useMemo, useRef, useState } from \"react\";"
+      "sha256": "03b11323f6b5b20d0554e5ceb3ec76f7a4de23836a5ce98d0ceac11dd6f9ad53",
+      "summary": "Unit-type XLSX parser/publisher panel using the shared import contract and feedback banner."
     },
     {
       "bytes": 17906,
@@ -1544,6 +1568,12 @@
       "summary": "import { supabaseServer } from \"./supabaseServer\"; type ProjectMediaPayload = Record<string, unknown> | null | undefined;"
     },
     {
+      "bytes": 8430,
+      "path": "src/lib/developerImportTemplates.ts",
+      "sha256": "f4a663feecc88cccad8be7914af14cf6b576e0dbeeca05c099b3e0761a772f16",
+      "summary": "Browser-safe shared unit-type and individual-unit workbook/CSV parsers and exact import column contracts."
+    },
+    {
       "bytes": 3047,
       "path": "src/lib/developerRbac.ts",
       "sha256": "f17f5fc961c7ac782e09e5056bf83855b6e23c823ebd8b0f1bbff97a6c46ce2a",
@@ -1664,9 +1694,9 @@
       "summary": "const accountSid = process.env.TWILIO_ACCOUNT_SID ?? \"\"; const authToken = process.env.TWILIO_AUTH_TOKEN ?? \"\"; const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID ?? \"\";"
     },
     {
-      "bytes": 1437,
+      "bytes": 1506,
       "path": "src/proxy.ts",
-      "sha256": "bc36e6e7f74659eaf579dd9cbdba9d46a5d7ba152b4f2f0ecac8690f2433a41d",
+      "sha256": "2d16247f0b052208bbdcc115f46edde5c0619ebe2c4096fe19c90cbc725a75e0",
       "summary": "import { NextResponse, type NextRequest } from \"next/server\"; const ADMIN_HOSTS = new Set([\"admin.brixeler.com\"]);"
     },
     {
@@ -2230,8 +2260,8 @@
     {
       "path": "tests/developer-media-url-and-template.test.mjs",
       "summary": "Current implementation or regression contract; see TASK_LOG.md.",
-      "bytes": 4203,
-      "sha256": "51f126c197fb492194e80a33638b3d0b25e338eeaf4265d1a741fcad696d69e2"
+      "bytes": 4578,
+      "sha256": "e35a3d74a5d0dd64dec130f79d42b92d2a98df33372b993bf5680afae362e035"
     },
     {
       "path": "tests/developer-navigation-reliability.test.mjs",
@@ -2308,8 +2338,8 @@
     {
       "path": "tests/project-inventory-flow.test.mjs",
       "summary": "Developer project-flow revamp; see 2026-09-08 task log.",
-      "bytes": 3837,
-      "sha256": "3738fd0082ca69d13a7065b4b317df2136c6a3e732a20a378ce45a71fd37c417"
+      "bytes": 4127,
+      "sha256": "b94fd3543825bc10a50c8f63e232c5226ce468e9dbb639904834f98a7a783a91"
     },
     {
       "bytes": 2353,
@@ -2336,10 +2366,16 @@
       "sha256": "ba29d9308b2b62dd3b3873bc823da7a2f607bf1962b25b45589c47da12aaf208"
     },
     {
+      "bytes": 6704,
+      "path": "tests/project-template-feedback.test.mjs",
+      "sha256": "d77ad9cd3306b784d2ecc36960ad5925687d290fbacb5e58a33c2077e6eecd5d",
+      "summary": "Workbook contract round-trips, accessible feedback focus/scroll, and project draft persistence tests."
+    },
+    {
       "path": "tests/project-workspace-flow.test.mjs",
       "summary": "Developer project-flow revamp; see 2026-09-08 task log.",
-      "bytes": 2883,
-      "sha256": "9ea8c9ab540b03e8669bebf723e531b7ca2f8520351d409addc414a33ae835f3"
+      "bytes": 2963,
+      "sha256": "97e5ca5689e5d57142a547ad7fb1f5b3f2dac614978deb7c198593af816cd990"
     },
     {
       "bytes": 1731,

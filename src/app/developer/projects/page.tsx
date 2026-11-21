@@ -16,6 +16,8 @@ import { DeveloperTemplateManager } from "@/components/DeveloperTemplateManager"
 import { DeveloperPublicationFeedbackPanel } from "@/components/DeveloperPublicationFeedbackPanel";
 import { DeveloperPriceHistoryPanel } from "@/components/DeveloperPriceHistoryPanel";
 import { ProjectImportPanel } from "@/components/ProjectImportPanel";
+import { DeveloperTemplateWorkspace, type TemplateWorkspaceProject } from "@/components/DeveloperTemplateWorkspace";
+import { FeedbackBanner } from "@/components/FeedbackBanner";
 import { DeveloperProjectCreateForm, PlanDetailFields } from "@/components/DeveloperProjectCreateForm";
 import { LocalStorageCleanup } from "@/components/LocalStorageCleanup";
 import { MobilePreviewButton } from "@/components/MobilePreviewButton";
@@ -197,6 +199,7 @@ const parseProjectTypes = (value?: string | null) =>
 
 const PAYMENT_FREQUENCIES = ["Quarterly", "Monthly", "Semi-annual", "Annual"];
 const INVENTORY_TEMPLATE_PATH = "/templates/developer-project-import.xlsx";
+const INVENTORY_ROWS_TEMPLATE_PATH = "/templates/developer-inventory-import.xlsx";
 const PROJECT_STATUS_OPTIONS = [
   { value: "new_release", label: "New Release" },
   { value: "upcoming", label: "Upcoming" },
@@ -604,6 +607,16 @@ export default async function DeveloperProjectsPage({
   const inventoryRowsRevision = inventoryRows
     .map((row) => `${row.id}:${row.updated_at ?? ""}:${row.availability_state}:${row.active_hold?.id ?? ""}:${row.active_hold?.status ?? ""}`)
     .join("|");
+  const templateWorkspaceProjects: TemplateWorkspaceProject[] = projects
+    .filter((project) => project.lifecycle_state !== "archived")
+    .map((project) => ({
+      id: project.id,
+      name: project.name,
+      phases: (project.developer_project_phases ?? [])
+        .filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived")
+        .sort((a, b) => a.phase_order - b.phase_order)
+        .map((phase) => ({ id: phase.id, name: phase.name, phaseOrder: phase.phase_order })),
+    }));
 
   return (
     <DeveloperLayout
@@ -612,16 +625,8 @@ export default async function DeveloperProjectsPage({
       impersonation={impersonation}
     >
       {clearProjectDraft ? <LocalStorageCleanup storageKey={getProjectWizardDraftKey(session.developerId, session.accountId)} /> : null}
-      {pageError ? (
-        <div role="alert" aria-live="assertive" className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {pageError}
-        </div>
-      ) : null}
-      {pageSuccess ? (
-        <div role="status" aria-live="polite" className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {pageSuccess}
-        </div>
-      ) : null}
+      {pageError ? <FeedbackBanner tone="error" message={pageError} autoFocus /> : null}
+      {pageSuccess ? <FeedbackBanner tone="success" message={pageSuccess} autoFocus /> : null}
 
       {showCreateWizard ? (
         <section className="mx-auto w-full max-w-6xl">
@@ -685,7 +690,7 @@ export default async function DeveloperProjectsPage({
                   download
                   className="rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-neutral-600 hover:border-black/30 hover:text-black"
                 >
-                  Download template
+                  Download unit-type template
                 </a>
                 <ProjectImportPanel projectId={selectedProjectId} phaseId={selectedPhaseId} onImportAction={importTypeWithVariantsAction} />
               </div>
@@ -740,7 +745,8 @@ export default async function DeveloperProjectsPage({
                   <details className="relative">
                     <summary role="button" aria-label="More project actions" className={`grid size-10 cursor-pointer list-none place-items-center rounded-full ${selectedHeroImage ? "bg-black/60 text-white hover:bg-black/70" : "bg-white/80 text-neutral-700 hover:bg-white"}`}><MoreHorizontal aria-hidden="true" size={18} /></summary>
                     <div className="absolute right-0 z-20 mt-2 w-48 rounded-2xl border border-black/10 bg-white p-2 text-xs text-neutral-700 shadow-xl">
-                      <a href={INVENTORY_TEMPLATE_PATH} download aria-label="Download inventory template" className="block rounded-xl px-3 py-2 hover:bg-neutral-50">Download inventory template</a>
+                      <a href={INVENTORY_TEMPLATE_PATH} download aria-label="Download unit-type template" className="block rounded-xl px-3 py-2 hover:bg-neutral-50">Download unit-type template</a>
+                      <a href={INVENTORY_ROWS_TEMPLATE_PATH} download aria-label="Download individual-unit template" className="block rounded-xl px-3 py-2 hover:bg-neutral-50">Download individual-unit template</a>
                       {canManageProjects && selectedProject?.lifecycle_state === "archived" ? <form action={restoreProjectAction}><input type="hidden" name="projectId" value={selectedProjectId} /><ConfirmSubmitButton ariaLabel="Restore project" className="w-full rounded-xl px-3 py-2 text-left text-emerald-700 hover:bg-emerald-50" confirmMessage="Restore this project to your active workspace? It will return to draft review before becoming visible again." pendingLabel="Restoring…">Restore project</ConfirmSubmitButton></form> : canManageProjects ? <form action={archiveProjectAction}><input type="hidden" name="projectId" value={selectedProjectId} /><ConfirmSubmitButton ariaLabel="Archive project" className="w-full rounded-xl px-3 py-2 text-left text-amber-700 hover:bg-amber-50" confirmMessage="Archive this project? Its inventory and leads will be retained and it will be hidden from active workspaces." pendingLabel="Archiving…">Archive project</ConfirmSubmitButton></form> : null}
                     </div>
                   </details>
@@ -1166,7 +1172,15 @@ export default async function DeveloperProjectsPage({
       ) : null}
 
       {!showCreateWizard && setupStep !== "types" && !selectedProjectId ? (
-        <DeveloperProjectPortfolioBoard projects={portfolioProjects} canCreateProjects={canManageProjects} archived={showArchivedProjects} />
+        <div className="space-y-4">
+          <DeveloperTemplateWorkspace
+            projects={templateWorkspaceProjects}
+            templatePaths={{ unit_types: INVENTORY_TEMPLATE_PATH, inventory: INVENTORY_ROWS_TEMPLATE_PATH }}
+            typeImportAction={importTypeWithVariantsAction}
+            inventoryImportAction={importInventoryRowsAction}
+          />
+          <DeveloperProjectPortfolioBoard projects={portfolioProjects} canCreateProjects={canManageProjects} archived={showArchivedProjects} />
+        </div>
       ) : null}
 
       {!showCreateWizard && setupStep !== "types" && selectedProjectId && (workspaceSection === "inventory" || workspaceSection === "commercial") ? (

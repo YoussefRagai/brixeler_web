@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { getAdminContextFromRequest } from "@/lib/adminAuth";
 import { canAccessScopedDeveloper, developerAdminScope, hasAdminRole } from "@/lib/adminRoles";
 import { logAdminActivity } from "@/lib/adminQueries";
+import { boundedRequestId, isUuid } from "@/lib/developerTeam";
 
 export async function POST(request: Request) {
   const admin = await getAdminContextFromRequest(request);
@@ -23,8 +24,8 @@ export async function POST(request: Request) {
   }
 
   const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
-  if (!accountId) {
-    return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
+  if (!isUuid(accountId)) {
+    return NextResponse.json({ error: "Invalid developer member id" }, { status: 400 });
   }
 
   const allowedDeveloperIds = developerAdminScope(admin.roles, admin.developerIds);
@@ -47,8 +48,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const requestId = typeof body.requestId === "string" ? body.requestId.trim() || crypto.randomUUID() : crypto.randomUUID();
-  if (requestId.length > 200) {
+  const requestId = boundedRequestId(body.requestId, () => crypto.randomUUID());
+  if (!requestId) {
     return NextResponse.json({ error: "Invalid revoke request" }, { status: 400 });
   }
   const reason = typeof body.reason === "string" ? body.reason.trim() : "";
@@ -65,7 +66,8 @@ export async function POST(request: Request) {
   });
   if (revokeError || !revokeRecord?.account_id) {
     console.error("Failed to revoke developer access", revokeError);
-    return NextResponse.json({ error: "Unable to revoke developer access" }, { status: 500 });
+    const conflict = /already|cannot|final|revoke|lock|super admin|membership/i.test(revokeError?.message ?? "");
+    return NextResponse.json({ error: conflict ? "That developer member cannot be revoked." : "Unable to revoke developer access" }, { status: conflict ? 409 : 500 });
   }
 
   if (!revokeRecord.idempotent) {
@@ -74,13 +76,14 @@ export async function POST(request: Request) {
       action: "developer_account.revoke",
       resourceType: "developer_accounts",
       resourceId: devAccount.id,
-      metadata: { developer_id: devAccount.developer_id, email: devAccount.email },
+      metadata: { developer_id: devAccount.developer_id, email: devAccount.email, reason },
     });
   }
 
   return NextResponse.json({
     success: true,
     idempotent: Boolean(revokeRecord.idempotent),
-    message: revokeRecord.idempotent ? "This revoke request was already recorded." : "Developer access revoked.",
+    sessionInvalidated: true,
+    message: revokeRecord.idempotent ? "This revoke request was already recorded." : "Developer access revoked. Existing dashboard sessions are no longer accepted.",
   });
 }

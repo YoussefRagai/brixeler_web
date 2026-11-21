@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowUpRight, CalendarClock, Check, CircleAlert, Filter, UserRound } from "lucide-react";
+import { FeedbackBanner } from "@/components/FeedbackBanner";
 import {
   DEVELOPER_LEAD_STATUSES,
   type DeveloperCompanyMember,
@@ -44,7 +45,7 @@ export function DeveloperLeadInbox({
         body: JSON.stringify(patch),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "Unable to update the lead.");
+      if (!response.ok) throw new Error("Unable to update the lead. Please retry.");
       setLeads((current) => current.map((item) => item.id === lead.id ? {
         ...item,
         ...(patch.status ? { status: patch.status as DeveloperLeadStatus } : {}),
@@ -53,7 +54,7 @@ export function DeveloperLeadInbox({
       } : item));
       setFeedback({ type: "success", message: "Lead updated." });
     } catch (error) {
-      setFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to update the lead." });
+      setFeedback({ type: "error", message: "Unable to update the lead. Please retry." });
     } finally {
       setPendingId(null);
     }
@@ -80,7 +81,8 @@ export function DeveloperLeadInbox({
           <label className="flex flex-col gap-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-neutral-500"><span>Attention</span><select name="age" defaultValue={filters.age} className="min-h-10 rounded-xl border border-black/10 bg-white px-3 text-sm font-medium normal-case tracking-normal text-neutral-800"><option value="all">All leads</option><option value="sla_overdue">SLA overdue</option><option value="follow_up_due">Follow-up due</option><option value="unassigned">Needs owner</option></select></label>
           <button type="submit" className="min-h-10 self-end rounded-xl bg-black px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800">Apply</button>
         </form>
-        {feedback ? <p role={feedback.type === "error" ? "alert" : "status"} className={`mt-3 rounded-xl border px-3 py-2 text-xs ${feedback.type === "error" ? "border-rose-200 bg-rose-50 text-rose-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{feedback.message}</p> : null}
+        <FeedbackBanner message={feedback?.message} tone={feedback?.type === "error" ? "error" : "success"} />
+        {pendingId ? <p role="status" aria-live="polite" className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">Saving lead update…</p> : null}
       </div>
 
       <div className="hidden overflow-x-auto md:block">

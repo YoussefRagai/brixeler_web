@@ -23,7 +23,8 @@ test("project wizard drafts are isolated by developer and account", () => {
 test("project action menu remains visible and named outside the hero clipping layer", () => {
   assert.match(projectsPage, /id="project-overview" className="relative scroll-mt-24 overflow-visible/);
   assert.match(projectsPage, /<summary role="button" aria-label="More project actions"/);
-  assert.match(projectsPage, /aria-label="Download inventory template"/);
+  assert.match(projectsPage, /aria-label="Download unit-type template"/);
+  assert.match(projectsPage, /aria-label="Download individual-unit template"/);
   assert.match(projectsPage, /ariaLabel="Archive project"/);
 });
 

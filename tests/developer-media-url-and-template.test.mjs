@@ -21,10 +21,14 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 test("inventory template keeps its public URL on the developer host", () => {
   const proxy = read("../src/proxy.ts");
   const page = read("../src/app/developer/projects/page.tsx");
-  const template = new URL("../public/templates/developer-project-import.xlsx", import.meta.url);
-  assert.ok(readFileSync(template).length > 0);
+  const unitTypesTemplate = new URL("../public/templates/developer-project-import.xlsx", import.meta.url);
+  const inventoryTemplate = new URL("../public/templates/developer-inventory-import.xlsx", import.meta.url);
+  assert.ok(readFileSync(unitTypesTemplate).length > 0);
+  assert.ok(readFileSync(inventoryTemplate).length > 0);
   assert.match(proxy, /pathname !== "\/templates\/developer-project-import\.xlsx"/);
+  assert.match(proxy, /pathname !== "\/templates\/developer-inventory-import\.xlsx"/);
   assert.match(page, /INVENTORY_TEMPLATE_PATH = "\/templates\/developer-project-import\.xlsx"/);
+  assert.match(page, /INVENTORY_ROWS_TEMPLATE_PATH = "\/templates\/developer-inventory-import\.xlsx"/);
 });
 
 test("pasted media URLs require credential-free HTTPS on approved exact hosts", () => {

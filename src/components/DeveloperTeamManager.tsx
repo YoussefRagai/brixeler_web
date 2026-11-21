@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import type { DeveloperRole } from "@/lib/developerRbac";
 import type { DeveloperTeamMember } from "@/lib/developerTeam";
+import { FeedbackBanner } from "@/components/FeedbackBanner";
 
 const ROLE_OPTIONS: Array<{ value: DeveloperRole; label: string; description: string }> = [
   {
@@ -129,9 +130,9 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId, initial
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountId: member.id, reason, requestId: crypto.randomUUID() }),
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { error?: string; message?: string; sessionInvalidated?: boolean } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to revoke developer access.");
-      await refreshAfterMutation("Developer access revoked.", "Developer access was revoked, but the team list could not refresh. Refresh to confirm the current access.");
+      await refreshAfterMutation(payload?.message ?? (payload?.sessionInvalidated ? "Developer access revoked. Existing dashboard sessions are no longer accepted." : "Developer access revoked."), "Developer access was revoked, but the team list could not refresh. Refresh to confirm the current access.");
     } catch (error) {
       setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Unable to revoke developer access." });
     } finally {
@@ -177,9 +178,9 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId, initial
         </form>
       </section>
 
-      {feedback ? <p role={feedback.kind === "error" ? "alert" : "status"} aria-live="polite" className={feedback.kind === "error" ? "rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" : "rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"}>{feedback.text}</p> : null}
-
-      {initialLoadError ? <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{initialLoadError} Refresh to try again.</p> : null}
+      {pendingAction ? <p role="status" aria-live="polite" className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">{pendingAction.startsWith("invite") ? "Submitting invitation…" : pendingAction.startsWith("role") ? "Saving member role…" : pendingAction.startsWith("resend") ? "Submitting invitation resend…" : "Updating developer access…"}</p> : null}
+      <FeedbackBanner message={feedback?.text} tone={feedback?.kind === "error" ? "error" : "success"} />
+      <FeedbackBanner message={initialLoadError ? `${initialLoadError} Refresh to try again.` : null} tone="error" />
 
       <section aria-labelledby="team-members-heading" className="rounded-3xl border border-black/5 bg-white p-5 sm:p-7">
         <div className="flex flex-wrap items-end justify-between gap-3">

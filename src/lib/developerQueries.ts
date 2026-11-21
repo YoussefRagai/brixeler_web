@@ -2180,7 +2180,7 @@ export async function findDeveloperAccountByUser(authUserId: string, options?: {
   if (!authUserId) return null;
   const query = supabaseServer
     .from("developer_accounts")
-    .select("id, developer_id, status, developers(name)")
+    .select("id, developer_id, role, status, developers(name)")
     .eq("auth_user_id", authUserId);
   if (!options?.includeInactive) {
     query.eq("status", "active");
@@ -2195,6 +2195,7 @@ export async function findDeveloperAccountByUser(authUserId: string, options?: {
     accountId: data.id as string,
     developerId: data.developer_id as string,
     developerName: developerRelation?.name ?? null,
+    role: (data.role as string | null) ?? null,
     status: (data.status as string | null) ?? null,
   };
 }

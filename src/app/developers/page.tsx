@@ -78,6 +78,7 @@ type DeveloperMember = {
   auth_user_id: string;
   email: string | null;
   full_name: string | null;
+  role?: string | null;
   status: string | null;
   invited_at: string | null;
   invitation_sent_at: string | null;
@@ -283,7 +284,7 @@ async function getDeveloperData(developerIds: string[] | null, requestedPage = 1
   const accountRowsPromise = loadRows(
     supabaseServer
       .from("developer_accounts")
-      .select("id, developer_id, auth_user_id, email, full_name, status, invited_at, invitation_sent_at, activated_at, revoked_at, last_login")
+      .select("id, developer_id, auth_user_id, email, full_name, role, status, invited_at, invitation_sent_at, activated_at, revoked_at, last_login")
       .in("developer_id", currentDeveloperIds)
       .order("invitation_sent_at", { ascending: false }),
     "developer members",

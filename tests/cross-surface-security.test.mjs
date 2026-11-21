@@ -201,14 +201,26 @@ test("The current-session boundary returns null after issuer revocation, allowin
     impersonation: { grantHash: "a".repeat(64), adminId: "admin", adminAuthUserId: "admin" },
   });
   let allowed = true;
+  let membership = {
+    accountId: "account",
+    developerId: "developer",
+    developerName: "Developer",
+    role: "developer_super_admin",
+    status: "active",
+  };
   const { currentDeveloperSession } = load("src/lib/developerAuth.ts", {
     "next/headers": { cookies: async () => jar },
     "next/navigation": { redirect: () => { throw Error("unexpected redirect"); } },
     "./developerSession": sessions,
-    "./developerQueries": {}, "./supabaseServer": {},
+    "./developerQueries": { findDeveloperAccountByUser: async () => membership }, "./supabaseServer": {},
     "./developerImpersonationAuth": { isDeveloperImpersonationAuthorized: async () => allowed },
   });
-  assert.ok(await currentDeveloperSession());
+  assert.equal((await currentDeveloperSession()).role, "developer_super_admin");
+  membership = { ...membership, role: "sales_manager" };
+  assert.equal((await currentDeveloperSession()).role, "sales_manager");
+  membership = { ...membership, status: "revoked" };
+  assert.equal(await currentDeveloperSession(), null);
+  membership = { ...membership, status: "active" };
   allowed = false;
   assert.equal(await currentDeveloperSession(), null);
 });

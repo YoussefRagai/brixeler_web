@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { DeveloperLeadDetail } from "@/components/DeveloperLeadDetail";
+import { FeedbackBanner } from "@/components/FeedbackBanner";
 import { currentDeveloperImpersonation, hasDeveloperCapability, requireDeveloperCapability } from "@/lib/developerAuth";
 import { fetchDeveloperActivity, fetchDeveloperCompanyMembers, fetchDeveloperLeadNotes, fetchDeveloperSalesLead } from "@/lib/developerSalesOps";
 
@@ -14,7 +15,7 @@ export default async function DeveloperContactDetailPage({ params }: { params: P
   if (!UUID_PATTERN.test(contactId)) notFound();
   const session = await requireDeveloperCapability("view_contacts");
   const lead = await fetchDeveloperSalesLead(session.developerId, contactId);
-  if (lead.error) return <DeveloperLayout title="Lead unavailable" description="We could not load this lead."><p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">The lead workspace is temporarily unavailable. <Link className="font-semibold underline" href="/developer/contacts">Return to leads</Link>.</p></DeveloperLayout>;
+  if (lead.error) return <DeveloperLayout title="Lead unavailable" description="We could not load this lead."><div className="space-y-3"><FeedbackBanner message="The lead workspace is temporarily unavailable. Refresh to try again." tone="error" /><Link className="font-semibold underline" href="/developer/contacts">Return to leads</Link>.</div></DeveloperLayout>;
   if (!lead.data) notFound();
   const [members, notes, activity, impersonation] = await Promise.all([
     fetchDeveloperCompanyMembers(session.developerId),

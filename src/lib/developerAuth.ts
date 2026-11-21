@@ -98,7 +98,36 @@ export async function hasCompletedDeveloperProfile(developerId: string) {
 export async function currentDeveloperSession(): Promise<DeveloperSession | null> {
   const store = await cookies();
   const session = getDeveloperSession(store);
-  return session && await isDeveloperImpersonationAuthorized(session) ? session : null;
+  if (!session || !(await isDeveloperImpersonationAuthorized(session))) return null;
+
+  // A signed cookie is only a presentation/session hint. Rehydrate the
+  // membership here as well as in `requireDeveloperSession` so a revoked
+  // member can reach the login page immediately instead of being redirected
+  // back into a stale dashboard cookie loop. Any lookup failure therefore
+  // fails closed rather than trusting the signed cookie.
+  try {
+    const account = await findDeveloperAccountByUser(session.userId);
+    if (
+      !account ||
+      account.accountId !== session.accountId ||
+      account.developerId !== session.developerId ||
+      account.status !== "active"
+    ) {
+      return null;
+    }
+    const role = normalizeDeveloperRole(account.role);
+    if (!role) return null;
+    return {
+      ...session,
+      accountId: account.accountId,
+      developerId: account.developerId,
+      developerName: account.developerName ?? session.developerName,
+      role,
+    };
+  } catch (error) {
+    console.warn("Developer session membership rehydration failed", error);
+    return null;
+  }
 }
 
 export async function currentDeveloperImpersonation(): Promise<DeveloperImpersonationMarker | null> {

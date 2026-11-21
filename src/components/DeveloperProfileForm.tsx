@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useActionState, useEffect, useId, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Image from "next/image";
 import { Building2, Check } from "lucide-react";
 import { DeveloperMediaField } from "@/components/DeveloperMediaField";
+import { FeedbackBanner } from "@/components/FeedbackBanner";
 
-type ProfileAction = (formData: FormData) => void | Promise<void>;
+export type ProfileActionState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+};
+
+type ProfileAction = (formData: FormData) => ProfileActionState | Promise<ProfileActionState>;
 
 type Props = {
   action: ProfileAction;
@@ -43,6 +49,10 @@ export function DeveloperProfileForm({
   const [previewUrl, setPreviewUrl] = useState(initialLogoUrl ?? "");
   const [temporaryUrl, setTemporaryUrl] = useState("");
   const [uploadError, setUploadError] = useState("");
+  const [actionState, formAction, pending] = useActionState(
+    async (_previousState: ProfileActionState, formData: FormData) => action(formData),
+    { status: "idle" } satisfies ProfileActionState,
+  );
 
   useEffect(() => {
     return () => {
@@ -133,7 +143,7 @@ export function DeveloperProfileForm({
       </aside>
 
       <form
-        action={action}
+        action={formAction}
         encType="multipart/form-data"
         className="rounded-3xl border border-black/5 bg-white p-5 sm:p-7"
         onSubmit={(event) => {
@@ -141,6 +151,12 @@ export function DeveloperProfileForm({
           event.preventDefault();
         }}
       >
+        <div className="mb-5 space-y-3" aria-live="polite">
+          <FeedbackBanner message={actionState.status === "success" ? actionState.message : null} tone="success" />
+          <FeedbackBanner message={actionState.status === "error" ? actionState.message : null} tone="error" />
+          <FeedbackBanner message={uploadError} tone="error" />
+          {pending ? <p role="status" className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">Uploading your logo and sending this revision for review…</p> : null}
+        </div>
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/5 pb-5">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Private draft</p>
@@ -227,7 +243,7 @@ export function DeveloperProfileForm({
           />
         </div>
 
-        <ProfileSubmitControls submissionAvailable={submissionAvailable} onboarding={onboarding} blockedByUploadError={Boolean(uploadError)} />
+      <ProfileSubmitControls submissionAvailable={submissionAvailable} onboarding={onboarding} blockedByUploadError={Boolean(uploadError)} />
       </form>
     </div>
   );

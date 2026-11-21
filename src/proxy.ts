@@ -30,6 +30,7 @@ export function proxy(request: NextRequest) {
         !pathname.startsWith("/api") &&
         !pathname.startsWith("/_next") &&
         pathname !== "/templates/developer-project-import.xlsx" &&
+        pathname !== "/templates/developer-inventory-import.xlsx" &&
         pathname !== "/favicon.ico")
     ) {
       const targetPath = pathname === "/" ? "/developer" : `/developer${pathname}`;

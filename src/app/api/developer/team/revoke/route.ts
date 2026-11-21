@@ -51,12 +51,13 @@ export async function POST(request: Request) {
   });
   if (revokeError || !revokeRecord?.account_id) {
     console.error("Failed to revoke developer team member", revokeError);
-    const conflict = /final|revoke|lock|super admin/i.test(revokeError?.message ?? "");
+    const conflict = /already|cannot|final|revoke|lock|super admin|membership/i.test(revokeError?.message ?? "");
     return NextResponse.json({ error: conflict ? "That member cannot be revoked." : "Unable to revoke developer access." }, { status: conflict ? 409 : 500 });
   }
   return NextResponse.json({
     success: true,
     idempotent: Boolean(revokeRecord.idempotent),
     memberId: String(revokeRecord.account_id),
+    sessionInvalidated: true,
   });
 }

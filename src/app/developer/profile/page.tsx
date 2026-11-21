@@ -1,8 +1,8 @@
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { Check, Clock3, Eye, FileClock, ShieldCheck } from "lucide-react";
+import { Clock3, Eye, ShieldCheck } from "lucide-react";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
-import { DeveloperProfileForm } from "@/components/DeveloperProfileForm";
+import { DeveloperProfileForm, type ProfileActionState } from "@/components/DeveloperProfileForm";
+import { FeedbackBanner } from "@/components/FeedbackBanner";
 import {
   currentDeveloperImpersonation,
   isCompletePublicDeveloperProfile,
@@ -86,18 +86,8 @@ export default async function DeveloperProfilePage({
 
   return (
     <DeveloperLayout title="Profile" description="Control how Brixeler presents your brand." impersonation={impersonation} onboarding={onboarding}>
-      {feedback.success ? (
-        <div role="status" aria-live="polite" className="flex items-start gap-3 rounded-2xl border border-[#d9dfbf] bg-[#f1f5d9] px-4 py-3 text-sm text-[#4c5d11]">
-          <Check aria-hidden="true" className="mt-0.5 shrink-0" size={17} />
-          <span>{feedback.success}</span>
-        </div>
-      ) : null}
-      {feedback.error ? (
-        <div role="alert" aria-live="assertive" className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          <FileClock aria-hidden="true" className="mt-0.5 shrink-0" size={17} />
-          <span>{feedback.error}</span>
-        </div>
-      ) : null}
+      <FeedbackBanner message={feedback.success} tone="success" autoFocus />
+      <FeedbackBanner message={feedback.error} tone="error" autoFocus />
 
       {onboarding ? (
         <section aria-labelledby="profile-onboarding-heading" className="relative overflow-hidden rounded-3xl bg-[#dff579] px-5 py-6 text-[#253000] sm:px-7 sm:py-7">
@@ -262,7 +252,7 @@ async function fetchPublicProfileState(developerId: string): Promise<PublicProfi
   };
 }
 
-async function submitProfileRevisionAction(formData: FormData) {
+async function submitProfileRevisionAction(formData: FormData): Promise<ProfileActionState> {
   "use server";
   const session = await requireDeveloperCapability("manage_company", { allowIncompleteProfile: true });
   const nameValue = formData.get("name");
@@ -272,18 +262,21 @@ async function submitProfileRevisionAction(formData: FormData) {
   const description = typeof descriptionValue === "string" ? descriptionValue.trim() : "";
   const slogan = typeof sloganValue === "string" ? sloganValue.trim() : "";
   const logoUrlValue = formData.get("logo_url");
-  const suppliedLogoUrl = typeof logoUrlValue === "string" ? validatedOptionalHttpUrl(logoUrlValue, "Logo URL") : null;
+  const suppliedLogoUrl = typeof logoUrlValue === "string" ? validatedOptionalHttpUrl(logoUrlValue) : null;
+  if (typeof logoUrlValue === "string" && logoUrlValue.trim() && !suppliedLogoUrl) {
+    return { status: "error", message: "Logo URL must use HTTPS and an approved media host." };
+  }
   if (!name || name.length > 200) {
-    redirect(`/developer/profile?error=${encodeURIComponent("Enter a developer name between 1 and 200 characters.")}`);
+    return { status: "error", message: "Enter a developer name between 1 and 200 characters." };
   }
   if (!description) {
-    redirect(`/developer/profile?error=${encodeURIComponent("Add a short brand line or company description before submitting.")}`);
+    return { status: "error", message: "Add a short brand line or company description before submitting." };
   }
   if (description.length > 500) {
-    redirect(`/developer/profile?error=${encodeURIComponent("Keep the company description to 500 characters or fewer.")}`);
+    return { status: "error", message: "Keep the company description to 500 characters or fewer." };
   }
   if (slogan.length > 160) {
-    redirect(`/developer/profile?error=${encodeURIComponent("Keep the slogan to 160 characters or fewer.")}`);
+    return { status: "error", message: "Keep the slogan to 160 characters or fewer." };
   }
 
   const latestRevisionResult = await fetchLatestProfileRevision(session.developerId);
@@ -300,13 +293,14 @@ async function submitProfileRevisionAction(formData: FormData) {
         file: logoFile,
       });
     } catch (error) {
-      redirect(`/developer/profile?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to upload this logo.")}`);
+      console.warn("Developer profile logo upload failed", error);
+      return { status: "error", message: "Unable to upload this logo. Check the file and try again." };
     }
   }
 
   const logoUrl = uploadedLogoUrl ?? suppliedLogoUrl ?? (shouldPreserveRevisionLogo ? currentRevision.logo_url : currentProfile?.logo_url) ?? null;
   if (!logoUrl) {
-    redirect(`/developer/profile?error=${encodeURIComponent("Add a company logo before submitting your profile.")}`);
+    return { status: "error", message: "Add a company logo before submitting your profile." };
   }
   let result: { data: unknown; error: { message?: string } | null };
   try {
@@ -321,25 +315,25 @@ async function submitProfileRevisionAction(formData: FormData) {
   } catch (error) {
     await discardUploadedLogo(uploadedLogoUrl);
     console.warn("Developer profile revision submission failed", error);
-    redirect(`/developer/profile?error=${encodeURIComponent("We couldn't submit this profile revision. Please try again.")}`);
+    return { status: "error", message: "We couldn't submit this profile revision. Please try again." };
   }
   if (result.error) {
     await discardUploadedLogo(uploadedLogoUrl);
     console.warn("Developer profile revision submission failed", result.error);
-    redirect(`/developer/profile?error=${encodeURIComponent("We couldn't submit this profile revision. Please try again.")}`);
+    return { status: "error", message: "We couldn't submit this profile revision. Please try again." };
   }
 
   const revisionResult = Array.isArray(result.data) ? result.data[0] : result.data;
   const revisionRecord = revisionResult as { id?: string; revision_id?: string; version?: number | string; status?: string } | null;
   if (!(revisionRecord?.revision_id ?? revisionRecord?.id) || revisionRecord.status === undefined) {
     await discardUploadedLogo(uploadedLogoUrl);
-    redirect(`/developer/profile?error=${encodeURIComponent("The profile revision was not confirmed. Please try again.")}`);
+    return { status: "error", message: "The profile revision was not confirmed. Please try again." };
   }
 
   revalidatePath("/developer/profile");
   revalidatePath("/developer");
   const version = revisionRecord.version ? ` v${revisionRecord.version}` : "";
-  redirect(`/developer/profile?success=${encodeURIComponent(`Profile revision${version} submitted for review. Your public profile is unchanged until approval.`)}`);
+  return { status: "success", message: `Profile revision${version} submitted for review. Your public profile is unchanged until approval.` };
 }
 
 async function discardUploadedLogo(url: string | null) {
@@ -348,11 +342,11 @@ async function discardUploadedLogo(url: string | null) {
   if (error) console.warn("Unable to remove an unsubmitted developer profile logo", error);
 }
 
-function validatedOptionalHttpUrl(value: string, label: string) {
+function validatedOptionalHttpUrl(value: string) {
   const normalized = value.trim();
   if (!normalized) return null;
   const safeUrl = normalizeExternalMediaUrl(normalized);
-  if (!safeUrl) redirect(`/developer/profile?error=${encodeURIComponent(`${label} must use HTTPS and an approved media host.`)}`);
+  if (!safeUrl) return null;
   return safeUrl;
 }
 

@@ -21,6 +21,12 @@ test("editing inventory selects the affected row and invalidates the old local c
     };
     if (name === "read-excel-file/browser") return { readSheet: () => { throw new Error("Not used in this test"); } };
     if (name === "@/components/ProjectWorkflowSubmitButton") return { ProjectWorkflowSubmitButton: "workflow-button" };
+    if (name === "@/components/FeedbackBanner") return { FeedbackBanner: "feedback-banner" };
+    if (name === "@/lib/developerImportTemplates") return {
+      INVENTORY_TEMPLATE_COLUMNS: [],
+      csvRowsToInventoryObjects: () => [],
+      workbookRowsToInventoryObjects: () => [],
+    };
     return require(name);
   }, loaded, loaded.exports);
   const action = () => {};

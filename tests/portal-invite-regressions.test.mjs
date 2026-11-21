@@ -7,6 +7,7 @@ import { describePortalInviteDeliveryError, getPortalInviteSubmissionMessage } f
 const authUserId = "c2142b8c-8bb3-4c67-aece-35c7605100a1";
 const email = "invitee@example.com";
 const authCalls = [];
+const authRedirects = [];
 let existingAdmin;
 let recipient;
 let inserted;
@@ -14,8 +15,9 @@ let inserted;
 globalThis.portalInviteTestClient = {
   auth: {
     admin: {
-      async inviteUserByEmail(invitedEmail) {
+      async inviteUserByEmail(invitedEmail, options) {
         authCalls.push({ kind: "invite", email: invitedEmail });
+        authRedirects.push({ kind: "invite", redirectTo: options?.redirectTo });
         return { data: { user: { id: authUserId, email } }, error: null };
       },
       async getUserById(id) {
@@ -26,8 +28,9 @@ globalThis.portalInviteTestClient = {
         assert.fail("A repeated invitation must never delete the Auth identity");
       },
     },
-    async resetPasswordForEmail(sentEmail) {
+    async resetPasswordForEmail(sentEmail, options) {
       authCalls.push({ kind: "recovery", email: sentEmail });
+      authRedirects.push({ kind: "recovery", redirectTo: options?.redirectTo });
       return { error: null };
     },
   },
@@ -66,7 +69,7 @@ const hooks = registerHooks({
   },
 });
 const { createAdminPortalInvite } = await import("../src/lib/adminAccountInvites.ts");
-const { resendDeveloperPortalInvite, sendDeveloperPortalInvite } = await import("../src/lib/developerAccountInvites.ts");
+const { buildDeveloperInviteRedirectUrl, resendDeveloperPortalInvite, sendDeveloperPortalInvite } = await import("../src/lib/developerAccountInvites.ts");
 hooks.deregister();
 delete globalThis.portalInviteTestClient;
 
@@ -103,6 +106,39 @@ test("developer resend verifies the pending member's Auth identity before submit
   assert.equal(sent.emailKind, "recovery");
   assert.equal(sent.createdAuthUser, false);
   assert.deepEqual(authCalls, [{ kind: "recovery", email }]);
+});
+
+test("developer invite deep links stay on the canonical admin origin", () => {
+  const previous = process.env.DEVELOPER_PORTAL_URL;
+  try {
+    for (const configured of ["https://brixeler.com", "https://www.brixeler.com/path", "http://developer.brixeler.com:8443/old"]) {
+      process.env.DEVELOPER_PORTAL_URL = configured;
+      const link = new URL(buildDeveloperInviteRedirectUrl({ developerId: "company", developerName: "Developer", email }));
+      assert.equal(link.origin, "https://admin.brixeler.com");
+      assert.equal(link.pathname, "/developer/accept");
+      assert.equal(link.searchParams.get("developerId"), "company");
+      assert.equal(link.searchParams.get("email"), email);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.DEVELOPER_PORTAL_URL;
+    else process.env.DEVELOPER_PORTAL_URL = previous;
+  }
+});
+
+test("developer Auth submissions carry the canonical admin redirect contract", async () => {
+  authRedirects.length = 0;
+  const invite = await sendDeveloperPortalInvite(developerParams, null);
+  assert.equal(invite.error, null);
+  const recovery = await sendDeveloperPortalInvite(developerParams, { id: authUserId, email });
+  assert.equal(recovery.error, null);
+  assert.equal(authRedirects.length, 2);
+  for (const submission of authRedirects) {
+    const redirect = new URL(submission.redirectTo);
+    assert.equal(redirect.origin, "https://admin.brixeler.com");
+    assert.equal(redirect.pathname, "/developer/accept");
+    assert.equal(redirect.searchParams.get("developerId"), "company");
+    assert.equal(redirect.searchParams.get("email"), email);
+  }
 });
 
 test("an Auth invite returning a previously existing user never claims ownership for compensation", async () => {
