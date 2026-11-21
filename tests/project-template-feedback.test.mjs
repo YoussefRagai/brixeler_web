@@ -130,6 +130,16 @@ test("redirect feedback is persistent, announced, and moved into reading order",
   assert.match(projectsPage, /<FeedbackBanner tone="success" message=\{pageSuccess\} autoFocus \/>/);
 });
 
+test("template workspace keeps the portfolio compact until upload is requested", () => {
+  const workspace = readFileSync(new URL("../src/components/DeveloperTemplateWorkspace.tsx", import.meta.url), "utf8");
+
+  assert.match(workspace, /Download blank template \(unit types\)/);
+  assert.match(workspace, /Download blank template \(individual units\)/);
+  assert.match(workspace, /<details className="mt-5 rounded-2xl border border-black\/10 bg-neutral-50">/);
+  assert.match(workspace, /Upload a filled template/);
+  assert.doesNotMatch(workspace, /<details[^>]+\bopen(?:=|\s|>)/);
+});
+
 test("project creation keeps a recoverable local draft and excludes uploads", () => {
   const wizard = readFileSync(new URL("../src/components/ProjectWizard.tsx", import.meta.url), "utf8");
 

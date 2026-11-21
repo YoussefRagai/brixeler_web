@@ -136,50 +136,55 @@ export function DeveloperTemplateWorkspace({ projects, templatePaths, typeImport
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <div className="rounded-2xl border border-[#dceaa3] bg-[#f7fbe7] p-4">
-          <div className="flex items-start gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-[#405000]"><FileSpreadsheet aria-hidden="true" size={18} /></span>
-            <div>
-              <p className="text-sm font-semibold text-[#405000]">Two templates, two supported imports</p>
-              <p className="mt-1 text-xs leading-5 text-[#52630c]">Instructions are on their own sheet. The Import sheet is intentionally blank, so no sample units can be created by accident.</p>
+      <details className="mt-5 rounded-2xl border border-black/10 bg-neutral-50">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-neutral-900">
+          Upload a filled template <span className="font-normal text-neutral-500">· choose a project, phase, and workbook</span>
+        </summary>
+        <div className="grid gap-4 border-t border-black/5 p-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+          <div className="rounded-2xl border border-[#dceaa3] bg-[#f7fbe7] p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-[#405000]"><FileSpreadsheet aria-hidden="true" size={18} /></span>
+              <div>
+                <p className="text-sm font-semibold text-[#405000]">Two templates, two supported imports</p>
+                <p className="mt-1 text-xs leading-5 text-[#52630c]">Instructions are on their own sheet. The Import sheet is intentionally blank, so no sample units can be created by accident.</p>
+              </div>
             </div>
+            <p className="mt-4 text-xs leading-5 text-[#52630c]">Use the matching blank workbook above, then review parsed records here before saving. Server validation still runs before anything is written.</p>
           </div>
-          <p className="mt-4 text-xs leading-5 text-[#52630c]">Use the matching blank workbook above, then review parsed records here before saving. Server validation still runs before anything is written.</p>
-        </div>
 
-        <div className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
-          <div className="flex items-center gap-2"><Upload aria-hidden="true" size={16} className="text-neutral-500" /><p className="text-sm font-semibold text-neutral-900">Upload into a selected workspace</p></div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <label className="text-xs font-semibold text-neutral-600">Project
-              <select value={projectId} onChange={handleProjectChange} disabled={!projects.length} className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-normal">
-                {!projects.length ? <option value="">Create a project first</option> : null}
-                {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-              </select>
-            </label>
-            <label className="text-xs font-semibold text-neutral-600">Release phase
-              <select value={phaseId} onChange={(event) => setPhaseId(event.target.value)} disabled={!phases.length} className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-normal">
-                {!phases.length ? <option value="">Create a phase first</option> : null}
-                {phases.map((phase) => <option key={phase.id} value={phase.id}>{phase.phaseOrder}. {phase.name}</option>)}
-              </select>
-            </label>
-            <label className="text-xs font-semibold text-neutral-600">Template type
-              <select value={templateKind} onChange={handleTemplateKindChange} className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-normal">
-                {templateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            <div className="flex items-center gap-2"><Upload aria-hidden="true" size={16} className="text-neutral-500" /><p className="text-sm font-semibold text-neutral-900">Upload into a selected workspace</p></div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <label className="text-xs font-semibold text-neutral-600">Project
+                <select value={projectId} onChange={handleProjectChange} disabled={!projects.length} className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-normal">
+                  {!projects.length ? <option value="">Create a project first</option> : null}
+                  {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-neutral-600">Release phase
+                <select value={phaseId} onChange={(event) => setPhaseId(event.target.value)} disabled={!phases.length} className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-normal">
+                  {!phases.length ? <option value="">Create a phase first</option> : null}
+                  {phases.map((phase) => <option key={phase.id} value={phase.id}>{phase.phaseOrder}. {phase.name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-neutral-600">Template type
+                <select value={templateKind} onChange={handleTemplateKindChange} className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-normal">
+                  {templateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-neutral-500">{selectedTemplate.description}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button type="button" disabled={!canUpload} onClick={() => inputRef.current?.click()} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-black/15 bg-white px-4 py-2 text-xs font-semibold text-neutral-800 transition hover:border-black/35 disabled:cursor-not-allowed disabled:opacity-50">Choose .xlsx{templateKind === "inventory" ? " or .csv" : ""}</button>
+              <input ref={inputRef} type="file" className="hidden" accept={templateKind === "inventory" ? ".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"} onChange={handleFileChange} />
+              {fileName ? <span className="max-w-full truncate text-xs text-neutral-600">{fileName}</span> : <span className="text-xs text-neutral-400">No file selected</span>}
+            </div>
+            {!projects.length ? <p className="mt-3 text-xs text-neutral-500">Download the template now. Create a project and phase before uploading records.</p> : null}
+            {fileError ? <div className="mt-3"><FeedbackBanner tone="error" message={fileError} compact /></div> : null}
+            {inventoryState?.error ? <div className="mt-3"><FeedbackBanner tone="error" message={inventoryState.error} compact /></div> : null}
           </div>
-          <p className="mt-2 text-xs text-neutral-500">{selectedTemplate.description}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button type="button" disabled={!canUpload} onClick={() => inputRef.current?.click()} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-black/15 bg-white px-4 py-2 text-xs font-semibold text-neutral-800 transition hover:border-black/35 disabled:cursor-not-allowed disabled:opacity-50">Choose .xlsx{templateKind === "inventory" ? " or .csv" : ""}</button>
-            <input ref={inputRef} type="file" className="hidden" accept={templateKind === "inventory" ? ".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"} onChange={handleFileChange} />
-            {fileName ? <span className="max-w-full truncate text-xs text-neutral-600">{fileName}</span> : <span className="text-xs text-neutral-400">No file selected</span>}
-          </div>
-          {!projects.length ? <p className="mt-3 text-xs text-neutral-500">Download the template now. Create a project and phase before uploading records.</p> : null}
-          {fileError ? <div className="mt-3"><FeedbackBanner tone="error" message={fileError} compact /></div> : null}
-          {inventoryState?.error ? <div className="mt-3"><FeedbackBanner tone="error" message={inventoryState.error} compact /></div> : null}
         </div>
-      </div>
+      </details>
 
       {unitTypes.length ? (
         <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 p-4">

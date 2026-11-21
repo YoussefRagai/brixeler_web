@@ -8,9 +8,9 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 42607,
+      "bytes": 42801,
       "path": ".context/repo_summary.md",
-      "sha256": "3df4b7f609d06b44c42bf82a2e293ad348ae7dfc073834d919d9110cf4d18c5e",
+      "sha256": "57792b9466678fa38c41c928ba6e030d9edd1c9be1c9f36ada1c83dc3e11e438",
       "summary": "Compressed repository state including local developer project media work."
     },
     {
@@ -80,9 +80,9 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 108013,
+      "bytes": 108430,
       "path": "TASK_LOG.md",
-      "sha256": "05825764b182e0da6f9c829b948c7a0dcccecd12c9a3f2efee2c5d28dd4ed120",
+      "sha256": "b3245f72ff5eda62bda8513eae2a5996215edf79455fac9117ee045cf622e1aa",
       "summary": "Task outcomes and verification history, including developer project work."
     },
     {
@@ -1238,9 +1238,9 @@
       "summary": "import type { DeveloperProjectTemplate } from \"@/lib/developerQueries\"; type ServerAction = (formData: FormData) => void | Promise<void>;"
     },
     {
-      "bytes": 13481,
+      "bytes": 13926,
       "path": "src/components/DeveloperTemplateWorkspace.tsx",
-      "sha256": "332cc7757862ac63462428a864087026d90bf05438112096e4ba1c6ca7347b7a",
+      "sha256": "9ee63a9061bbc319325350daaadb1b1a3d812740f6a67bd7ff43e5e8fbfd47bc",
       "summary": "Visible project/phase/template-type selector, matching workbook downloads, import previews, and server actions."
     },
     {
@@ -2366,9 +2366,9 @@
       "sha256": "ba29d9308b2b62dd3b3873bc823da7a2f607bf1962b25b45589c47da12aaf208"
     },
     {
-      "bytes": 6704,
+      "bytes": 7292,
       "path": "tests/project-template-feedback.test.mjs",
-      "sha256": "d77ad9cd3306b784d2ecc36960ad5925687d290fbacb5e58a33c2077e6eecd5d",
+      "sha256": "c866bcf7573268ec57c58d12df99f203c9b93682eafcc528c676eaf0978ce3c3",
       "summary": "Workbook contract round-trips, accessible feedback focus/scroll, and project draft persistence tests."
     },
     {
