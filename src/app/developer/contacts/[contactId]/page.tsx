@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeveloperLayout } from "@/components/DeveloperLayout";
 import { DeveloperLeadDetail } from "@/components/DeveloperLeadDetail";
-import { currentDeveloperImpersonation, requireDeveloperCapability } from "@/lib/developerAuth";
+import { currentDeveloperImpersonation, hasDeveloperCapability, requireDeveloperCapability } from "@/lib/developerAuth";
 import { fetchDeveloperActivity, fetchDeveloperCompanyMembers, fetchDeveloperLeadNotes, fetchDeveloperSalesLead } from "@/lib/developerSalesOps";
 
 export const dynamic = "force-dynamic";
@@ -22,5 +22,5 @@ export default async function DeveloperContactDetailPage({ params }: { params: P
     fetchDeveloperActivity(session.developerId, { leadId: contactId, limit: 100 }),
     currentDeveloperImpersonation(),
   ]);
-  return <DeveloperLayout title={lead.data.requester_display_name} description={`${lead.data.project_name_snapshot}${lead.data.property_name_snapshot ? ` · ${lead.data.property_name_snapshot}` : ""}`} impersonation={impersonation}><DeveloperLeadDetail initialLead={lead.data} members={members.data} initialNotes={notes} initialActivity={activity} canManage /></DeveloperLayout>;
+  return <DeveloperLayout title={lead.data.requester_display_name} description={`${lead.data.project_name_snapshot}${lead.data.property_name_snapshot ? ` · ${lead.data.property_name_snapshot}` : ""}`} impersonation={impersonation}><DeveloperLeadDetail initialLead={lead.data} members={members.data} initialNotes={notes} initialActivity={activity} canManage={hasDeveloperCapability(session.role, "manage_contacts")} /></DeveloperLayout>;
 }

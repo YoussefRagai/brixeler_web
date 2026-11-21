@@ -40,7 +40,7 @@ export function DeveloperProjectPortfolioBoard({ projects, canCreateProjects, ar
     const needle = query.trim().toLocaleLowerCase();
     return projects.filter((project) => (status === "all" || project.launchStatus === status) && (!needle || `${project.name} ${project.summary}`.toLocaleLowerCase().includes(needle)));
   }, [projects, query, status]);
-  const attentionProjects = projects.filter((project) => project.blocker).slice(0, 2);
+  const attentionProjects = visibleProjects.filter((project) => project.blocker).slice(0, 2);
 
   return (
     <section aria-label="Project portfolio" className="space-y-4">
@@ -87,7 +87,7 @@ export function DeveloperProjectPortfolioBoard({ projects, canCreateProjects, ar
                 <div className="order-3 flex items-center justify-end gap-1 text-xs lg:order-none lg:block"><span className="font-semibold text-neutral-800">{project.inventoryCount}</span><span className="ml-1 text-neutral-500">{project.inventoryLabel}</span></div>
                 <div className="order-5 col-span-2 flex items-center justify-end gap-1 lg:order-none lg:col-span-1">
                   <Link href={`/developer/projects/${project.id}?section=overview#project-overview`} className="inline-flex h-8 items-center gap-1 rounded-lg bg-black px-2.5 text-xs font-semibold text-white hover:bg-neutral-800">Open <ArrowUpRight aria-hidden="true" size={13} /></Link>
-                  <details className="relative"><summary aria-label={`More actions for ${project.name}`} className="grid size-8 cursor-pointer list-none place-items-center rounded-lg border border-black/10 text-neutral-500 hover:bg-neutral-50 hover:text-black"><MoreHorizontal aria-hidden="true" size={16} /></summary><div className="absolute right-0 z-20 mt-1 w-44 rounded-xl border border-black/10 bg-white p-1.5 text-xs shadow-xl"><Link className="block rounded-lg px-3 py-2 hover:bg-neutral-50" href={`/developer/projects/${project.id}?section=inventory#project-inventory`}>Manage inventory</Link><Link className="block rounded-lg px-3 py-2 hover:bg-neutral-50" href={`/developer/projects/${project.id}?section=settings#project-settings`}>Project settings</Link></div></details>
+                  <details className="relative"><summary aria-label={`More actions for ${project.name}`} className="grid size-8 cursor-pointer list-none place-items-center rounded-lg border border-black/10 text-neutral-500 hover:bg-neutral-50 hover:text-black"><MoreHorizontal aria-hidden="true" size={16} /></summary><div className="absolute right-0 z-20 mt-1 w-44 rounded-xl border border-black/10 bg-white p-1.5 text-xs shadow-xl"><Link aria-label={`Manage inventory for ${project.name}`} className="block rounded-lg px-3 py-2 hover:bg-neutral-50" href={`/developer/projects/${project.id}?section=inventory#project-inventory`}>Manage inventory</Link><Link aria-label={`Open project settings for ${project.name}`} className="block rounded-lg px-3 py-2 hover:bg-neutral-50" href={`/developer/projects/${project.id}?section=settings#project-settings`}>Project settings</Link></div></details>
                   <button type="button" onClick={() => setExpandedProjectId(expanded ? null : project.id)} aria-label={expanded ? `Collapse ${project.name}` : `Expand ${project.name}`} className="grid size-8 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-50 hover:text-black"><ChevronDown aria-hidden="true" size={16} className={`transition ${expanded ? "rotate-180" : ""}`} /></button>
                 </div>
               </div>

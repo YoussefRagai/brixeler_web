@@ -25,9 +25,10 @@ const ROLE_OPTIONS: Array<{ value: DeveloperRole; label: string; description: st
 type Props = {
   initialMembers: DeveloperTeamMember[];
   currentAccountId: string;
+  initialLoadError?: string | null;
 };
 
-export function DeveloperTeamManager({ initialMembers, currentAccountId }: Props) {
+export function DeveloperTeamManager({ initialMembers, currentAccountId, initialLoadError = null }: Props) {
   const [members, setMembers] = useState(initialMembers);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -44,6 +45,17 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId }: Props
     setMembers(payload.members);
   }
 
+  async function refreshAfterMutation(successMessage: string, refreshErrorMessage: string) {
+    try {
+      await refreshMembers();
+      setFeedback({ kind: "success", text: successMessage });
+    } catch {
+      // The mutation already succeeded. Keep the form usable and tell the
+      // operator to refresh rather than claiming that the write failed.
+      setFeedback({ kind: "error", text: refreshErrorMessage });
+    }
+  }
+
   async function submitInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPendingAction("invite");
@@ -56,11 +68,10 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId }: Props
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to send the invitation.");
-      await refreshMembers();
       setEmail("");
       setFullName("");
       setRole("project_manager");
-      setFeedback({ kind: "success", text: payload?.message ?? "Invitation email submitted for delivery." });
+      await refreshAfterMutation(payload?.message ?? "Invitation email submitted for delivery.", "Invitation submitted, but the team list could not refresh. Refresh to confirm before retrying.");
     } catch (error) {
       setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Unable to send the invitation." });
     } finally {
@@ -80,8 +91,7 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId }: Props
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to update the member role.");
-      await refreshMembers();
-      setFeedback({ kind: "success", text: "Member role updated." });
+      await refreshAfterMutation("Member role updated.", "Member role updated, but the team list could not refresh. Refresh to confirm the current role.");
     } catch (error) {
       setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Unable to update the member role." });
     } finally {
@@ -100,8 +110,7 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId }: Props
       });
       const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to resend the invitation.");
-      await refreshMembers();
-      setFeedback({ kind: "success", text: payload?.message ?? "Invitation email submitted for delivery." });
+      await refreshAfterMutation(payload?.message ?? "Invitation email submitted for delivery.", "Invitation resend submitted, but the team list could not refresh. Refresh to confirm before retrying.");
     } catch (error) {
       setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Unable to resend the invitation." });
     } finally {
@@ -122,8 +131,7 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId }: Props
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to revoke developer access.");
-      await refreshMembers();
-      setFeedback({ kind: "success", text: "Developer access revoked." });
+      await refreshAfterMutation("Developer access revoked.", "Developer access was revoked, but the team list could not refresh. Refresh to confirm the current access.");
     } catch (error) {
       setFeedback({ kind: "error", text: error instanceof Error ? error.message : "Unable to revoke developer access." });
     } finally {
@@ -170,6 +178,8 @@ export function DeveloperTeamManager({ initialMembers, currentAccountId }: Props
       </section>
 
       {feedback ? <p role={feedback.kind === "error" ? "alert" : "status"} aria-live="polite" className={feedback.kind === "error" ? "rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" : "rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"}>{feedback.text}</p> : null}
+
+      {initialLoadError ? <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{initialLoadError} Refresh to try again.</p> : null}
 
       <section aria-labelledby="team-members-heading" className="rounded-3xl border border-black/5 bg-white p-5 sm:p-7">
         <div className="flex flex-wrap items-end justify-between gap-3">

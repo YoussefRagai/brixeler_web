@@ -36,6 +36,7 @@ export type DeveloperProjectCreateProject = {
 export type DeveloperProjectCreateFormProps = {
   action: ProjectWizardAction;
   developerId: string;
+  accountId: string;
   projects?: readonly DeveloperProjectCreateProject[];
   templateProject?: DeveloperProjectCreateProject | null;
 };
@@ -434,7 +435,7 @@ function ProjectReviewSummary() {
   );
 }
 
-export function DeveloperProjectCreateForm({ action, developerId, projects = [], templateProject }: DeveloperProjectCreateFormProps) {
+export function DeveloperProjectCreateForm({ action, developerId, accountId, projects = [], templateProject }: DeveloperProjectCreateFormProps) {
   const existingProjectNames = projects.map((project) => stringValue(project.name)).filter(Boolean);
   const [mediaResetKey, setMediaResetKey] = useState(0);
   useEffect(() => {
@@ -448,7 +449,7 @@ export function DeveloperProjectCreateForm({ action, developerId, projects = [],
     return () => form.removeEventListener("project-wizard-sync", handleWizardSync);
   }, []);
   return (
-    <ProjectWizard action={action} developerId={developerId} existingProjectNames={existingProjectNames} draftContext={templateProject?.id ?? null}>
+    <ProjectWizard action={action} developerId={developerId} accountId={accountId} existingProjectNames={existingProjectNames} draftContext={templateProject?.id ?? null}>
       <div data-wizard-panel="details" className="space-y-4">
         <TemplatePicker projects={projects} templateProject={templateProject} />
         <div className="rounded-2xl border border-black/10 bg-white">

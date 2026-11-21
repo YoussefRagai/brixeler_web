@@ -16,6 +16,7 @@ type DeveloperMediaFieldProps = {
   currentValue?: string | null;
   urlPlaceholder?: string;
   onFilesSelected?: (files: File[]) => void;
+  onError?: (message: string) => void;
   directUpload?: boolean;
 };
 
@@ -44,6 +45,7 @@ export function DeveloperMediaField({
   currentValue,
   urlPlaceholder = "https://…",
   onFilesSelected,
+  onError,
   directUpload = false,
 }: DeveloperMediaFieldProps) {
   const inputId = useId();
@@ -62,33 +64,43 @@ export function DeveloperMediaField({
     const guard = (event: SubmitEvent) => {
       if (!uploadingRef.current) return;
       event.preventDefault();
-      setDropError("Wait for the media upload to finish before saving.");
+      const message = "Wait for the media upload to finish before saving.";
+      setDropError(message);
+      onError?.(message);
     };
     form.addEventListener("submit", guard, true);
     return () => form.removeEventListener("submit", guard, true);
-  }, [directUpload]);
+  }, [directUpload, onError]);
 
   const captureFiles = async (files: File[]) => {
     const allowed = files.filter((file) => acceptsFile(file, accept));
     if (!allowed.length) {
-      setDropError("That file type is not supported here.");
+      const message = "That file type is not supported here.";
+      setDropError(message);
+      onError?.(message);
       return;
     }
     const selected = multiple ? allowed : allowed.slice(0, 1);
     const maxUrls = fileName === "project_images" ? 20 : fileName === "voice_notes" || fileName === "project_videos" ? 10 : null;
     const existingUrls = urlRef.current?.value.split(/[\n,]/).filter((value) => value.trim()).length ?? 0;
     if (directUpload && maxUrls != null && selected.length + existingUrls > maxUrls) {
-      setDropError(`This field accepts at most ${maxUrls} files or URLs.`);
+      const message = `This field accepts at most ${maxUrls} files or URLs.`;
+      setDropError(message);
+      onError?.(message);
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
     setSelectedFiles(selected.map((file) => file.name));
-    setDropError(allowed.length < files.length ? "Some unsupported files were skipped." : "");
+    const partialMessage = allowed.length < files.length ? "Some unsupported files were skipped." : "";
+    setDropError(partialMessage);
+    onError?.("");
     if (directUpload && urlName) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
       if (!supabaseUrl || !anonKey) {
-        setDropError("Uploads are unavailable. Paste a hosted URL or contact support.");
+        const message = "Uploads are unavailable. Paste a hosted URL or contact support.";
+        setDropError(message);
+        onError?.(message);
         return;
       }
       uploadingRef.current = true;
@@ -121,9 +133,12 @@ export function DeveloperMediaField({
         const removeCheckbox = inputRef.current?.closest("fieldset")?.querySelector<HTMLInputElement>(`input[name="${fileName}_remove"]`);
         if (removeCheckbox) removeCheckbox.checked = false;
         setDropError(`${uploadedUrls.length} file${uploadedUrls.length === 1 ? "" : "s"} uploaded. Save the project to attach ${uploadedUrls.length === 1 ? "it" : "them"}.`);
+        onError?.("");
         onFilesSelected?.(selected);
       } catch (error) {
-        setDropError(error instanceof Error ? `Upload failed: ${error.message}. Try again or paste a URL.` : "Upload failed. Try again or paste a URL.");
+        const message = error instanceof Error ? `Upload failed: ${error.message}. Try again or paste a URL.` : "Upload failed. Try again or paste a URL.";
+        setDropError(message);
+        onError?.(message);
       } finally {
         uploadingRef.current = false;
         setUploading(false);
@@ -133,6 +148,7 @@ export function DeveloperMediaField({
     const transfer = new DataTransfer();
     selected.forEach((file) => transfer.items.add(file));
     if (inputRef.current) inputRef.current.files = transfer.files;
+    onError?.("");
     onFilesSelected?.(selected);
   };
 

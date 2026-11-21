@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   });
   if (error || !data) {
     console.warn("Developer support ticket creation failed", error);
-    return NextResponse.json({ error: error?.message || "Unable to create a support request." }, { status: 409 });
+    return NextResponse.json({ error: "Unable to create a support request. Try again." }, { status: 503 });
   }
   return NextResponse.json({ ok: true, ticketId: data }, { status: 201 });
 }

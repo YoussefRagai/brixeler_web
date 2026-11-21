@@ -109,8 +109,8 @@ export default async function DeveloperProfilePage({
               Add your company name, a short brand line, and logo, then submit the revision for review. Your workspace unlocks as soon as a complete revision is submitted; agents only see approved public branding.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-semibold text-[#53630e]">
-              <span>✓ Company name</span>
-              <span>✓ Brand line</span>
+              <span>Company name</span>
+              <span>Brand line</span>
               <span>Company logo</span>
             </div>
           </div>
@@ -174,6 +174,7 @@ export default async function DeveloperProfilePage({
         revisionStatus={latestStatus}
         submissionAvailable={latestRevisionResult.contractAvailable}
         onboarding={onboarding}
+        isDemo={Boolean(profile?.is_demo)}
       />
     </DeveloperLayout>
   );

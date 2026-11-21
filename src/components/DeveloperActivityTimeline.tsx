@@ -3,6 +3,11 @@ import type { DeveloperInventoryActivity } from "@/lib/developerQueries";
 type Props = { activities: DeveloperInventoryActivity[] };
 
 const titleForAction = (action: string) => action.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const formatDateTime = (value: string) => new Intl.DateTimeFormat("en-US", {
+  timeZone: "Africa/Cairo",
+  dateStyle: "medium",
+  timeStyle: "short",
+}).format(new Date(value));
 
 export function DeveloperActivityTimeline({ activities }: Props) {
   return (
@@ -16,7 +21,7 @@ export function DeveloperActivityTimeline({ activities }: Props) {
           {activities.map((activity) => (
             <li key={activity.id} className="relative border-l border-black/10 pl-4">
               <span className="absolute -left-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-black" />
-              <div className="flex flex-wrap items-baseline justify-between gap-2"><p className="text-sm font-semibold text-neutral-800">{titleForAction(activity.action)}</p><time className="text-[10px] text-neutral-400" dateTime={activity.created_at}>{new Date(activity.created_at).toLocaleString()}</time></div>
+              <div className="flex flex-wrap items-baseline justify-between gap-2"><p className="text-sm font-semibold text-neutral-800">{titleForAction(activity.action)}</p><time className="text-[10px] text-neutral-400" dateTime={activity.created_at}>{formatDateTime(activity.created_at)}</time></div>
               <p className="mt-1 text-xs text-neutral-500">{activity.entity_type.replace(/_/g, " ")}{activity.entity_id ? ` · ${activity.entity_id.slice(0, 8)}` : ""}</p>
             </li>
           ))}

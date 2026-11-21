@@ -16,7 +16,6 @@ import { DeveloperTemplateManager } from "@/components/DeveloperTemplateManager"
 import { DeveloperPublicationFeedbackPanel } from "@/components/DeveloperPublicationFeedbackPanel";
 import { DeveloperPriceHistoryPanel } from "@/components/DeveloperPriceHistoryPanel";
 import { ProjectImportPanel } from "@/components/ProjectImportPanel";
-import { PROJECT_WIZARD_DRAFT_KEY } from "@/components/ProjectWizard";
 import { DeveloperProjectCreateForm, PlanDetailFields } from "@/components/DeveloperProjectCreateForm";
 import { LocalStorageCleanup } from "@/components/LocalStorageCleanup";
 import { MobilePreviewButton } from "@/components/MobilePreviewButton";
@@ -74,6 +73,7 @@ import {
   normalizeProjectInventoryView,
   normalizeProjectWorkspaceSection,
   databaseProjectLaunchStatus,
+  getProjectWizardDraftKey,
   projectSectionQuery,
   projectSetupAction,
   type ProjectInventoryView,
@@ -601,6 +601,9 @@ export default async function DeveloperProjectsPage({
     ...inventoryRows.map((row) => row.id),
   ]);
   const projectVersions = allProjectVersions.filter((version) => workspaceEntityIds.has(version.entity_id));
+  const inventoryRowsRevision = inventoryRows
+    .map((row) => `${row.id}:${row.updated_at ?? ""}:${row.availability_state}:${row.active_hold?.id ?? ""}:${row.active_hold?.status ?? ""}`)
+    .join("|");
 
   return (
     <DeveloperLayout
@@ -608,7 +611,7 @@ export default async function DeveloperProjectsPage({
       description={selectedProjectId ? "Project portal · phases, inventory, and publication" : "Portfolio and mobile publication readiness."}
       impersonation={impersonation}
     >
-      {clearProjectDraft ? <LocalStorageCleanup storageKey={`${PROJECT_WIZARD_DRAFT_KEY}:${session.developerId}`} /> : null}
+      {clearProjectDraft ? <LocalStorageCleanup storageKey={getProjectWizardDraftKey(session.developerId, session.accountId)} /> : null}
       {pageError ? (
         <div role="alert" aria-live="assertive" className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {pageError}
@@ -639,6 +642,7 @@ export default async function DeveloperProjectsPage({
           <DeveloperProjectCreateForm
             action={upsertProjectAction}
             developerId={session.developerId}
+            accountId={session.accountId}
             projects={projects.filter((project) => project.lifecycle_state !== "archived")}
             templateProject={templateProject ?? null}
           />
@@ -692,12 +696,14 @@ export default async function DeveloperProjectsPage({
 
       {!showCreateWizard && setupStep !== "types" && selectedProjectId ? (
         <section className="space-y-4">
-          <header id="project-overview" className="relative scroll-mt-24 overflow-hidden rounded-[1.75rem] border border-black/5 bg-[#ece7dc]">
-            {selectedHeroImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={selectedHeroImage} alt="" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover" />
-            ) : null}
-            <div className={`absolute inset-0 ${selectedHeroImage ? "bg-gradient-to-r from-black/80 via-black/70 to-black/60" : "bg-[radial-gradient(circle_at_90%_20%,rgba(255,255,255,0.9),transparent_42%)]"}`} />
+          <header id="project-overview" className="relative scroll-mt-24 overflow-visible rounded-[1.75rem] border border-black/5 bg-[#ece7dc]">
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.75rem]">
+              {selectedHeroImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={selectedHeroImage} alt="" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover" />
+              ) : null}
+              <div className={`absolute inset-0 ${selectedHeroImage ? "bg-gradient-to-r from-black/80 via-black/70 to-black/60" : "bg-[radial-gradient(circle_at_90%_20%,rgba(255,255,255,0.9),transparent_42%)]"}`} />
+            </div>
             <div data-dashboard-surface={selectedHeroImage ? "dark" : "light"} className={`relative p-4 sm:p-6 ${selectedHeroImage ? "text-white" : "text-neutral-950"}`}>
               <Link href="/developer/projects" className={`inline-flex min-h-9 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur ${selectedHeroImage ? "bg-black/60 text-white hover:bg-black/70" : "bg-white/75 text-neutral-700 hover:bg-white"}`}>
                 <ArrowLeft aria-hidden="true" size={14} /> Back to projects
@@ -726,20 +732,22 @@ export default async function DeveloperProjectsPage({
                   {canManageProjects && selectedProject?.lifecycle_state !== "archived" && normalizeLaunchStatus(selectedProject?.launch_status) !== "new_release" ? <form action={moveProjectStatusAction}>
                     <input type="hidden" name="projectId" value={selectedProjectId} />
                     <input type="hidden" name="status" value="new_release" />
+                    <input type="hidden" name="phaseId" value={selectedPhaseId ?? ""} />
+                    <input type="hidden" name="returnSection" value={workspaceSection} />
                     <button type="submit" className="inline-flex min-h-10 items-center rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-neutral-900 hover:border-black/30">New release</button>
                   </form> : null}
                   {!selectedReadiness?.hasHero && canManageProjects ? <a href={`/developer/projects?project=${selectedProjectId}&${projectSectionQuery("settings", { phaseId: selectedPhaseId })}&settings=1#project-media`} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-black px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800"><ImagePlus aria-hidden="true" size={15} /> Add hero media</a> : null}
                   <details className="relative">
-                    <summary aria-label="More project actions" className={`grid size-10 cursor-pointer list-none place-items-center rounded-full ${selectedHeroImage ? "bg-black/60 text-white hover:bg-black/70" : "bg-white/80 text-neutral-700 hover:bg-white"}`}><MoreHorizontal aria-hidden="true" size={18} /></summary>
+                    <summary role="button" aria-label="More project actions" className={`grid size-10 cursor-pointer list-none place-items-center rounded-full ${selectedHeroImage ? "bg-black/60 text-white hover:bg-black/70" : "bg-white/80 text-neutral-700 hover:bg-white"}`}><MoreHorizontal aria-hidden="true" size={18} /></summary>
                     <div className="absolute right-0 z-20 mt-2 w-48 rounded-2xl border border-black/10 bg-white p-2 text-xs text-neutral-700 shadow-xl">
-                      <a href={INVENTORY_TEMPLATE_PATH} download className="block rounded-xl px-3 py-2 hover:bg-neutral-50">Download inventory template</a>
-                      {canManageProjects && selectedProject?.lifecycle_state === "archived" ? <form action={restoreProjectAction}><input type="hidden" name="projectId" value={selectedProjectId} /><ConfirmSubmitButton className="w-full rounded-xl px-3 py-2 text-left text-emerald-700 hover:bg-emerald-50" confirmMessage="Restore this project to your active workspace? It will return to draft review before becoming visible again." pendingLabel="Restoring…">Restore project</ConfirmSubmitButton></form> : canManageProjects ? <form action={archiveProjectAction}><input type="hidden" name="projectId" value={selectedProjectId} /><ConfirmSubmitButton className="w-full rounded-xl px-3 py-2 text-left text-amber-700 hover:bg-amber-50" confirmMessage="Archive this project? Its inventory and leads will be retained and it will be hidden from active workspaces." pendingLabel="Archiving…">Archive project</ConfirmSubmitButton></form> : null}
+                      <a href={INVENTORY_TEMPLATE_PATH} download aria-label="Download inventory template" className="block rounded-xl px-3 py-2 hover:bg-neutral-50">Download inventory template</a>
+                      {canManageProjects && selectedProject?.lifecycle_state === "archived" ? <form action={restoreProjectAction}><input type="hidden" name="projectId" value={selectedProjectId} /><ConfirmSubmitButton ariaLabel="Restore project" className="w-full rounded-xl px-3 py-2 text-left text-emerald-700 hover:bg-emerald-50" confirmMessage="Restore this project to your active workspace? It will return to draft review before becoming visible again." pendingLabel="Restoring…">Restore project</ConfirmSubmitButton></form> : canManageProjects ? <form action={archiveProjectAction}><input type="hidden" name="projectId" value={selectedProjectId} /><ConfirmSubmitButton ariaLabel="Archive project" className="w-full rounded-xl px-3 py-2 text-left text-amber-700 hover:bg-amber-50" confirmMessage="Archive this project? Its inventory and leads will be retained and it will be hidden from active workspaces." pendingLabel="Archiving…">Archive project</ConfirmSubmitButton></form> : null}
                     </div>
                   </details>
                 </div>
               </div>
             </div>
-            <nav aria-label="Project sections" className="relative grid grid-cols-3 gap-1 border-t border-black/5 bg-white/95 p-2 text-xs font-semibold backdrop-blur sm:flex sm:overflow-x-auto">
+            <nav aria-label="Project sections" className="relative grid grid-cols-3 gap-1 rounded-b-[1.75rem] border-t border-black/5 bg-white/95 p-2 text-xs font-semibold backdrop-blur sm:flex sm:overflow-x-auto">
               {canManageProjects ? <a aria-current={workspaceSection === "overview" ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-center sm:shrink-0 ${workspaceSection === "overview" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&${projectSectionQuery("overview", { phaseId: selectedPhaseId })}#project-overview`}>Overview</a> : null}
               {canManageProjects ? <a aria-current={workspaceSection === "phases" ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-center sm:shrink-0 ${workspaceSection === "phases" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&${projectSectionQuery("phases", { phaseId: selectedPhaseId })}#project-phases`}>Phases</a> : null}
               <a aria-current={workspaceSection === "inventory" ? "page" : undefined} className={`rounded-xl px-4 py-2.5 text-center sm:shrink-0 ${workspaceSection === "inventory" ? "bg-black text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"}`} href={`/developer/projects?project=${selectedProjectId}&${projectSectionQuery("inventory", { phaseId: selectedPhaseId, inventoryView })}#project-inventory`}>Inventory</a>
@@ -780,8 +788,8 @@ export default async function DeveloperProjectsPage({
 
           {workspaceSection === "review" ? (
             <section id="project-review" className="grid scroll-mt-24 gap-4 lg:grid-cols-2" aria-label="Project review details">
-              <DeveloperPublicationFeedbackPanel projectId={selectedProjectId} feedback={projectFeedback} resolveAction={resolveFeedbackAction} />
-              <DeveloperVersionHistory projectId={selectedProjectId} versions={projectVersions} restoreAction={restoreInventoryVersionAction} />
+              <DeveloperPublicationFeedbackPanel projectId={selectedProjectId} phaseId={selectedPhaseId} feedback={projectFeedback} resolveAction={resolveFeedbackAction} />
+              <DeveloperVersionHistory projectId={selectedProjectId} phaseId={selectedPhaseId} versions={projectVersions} restoreAction={restoreInventoryVersionAction} />
             </section>
           ) : null}
 
@@ -797,7 +805,7 @@ export default async function DeveloperProjectsPage({
               </nav>
               {inventoryView === "units" ? <>
                 <DeveloperInventoryGrid
-                  key={`${selectedProjectId}:${selectedPhaseId}`}
+                  key={`${selectedProjectId}:${selectedPhaseId}:${inventoryRowsRevision}`}
                   projectId={selectedProjectId}
                   phaseId={selectedPhaseId}
                   phaseName={selectedPhase?.name ?? undefined}
@@ -836,7 +844,7 @@ export default async function DeveloperProjectsPage({
 
                 <div className="border-t border-black/5 p-4 sm:p-5">
                   <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-neutral-900">Recent changes</h3><span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">Latest {Math.min(projectActivity.length, 3)}</span></div>
-                  {projectActivity.length ? <ol className="mt-3 divide-y divide-black/5">{projectActivity.slice(0, 3).map((activity) => <li key={activity.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-neutral-800">{activity.action.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}</p><p className="mt-0.5 text-xs text-neutral-400">{activity.entity_type.replace(/_/g, " ")}</p></div><time className="shrink-0 text-[10px] text-neutral-400" dateTime={activity.created_at}>{new Date(activity.created_at).toLocaleDateString()}</time></li>)}</ol> : <p className="mt-3 rounded-2xl bg-neutral-50 p-4 text-xs text-neutral-500">No project changes recorded yet.</p>}
+                  {projectActivity.length ? <ol className="mt-3 divide-y divide-black/5">{projectActivity.slice(0, 3).map((activity) => <li key={activity.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-neutral-800">{activity.action.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}</p><p className="mt-0.5 text-xs text-neutral-400">{activity.entity_type.replace(/_/g, " ")}</p></div><time className="shrink-0 text-[10px] text-neutral-400" dateTime={activity.created_at}>{new Date(activity.created_at).toLocaleDateString("en-US", { timeZone: "Africa/Cairo" })}</time></li>)}</ol> : <p className="mt-3 rounded-2xl bg-neutral-50 p-4 text-xs text-neutral-500">No project changes recorded yet.</p>}
                 </div>
 
                 <div className="grid grid-cols-3 divide-x divide-black/5 border-t border-black/5 bg-neutral-50/70">
@@ -1737,9 +1745,10 @@ function VariantForm({
           defaultRoofAreaSqm={variant?.roof_area_sqm ?? null}
         />
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm">
+          <label htmlFor={`variant-finishing-${unitTypeId}`} className="flex flex-col gap-1 text-sm">
             <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Finishing</span>
             <select
+              id={`variant-finishing-${unitTypeId}`}
               className="rounded-2xl border border-black/10 bg-[#f8f8f8] px-4 py-3"
               name="variantFinishing"
               defaultValue={finishingValue}
@@ -2454,6 +2463,11 @@ async function moveProjectStatusAction(formData: FormData) {
   const session = await requireDeveloperCapability("manage_projects");
   const projectId = formData.get("projectId")?.toString();
   const status = normalizeLaunchStatus(formData.get("status")?.toString());
+  const phaseId = formData.get("phaseId")?.toString() || null;
+  const requestedSection = formData.get("returnSection")?.toString();
+  const returnSection: ProjectWorkspaceSection = ["overview", "phases", "inventory", "commercial", "review", "settings"].includes(requestedSection ?? "")
+    ? requestedSection as ProjectWorkspaceSection
+    : "overview";
   if (!projectId) return;
   const { data, error } = await supabaseServer
     .from("developer_projects")
@@ -2465,10 +2479,10 @@ async function moveProjectStatusAction(formData: FormData) {
     .maybeSingle();
   if (error || !data) {
     console.error("Failed to update project launch status", error);
-    redirect(`/developer/projects?project=${projectId}&error=${encodeURIComponent("Could not update the launch status. Try again.")}`);
+    redirect(`${projectWorkspaceHref(projectId, returnSection, { phaseId })}&error=${encodeURIComponent("Could not update the launch status. Try again.")}`);
   }
   revalidatePath("/developer/projects");
-  redirect(`/developer/projects?status=${status}&project=${projectId}`);
+  redirect(`${projectWorkspaceHref(projectId, returnSection, { phaseId })}&success=${encodeURIComponent("Project launch status updated. Review the project before publishing.")}`);
 }
 
 async function markPhaseNewReleaseAction(formData: FormData) {
@@ -2890,34 +2904,55 @@ function parseJsonRows(value: FormDataEntryValue | null): Array<Record<string, u
   }
 }
 
+type InventoryImportActionResult = {
+  error?: string;
+  rowErrors?: Array<{ row: number; errors: string[] }>;
+};
+
+function inventoryImportErrors(value: unknown): Array<{ row: number; errors: string[] }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry, index) => {
+    if (!entry || typeof entry !== "object") return [];
+    const item = entry as { row?: unknown; errors?: unknown };
+    const errors = Array.isArray(item.errors)
+      ? item.errors.filter((message): message is string => typeof message === "string" && Boolean(message.trim())).map((message) => message.trim())
+      : [];
+    if (!errors.length) return [];
+    const parsedRow = Number(item.row);
+    return [{ row: Number.isInteger(parsedRow) && parsedRow > 0 ? parsedRow : index + 2, errors }];
+  });
+}
+
 function inventoryActionError(projectId: string, message: string, phaseId?: string | null, inventoryView: ProjectInventoryView = "units") {
   return `${inventoryWorkspaceHref(projectId, phaseId, inventoryView)}&error=${encodeURIComponent(message)}`;
 }
 
-function reviewActionError(projectId: string, message: string) {
-  return `${projectWorkspaceHref(projectId, "review")}&error=${encodeURIComponent(message)}`;
+function reviewActionError(projectId: string, message: string, phaseId?: string | null) {
+  return `${projectWorkspaceHref(projectId, "review", { phaseId })}&error=${encodeURIComponent(message)}`;
 }
 
 async function markProjectReadyAction(formData: FormData) {
   "use server";
   const session = await requireDeveloperCapability("manage_projects");
   const projectId = formData.get("projectId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString() || null;
   if (!projectId) return;
   const result = await markDeveloperProjectReady(session.developerId, projectId, session.accountId);
-  if (result.error) redirect(reviewActionError(projectId, result.error.message));
+  if (result.error) redirect(reviewActionError(projectId, result.error.message, phaseId));
   revalidatePath("/developer/projects");
-  redirect(`${projectWorkspaceHref(projectId, "review")}&success=${encodeURIComponent("Project marked ready. Review the checklist before submitting.")}`);
+  redirect(`${projectWorkspaceHref(projectId, "review", { phaseId })}&success=${encodeURIComponent("Project marked ready. Review the checklist before submitting.")}`);
 }
 
 async function submitProjectForReviewAction(formData: FormData) {
   "use server";
   const session = await requireDeveloperCapability("manage_projects");
   const projectId = formData.get("projectId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString() || null;
   if (!projectId) return;
   const result = await submitDeveloperProjectForReview(session.developerId, projectId, session.accountId);
-  if (result.error) redirect(reviewActionError(projectId, result.error.message));
+  if (result.error) redirect(reviewActionError(projectId, result.error.message, phaseId));
   revalidatePath("/developer/projects");
-  redirect(`${projectWorkspaceHref(projectId, "review")}&success=${encodeURIComponent("Project submitted for admin review.")}`);
+  redirect(`${projectWorkspaceHref(projectId, "review", { phaseId })}&success=${encodeURIComponent("Project submitted for admin review.")}`);
 }
 
 async function bulkInventoryAction(formData: FormData) {
@@ -2939,7 +2974,7 @@ async function bulkInventoryAction(formData: FormData) {
   redirect(`${inventoryWorkspaceHref(projectId, phaseId, "units")}&success=${encodeURIComponent(dryRun ? "Dry run passed. Review the rows, then submit again in commit mode." : "Inventory rows saved as pending changes.")}`);
 }
 
-async function importInventoryRowsAction(formData: FormData) {
+async function importInventoryRowsAction(formData: FormData): Promise<void | InventoryImportActionResult> {
   "use server";
   const session = await requireDeveloperCapability("manage_inventory");
   const projectId = formData.get("projectId")?.toString();
@@ -2947,19 +2982,21 @@ async function importInventoryRowsAction(formData: FormData) {
   const rows = parseJsonRows(formData.get("rows"));
   const dryRun = formData.get("dryRun")?.toString() !== "false";
   if (!projectId || !phaseId || !rows) {
-    if (projectId) redirect(inventoryActionError(projectId, "Select a release phase and provide valid import rows.", phaseId));
-    return;
+    return { error: "Select a release phase and provide valid import rows." };
   }
   const rowIds = rows.map((row) => typeof row.id === "string" && row.id.trim() ? row.id.trim() : null);
   if (rowIds.some(Boolean) && rowIds.some((id) => !id)) {
-    redirect(inventoryActionError(projectId, "Do not mix existing inventory IDs with new import rows.", phaseId));
+    return { error: "Do not mix existing inventory IDs with new import rows." };
   }
   const result = rowIds.every(Boolean)
     ? await bulkUpdateDeveloperInventory(session.developerId, projectId, phaseId, session.accountId, rows, dryRun)
     : await importDeveloperInventoryRows(session.developerId, projectId, phaseId, session.accountId, rows, dryRun);
-  if (result.error) redirect(inventoryActionError(projectId, result.error.message, phaseId));
-  const errors = Array.isArray(result.data?.errors) ? result.data.errors.length : 0;
-  if (errors) redirect(inventoryActionError(projectId, `${errors} import row(s) failed validation. Fix the row errors and try again.`, phaseId));
+  if (result.error) return { error: result.error.message };
+  const rowErrors = inventoryImportErrors(result.data?.errors);
+  if (rowErrors.length) return {
+    error: `${rowErrors.length} import row(s) failed validation. Fix the row errors and try again.`,
+    rowErrors,
+  };
   revalidatePath("/developer/projects");
   redirect(`${inventoryWorkspaceHref(projectId, phaseId, "units")}&success=${encodeURIComponent(dryRun ? "Server dry run passed. Submit the import again in commit mode." : "Inventory imported as pending changes.")}`);
 }
@@ -3002,11 +3039,12 @@ async function restoreInventoryVersionAction(formData: FormData) {
   const session = await requireDeveloperCapability("manage_inventory");
   const projectId = formData.get("projectId")?.toString();
   const versionId = formData.get("versionId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString() || null;
   if (!projectId || !versionId) return;
   const result = await restoreDeveloperInventoryVersion(session.developerId, versionId, session.accountId);
-  if (result.error) redirect(reviewActionError(projectId, result.error.message));
+  if (result.error) redirect(reviewActionError(projectId, result.error.message, phaseId));
   revalidatePath("/developer/projects");
-  redirect(`${projectWorkspaceHref(projectId, "review")}&success=${encodeURIComponent("Version restored to a draft. Review and submit the changes again.")}`);
+  redirect(`${projectWorkspaceHref(projectId, "review", { phaseId })}&success=${encodeURIComponent("Version restored to a draft. Review and submit the changes again.")}`);
 }
 
 async function saveInventoryFilterAction(formData: FormData) {
@@ -3066,9 +3104,10 @@ async function resolveFeedbackAction(formData: FormData) {
   const session = await requireDeveloperCapability("manage_projects");
   const projectId = formData.get("projectId")?.toString();
   const feedbackId = formData.get("feedbackId")?.toString();
+  const phaseId = formData.get("phaseId")?.toString() || null;
   if (!projectId || !feedbackId) return;
   const result = await resolveDeveloperPublicationFeedback(session.developerId, feedbackId, session.accountId);
-  if (result.error) redirect(reviewActionError(projectId, result.error.message));
+  if (result.error) redirect(reviewActionError(projectId, result.error.message, phaseId));
   revalidatePath("/developer/projects");
-  redirect(`${projectWorkspaceHref(projectId, "review")}&success=${encodeURIComponent("Publication feedback marked resolved.")}`);
+  redirect(`${projectWorkspaceHref(projectId, "review", { phaseId })}&success=${encodeURIComponent("Publication feedback marked resolved.")}`);
 }

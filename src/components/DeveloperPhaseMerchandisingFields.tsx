@@ -16,8 +16,8 @@ export function DeveloperPhaseMerchandisingFields({ phase, compact = false }: { 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-sm"><span className="font-medium text-neutral-700">Sales status</span><select name="phaseSalesStatus" defaultValue={phase?.sales_status ?? "upcoming"} className={inputClass}><option value="upcoming">Upcoming</option><option value="selling">Currently selling</option><option value="sold_out">Sold out</option><option value="paused">Sales paused</option></select></label>
-        <label className="flex flex-col gap-1 text-sm"><span className="font-medium text-neutral-700">Delivery date</span><input name="phaseDeliveryDate" type="date" defaultValue={phase?.delivery_date?.slice(0, 10) ?? ""} className={inputClass} /></label>
+        <label htmlFor={`phase-sales-status-${phase?.id ?? "new"}`} className="flex flex-col gap-1 text-sm"><span className="font-medium text-neutral-700">Sales status</span><select id={`phase-sales-status-${phase?.id ?? "new"}`} name="phaseSalesStatus" defaultValue={phase?.sales_status ?? "upcoming"} className={inputClass}><option value="upcoming">Upcoming</option><option value="selling">Currently selling</option><option value="sold_out">Sold out</option><option value="paused">Sales paused</option></select></label>
+        <label htmlFor={`phase-delivery-date-${phase?.id ?? "new"}`} className="flex flex-col gap-1 text-sm"><span className="font-medium text-neutral-700">Delivery date</span><input id={`phase-delivery-date-${phase?.id ?? "new"}`} name="phaseDeliveryDate" type="date" defaultValue={phase?.delivery_date?.slice(0, 10) ?? ""} className={inputClass} /></label>
       </div>
       {compact ? (
         <details className="rounded-xl border border-black/10 bg-white/70 p-3">

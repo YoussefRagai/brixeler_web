@@ -9,6 +9,7 @@ const auth = read("src/lib/developerAuth.ts");
 const session = read("src/lib/developerSession.ts");
 const clientLayout = read("src/components/DeveloperLayoutClient.tsx");
 const profile = read("src/app/developer/profile/page.tsx");
+const teamQuery = read("src/lib/developerTeam.ts");
 
 test("developer RBAC is a closed, tenant-bound capability contract", () => {
   const rbac = read("src/lib/developerRbac.ts");
@@ -79,4 +80,14 @@ test("team lifecycle preserves admin invite compatibility and makes explicit rol
   const invites = read("src/lib/developerAccountInvites.ts");
   assert.match(invites, /developerRole\?: DeveloperRole/);
   assert.match(invites, /developer_role: params\.developerRole/);
+});
+
+test("team listing falls back to the linked Auth identity when account profile fields are empty", () => {
+  assert.match(teamQuery, /auth_user_id, email, full_name/);
+  assert.match(teamQuery, /auth\.admin\.getUserById\(row\.auth_user_id\)/);
+  assert.match(teamQuery, /normalizeDeveloperEmail\(userData\?\.user\?\.email\)/);
+  assert.match(teamQuery, /metadata\.full_name/);
+  assert.match(teamQuery, /metadata\.name/);
+  assert.match(teamQuery, /metadata\.display_name/);
+  assert.match(teamQuery, /Account profile fields can be empty/);
 });

@@ -16,6 +16,7 @@ test("editing inventory selects the affected row and invalidates the old local c
   new Function("require", "module", "exports", code)((name) => {
     if (name === "react") return {
       ...require("react"), useMemo: (fn) => fn(), useRef: (value) => ({ current: value }),
+      useActionState: (_action, initial) => [initial, () => {}, false],
       useState: (initial) => { const index = hook++; const value = typeof initial === "function" ? initial() : initial; return [value, (next) => updates.push({ index, value: typeof next === "function" ? next(value) : next })]; },
     };
     if (name === "read-excel-file/browser") return { readSheet: () => { throw new Error("Not used in this test"); } };
@@ -40,14 +41,19 @@ test("editing inventory selects the affected row and invalidates the old local c
 test("inventory saves validate on the server only as part of the commit", () => {
   assert.doesNotMatch(source, /Validate on server|Back to saving/);
   assert.match(source, /name="dryRun" value="false"/);
-  assert.match(source, /disabled=\{!phaseId \|\| Boolean\(importErrors\.length\)\}/);
+  assert.match(source, /disabled=\{!phaseId \|\| Boolean\(displayedImportErrors\.length\)\}/);
   assert.match(source, /pendingLabel="Importing…"/);
+  assert.match(source, /useActionState/);
+  assert.match(source, /At least three photos are required/);
+  assert.match(source, /Every photo must use an http\(s\) URL/);
+  assert.match(source, /name="expiresAtLocal"/);
+  assert.match(source, /normalizeDateTimeForServer/);
 });
 
 test("inventory action forms preserve the selected phase and prevent duplicate submits", () => {
   assert.match(source, /form action=\{saveFilterAction\}[\s\S]*?name="phaseId"/);
   assert.match(source, /form action=\{releaseHoldAction\}[\s\S]*?name="phaseId"/);
-  assert.match(source, /form action=\{holdAction\}[\s\S]*?name="phaseId"/);
+  assert.match(source, /form[^>]*action=\{holdAction\}[\s\S]*?name="phaseId"/);
   assert.match(source, /pendingLabel="Saving…">Save filter/);
   assert.match(source, /pendingLabel="Releasing…">Release hold/);
   assert.match(source, /pendingLabel="Creating hold…">Create hold/);

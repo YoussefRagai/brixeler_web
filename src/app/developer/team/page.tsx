@@ -23,11 +23,13 @@ export default async function DeveloperTeamPage() {
   }
 
   let members: DeveloperTeamMember[];
+  let loadError: string | null = null;
   try {
     members = await fetchDeveloperTeamMembers(session.developerId);
   } catch (error) {
     console.error("Developer team page read failed", error);
     members = [];
+    loadError = "The team could not be loaded right now.";
   }
 
   return (
@@ -36,7 +38,7 @@ export default async function DeveloperTeamPage() {
       description="Invite and manage members of this developer company."
       impersonation={impersonation}
     >
-      <DeveloperTeamManager initialMembers={members} currentAccountId={session.accountId} />
+      <DeveloperTeamManager initialMembers={members} currentAccountId={session.accountId} initialLoadError={loadError} />
     </DeveloperLayout>
   );
 }

@@ -17,6 +17,7 @@ type Props = {
   revisionStatus?: string | null;
   submissionAvailable?: boolean;
   onboarding?: boolean;
+  isDemo?: boolean;
 };
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
@@ -31,6 +32,7 @@ export function DeveloperProfileForm({
   revisionStatus,
   submissionAvailable = true,
   onboarding = false,
+  isDemo = false,
 }: Props) {
   const nameId = useId();
   const sloganId = useId();
@@ -124,7 +126,7 @@ export function DeveloperProfileForm({
             </p>
             <p className="flex items-center gap-2">
               <Check aria-hidden="true" size={14} className="text-[#d6e87a]" />
-              Visible after the revision is approved
+              {isDemo ? "Demo identity stays hidden from agents" : "Visible after the revision is approved"}
             </p>
           </div>
         </div>
@@ -221,6 +223,7 @@ export function DeveloperProfileForm({
             required={onboarding}
             currentValue={initialLogoUrl}
             onFilesSelected={handleFilesSelected}
+            onError={setUploadError}
           />
         </div>
 

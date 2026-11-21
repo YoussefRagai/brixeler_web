@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useFormStatus } from "react-dom";
 import { MobilePreviewButton } from "@/components/MobilePreviewButton";
+import { getProjectWizardDraftKey } from "@/lib/developerProjectFlow";
 
 export type ProjectWizardAction = (formData: FormData) => void | Promise<void>;
 
@@ -21,7 +22,7 @@ const steps = [
   { id: "review", label: "Review & create", hint: "Check details and save" },
 ] as const;
 
-export const PROJECT_WIZARD_DRAFT_KEY = "brixeler-project-wizard-draft-v1";
+export { getProjectWizardDraftKey, PROJECT_WIZARD_DRAFT_KEY } from "@/lib/developerProjectFlow";
 
 type DraftControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 type DraftValue = { value: string; checked?: boolean };
@@ -112,12 +113,14 @@ export function ProjectWizard({
   action,
   children,
   developerId,
+  accountId,
   existingProjectNames = [],
   draftContext = null,
 }: {
   action: ProjectWizardAction;
   children: ReactNode;
   developerId: string;
+  accountId: string;
   existingProjectNames?: string[];
   /** Optional template identity used to avoid restoring another template's draft over this one. */
   draftContext?: string | null;
@@ -130,7 +133,7 @@ export function ProjectWizard({
   const [submitLocked, setSubmitLocked] = useState(false);
   const [draftContextConflict, setDraftContextConflict] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
-  const draftKey = `${PROJECT_WIZARD_DRAFT_KEY}:${developerId}`;
+  const draftKey = getProjectWizardDraftKey(developerId, accountId);
 
   useEffect(() => {
     if (!draftMatchesContext(readLocalValue(draftKey), draftContext ?? null)) return;

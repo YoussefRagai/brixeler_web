@@ -29,3 +29,11 @@ test("project setup copy matches direct upload behavior", () => {
   assert.match(form, /Upload files now or paste URLs from the supported hosts listed below\. Save the project to attach them/);
   assert.doesNotMatch(form, /Files are sent only when you create the project/);
 });
+
+test("archive recovery keeps the archived portfolio path wired to the archive mutation", () => {
+  const page = read("../src/app/developer/projects/page.tsx");
+  assert.match(page, /archiveDeveloperProject\(session\.developerId, projectId\)/);
+  assert.match(page, /const showArchivedProjects = resolvedSearchParams\?\.status === "archived"/);
+  assert.match(page, /showArchivedProjects\s*\?\s*projects\.filter\(\(project\) => project\.lifecycle_state === "archived"\)/);
+  assert.match(page, /<DeveloperProjectPortfolioBoard projects=\{portfolioProjects\} canCreateProjects=\{canManageProjects\} archived=\{showArchivedProjects\}/);
+});

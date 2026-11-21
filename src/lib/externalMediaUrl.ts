@@ -8,6 +8,17 @@ const TRUSTED_MEDIA_HOSTS = new Set([
   "player.vimeo.com",
 ]);
 
+/** Apply the same pasted-media boundary to spreadsheet imports on the server. */
+export function inventoryImportMediaErrors(rows: Array<Record<string, unknown>>) {
+  return rows.flatMap((row, index) => {
+    const photos = Array.isArray(row.photos) ? row.photos : typeof row.photos === "string" ? row.photos.split("|").filter((value) => value.trim()) : [];
+    const urls = [...photos, ...[row.floor_plan_url, row.video_tour_url].filter((value) => value != null && value !== "")];
+    return urls.some((value) => typeof value !== "string" || !normalizeExternalMediaUrl(value))
+      ? [{ row: index + 2, errors: ["Media URLs must use HTTPS and an approved media host."] }]
+      : [];
+  });
+}
+
 function isPublicHostname(host: string) {
   if (!host.includes(".") || host.startsWith("[") || /^[\d.]+$/.test(host)) return false;
   return !["localhost", "local", "internal", "lan", "home", "test", "invalid"].some(

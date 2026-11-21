@@ -35,12 +35,20 @@ test("sales operations use a closed lead lifecycle and service-only mutations", 
 
 test("inventory operations are atomic, versioned, and publication gated", async () => {
   const migration = await read("supabase/migrations/20260830111000_developer_inventory_publication_workspace.sql");
+  const hardening = await read("supabase/migrations/20261121083326_harden_developer_inventory_contracts.sql");
   assert.match(migration, /publication_status in \('draft', 'ready', 'submitted', 'changes_requested', 'approved', 'published'\)/);
   assert.match(migration, /availability_state in \('available', 'held', 'reserved', 'contracted', 'sold', 'released'\)/);
   assert.match(migration, /developer_inventory_holds_one_active_idx/);
   assert.match(migration, /create or replace function public\.bulk_update_developer_inventory/);
   assert.match(migration, /create or replace function public\.restore_developer_inventory_version/);
   assert.match(migration, /create or replace function public\.clone_developer_project_from_template/);
+  assert.match(hardening, /rename to bulk_update_developer_inventory_partial/);
+  assert.match(hardening, /rename to import_developer_inventory_rows_partial/);
+  assert.match(hardening, /partial\([^;]+\) from public, anon, authenticated, service_role/);
+  assert.match(hardening, /errcode = 'ZX001'/);
+  assert.match(hardening, /errcode = 'ZX002'/);
+  assert.match(hardening, /create trigger properties_inherit_developer_demo_metadata/);
+  assert.match(hardening, /new\.is_demo := coalesce\(new\.is_demo, false\) or project_is_demo or developer_is_demo/);
 });
 
 test("contact PII is isolated from the project-manager project portal", async () => {

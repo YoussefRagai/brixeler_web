@@ -79,7 +79,8 @@ test("developer workspace archives nested inventory and preserves browser drafts
   assert.doesNotMatch(projectPage, /Delete this variant permanently\?/);
   assert.match(projectPage, /if \(result\?\.error\)/);
   assert.match(projectPage, /draft=clear/);
-  assert.match(projectPage, /PROJECT_WIZARD_DRAFT_KEY}:\$\{session\.developerId}/);
+  assert.match(projectPage, /getProjectWizardDraftKey\(session\.developerId, session\.accountId\)/);
+  assert.match(projectPage, /accountId=\{session\.accountId\}/);
   assert.match(projectPage, /settings=1#project-settings/);
   assert.doesNotMatch(projectPage, /section=leads#project-leads/);
   assert.doesNotMatch(projectPage, /fetchDeveloperContactRequests/);

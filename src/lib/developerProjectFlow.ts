@@ -1,6 +1,13 @@
 export type ProjectWorkspaceSection = "overview" | "phases" | "inventory" | "commercial" | "review" | "settings";
 export type ProjectInventoryView = "types" | "units";
 
+export const PROJECT_WIZARD_DRAFT_KEY = "brixeler-project-wizard-draft-v1";
+
+/** Keep browser drafts isolated across both the developer company and login account. */
+export function getProjectWizardDraftKey(developerId: string, accountId: string) {
+  return `${PROJECT_WIZARD_DRAFT_KEY}:${developerId}:${accountId}`;
+}
+
 export function databaseProjectLaunchStatus(value: "new_release" | "upcoming" | "live"): "new_launch" | "upcoming" | "live" {
   return value === "new_release" ? "new_launch" : value;
 }

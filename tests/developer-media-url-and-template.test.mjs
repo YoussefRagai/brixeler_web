@@ -1,7 +1,20 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { normalizeExternalMediaUrl } from "../src/lib/externalMediaUrl.ts";
+import { inventoryImportMediaErrors, normalizeExternalMediaUrl } from "../src/lib/externalMediaUrl.ts";
+
+test("spreadsheet imports apply the approved media boundary before database writes", () => {
+  for (const url of ["javascript:alert(1)", "http://images.unsplash.com/a.jpg", "https://images.unsplash.com.evil.example/a.jpg", "https://127.0.0.1/a.jpg"]) {
+    assert.equal(inventoryImportMediaErrors([{ photos: [url] }])[0].row, 2);
+    assert.equal(inventoryImportMediaErrors([{ floor_plan_url: url }]).length, 1);
+    assert.equal(inventoryImportMediaErrors([{ video_tour_url: url }]).length, 1);
+  }
+  assert.deepEqual(inventoryImportMediaErrors([{ photos: "https://images.unsplash.com/a.jpg|https://images.unsplash.com/b.jpg" }]), []);
+  const queries = read("../src/lib/developerQueries.ts");
+  const start = queries.indexOf("export async function importDeveloperInventoryRows(");
+  const body = queries.slice(start, queries.indexOf("export async function createDeveloperInventoryHold", start));
+  assert.ok(body.indexOf("inventoryImportMediaErrors(rows)") < body.indexOf('supabaseServer.rpc("import_developer_inventory_rows"'));
+});
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 

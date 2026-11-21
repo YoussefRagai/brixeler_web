@@ -67,10 +67,12 @@ export function DeveloperPublicationWorkflow({ projectId, phaseId, status, readi
       {canPrepare ? <div className="mt-4 flex flex-wrap justify-end gap-2">
         {status !== "ready" ? <form action={markReadyAction}>
           <input type="hidden" name="projectId" value={projectId} />
+          {phaseId ? <input type="hidden" name="phaseId" value={phaseId} /> : null}
           <ProjectWorkflowSubmitButton disabled={blocked} pendingLabel="Checking…">Mark ready</ProjectWorkflowSubmitButton>
         </form> : null}
         <form action={submitAction}>
           <input type="hidden" name="projectId" value={projectId} />
+          {phaseId ? <input type="hidden" name="phaseId" value={phaseId} /> : null}
           <ProjectWorkflowSubmitButton disabled={blocked} primary pendingLabel="Submitting…">{status === "changes_requested" ? "Resubmit for review" : "Submit for review"}</ProjectWorkflowSubmitButton>
         </form>
       </div> : null}

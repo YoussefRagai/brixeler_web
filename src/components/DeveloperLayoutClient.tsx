@@ -109,7 +109,7 @@ export function DeveloperLayoutClient({
         </div>
         <nav className="space-y-2">
           {visibleNavItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = isDeveloperNavItemActive(pathname, item.href);
             return (
               <Link
                 key={item.href}
@@ -180,7 +180,7 @@ export function DeveloperLayoutClient({
                 <div className="space-y-1">
                   <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-neutral-400">Workspace</p>
                   {visibleNavItems.map((item) => {
-                    const isActive = pathname === item.href;
+                    const isActive = isDeveloperNavItemActive(pathname, item.href);
                     return (
                       <Link
                         key={`mobile-${item.href}`}
@@ -258,4 +258,9 @@ function brandInitials(name: string) {
     .map((part) => part[0])
     .join("")
     .toUpperCase() || "BP";
+}
+
+function isDeveloperNavItemActive(pathname: string, href: string) {
+  if (href === "/developer") return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
 }

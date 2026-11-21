@@ -1,6 +1,6 @@
 import { supabaseServer } from "./supabaseServer";
 import { validateDownPaymentSchedule } from "./projectMerchandising";
-import { normalizeExternalMediaUrl } from "./externalMediaUrl";
+import { inventoryImportMediaErrors, normalizeExternalMediaUrl } from "./externalMediaUrl";
 
 type ProjectMediaPayload = Record<string, unknown> | null | undefined;
 
@@ -1271,6 +1271,8 @@ export async function importDeveloperInventoryRows(
   dryRun = true,
 ) {
   const id = assertDeveloperId(developerId);
+  const mediaErrors = inventoryImportMediaErrors(rows);
+  if (mediaErrors.length) return { data: { errors: mediaErrors, rows_saved: 0 }, error: null };
   const { data, error } = await supabaseServer.rpc("import_developer_inventory_rows", {
     p_developer_id: id,
     p_project_id: projectId,
@@ -1529,7 +1531,7 @@ export async function archiveDeveloperProject(developerId: string, projectId: st
   const id = assertDeveloperId(developerId);
   const { data, error } = await supabaseServer
     .from("developer_projects")
-    .update({ lifecycle_state: "archived", published_at: null, updated_at: new Date().toISOString() })
+    .update({ lifecycle_state: "archived", publication_status: "draft", published_at: null, updated_at: new Date().toISOString() })
     .eq("developer_id", id)
     .eq("id", projectId)
     .select("id")
@@ -1541,7 +1543,7 @@ export async function restoreDeveloperProject(developerId: string, projectId: st
   const id = assertDeveloperId(developerId);
   const { data, error } = await supabaseServer
     .from("developer_projects")
-    .update({ lifecycle_state: "draft", published_at: null, approval_status: "pending", rejection_reason: null, reviewed_by: null, reviewed_at: null, updated_at: new Date().toISOString() })
+    .update({ lifecycle_state: "draft", publication_status: "draft", published_at: null, approval_status: "pending", rejection_reason: null, reviewed_by: null, reviewed_at: null, updated_at: new Date().toISOString() })
     .eq("developer_id", id)
     .eq("id", projectId)
     .eq("lifecycle_state", "archived")

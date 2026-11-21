@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const wizard = readFileSync(new URL("../src/components/ProjectWizard.tsx", import.meta.url), "utf8");
+const draftFlow = readFileSync(new URL("../src/lib/developerProjectFlow.ts", import.meta.url), "utf8");
 const createForm = readFileSync(new URL("../src/components/DeveloperProjectCreateForm.tsx", import.meta.url), "utf8");
 
 test("project creation is a compact three-step wizard with inactive panels hidden", () => {
@@ -14,8 +15,11 @@ test("project creation is a compact three-step wizard with inactive panels hidde
   assert.match(wizard, /noValidate onSubmit={submit}/);
 });
 
-test("drafts are developer-scoped, exclude file inputs, and guard duplicate submits", () => {
-  assert.match(wizard, /PROJECT_WIZARD_DRAFT_KEY}:\$\{developerId\}/);
+test("drafts are company-and-account scoped, exclude file inputs, and guard duplicate submits", () => {
+  assert.match(wizard, /getProjectWizardDraftKey\(developerId, accountId\)/);
+  assert.match(draftFlow, /return `\$\{PROJECT_WIZARD_DRAFT_KEY\}:\$\{developerId\}:\$\{accountId\}`/);
+  assert.match(createForm, /accountId: string/);
+  assert.match(createForm, /accountId=\{accountId\}/);
   assert.match(wizard, /\["file", "submit", "button", "reset"\]\.includes\(control\.type\)/);
   assert.match(wizard, /if \(submitLocked\) \{[\s\S]*event\.preventDefault\(\)/);
   assert.match(wizard, /Uploads are never saved/);
