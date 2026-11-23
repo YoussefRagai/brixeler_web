@@ -1,5 +1,5 @@
 {
-  "file_count": 401,
+  "file_count": 414,
   "files": [
     {
       "bytes": 10244,
@@ -8,10 +8,10 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 42948,
+      "bytes": 44380,
       "path": ".context/repo_summary.md",
-      "sha256": "866bf8d9fb7f4ea5f676c55be2eb585d5f0f124ed9169c4ae40bcc5a107ba167",
-      "summary": "Compressed repository state including local developer project media work."
+      "sha256": "9addbd6f8c6a7600650f99bc7f3f9b6316a47406770403884c14bef0bee53cf1",
+      "summary": "Compressed repository state including the 2026-11-23 committed partial cleanup receipt and release handoff."
     },
     {
       "bytes": 1503,
@@ -50,10 +50,10 @@
       "summary": "# Council Protocol Use external agents for bounded, cheap, or repetitive work. Codex keeps final architecture, safety, and integration judgment."
     },
     {
-      "bytes": 20854,
+      "bytes": 22120,
       "path": "DECISIONS.md",
-      "sha256": "dd98e077c38ead022eb826c98470fc9afe0a6ff152d82ef77ed0d20be576164c",
-      "summary": "Architecture decisions, including signed project media and release state."
+      "sha256": "37c5f9ec282324c985d07739de9eb1b048b411335343ed83f38de8c666ef443f",
+      "summary": "Architecture decisions, including fail-closed cleanup ordering, retained parents, and release state."
     },
     {
       "path": "HANDOVER.md",
@@ -62,10 +62,10 @@
       "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
     },
     {
-      "bytes": 23461,
+      "bytes": 25030,
       "path": "PROJECT_MAP.md",
-      "sha256": "84f9d2efe33a78ede93724b533396a83cd551929daf9ad51365e966da62df928",
-      "summary": "Repository map and developer media/release paths."
+      "sha256": "39b9f6135d7c08d69d7926f55dea9e7b084e8b40a417e01fbcf74e93b7beab99",
+      "summary": "Repository map and current dashboard/partial-cleanup handoff paths."
     },
     {
       "bytes": 768,
@@ -80,10 +80,10 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 108761,
+      "bytes": 122220,
       "path": "TASK_LOG.md",
-      "sha256": "40ee02d249891411a4a5ff680d7498e4f20887b976a70e01a6a27e3eef5c5a1f",
-      "summary": "Task outcomes and verification history, including developer project work."
+      "sha256": "1d144386315f9442e4d24f963803e03074cd2d4f7450df21288ef29447db82ce",
+      "summary": "Task outcomes and verification history, including final safe38 cleanup receipt."
     },
     {
       "bytes": 378,
@@ -95,7 +95,7 @@
       "bytes": 1607,
       "path": "design-qa.md",
       "sha256": "0bf932cd47e172e15622eb2225b5c0f7d9222cdd31b8728012c7e20fe0253385",
-      "summary": "# Developer project portal \u00b7 Option 3 design QA"
+      "summary": "# Developer project portal · Option 3 design QA"
     },
     {
       "bytes": 8788,
@@ -2406,6 +2406,84 @@
       "path": "tsconfig.tsbuildinfo",
       "sha256": "0418bee0a9e4e63b5abe5c6bcebd2448bf4ddce9ae77f2c5b25b0519d839f795",
       "summary": "{\"fileNames\":[\"./node_modules/typescript/lib/lib.es5.d.ts\",\"./node_modules/typescript/lib/lib.es2015.d.ts\",\"./node_modules/typescript/lib/lib.es2016.d.ts\",\"./node_modules/typescript/lib/lib.es2017.d.ts\",\"./node_modules/typescript/lib/lib.es"
+    },
+    {
+      "path": "docs/developer-invite-provider-inspection-2026-11-21.md",
+      "bytes": 1879,
+      "sha256": "69ad31afa12f726181c0a5f66d532c821475729114d950421732c1ad0328b200",
+      "summary": "Verified hosted developer-invite provider correction and unchanged auth boundaries."
+    },
+    {
+      "path": "docs/demo-cleanup-release-2026-11-22.md",
+      "bytes": 3840,
+      "sha256": "757b26e3e6564a930244c5435f0bce1813e2faa4a6ed3358c50fc766135a4914",
+      "summary": "Aggregate release, partial cleanup receipt, retention, storage, and verification handoff."
+    },
+    {
+      "path": "scripts/create-demo-cleanup-backup.mjs",
+      "bytes": 7057,
+      "sha256": "896762e67f59f0805c774342cf2f8970dba0e1ab3dfa30e808265336aa61f74f",
+      "summary": "Creates an exact reviewed cleanup backup with restrictive local permissions."
+    },
+    {
+      "path": "scripts/demo-cleanup.sh",
+      "bytes": 7926,
+      "sha256": "8b73069048267077a0a0663b0c54a196e6bc0d73ac8fc8da88159851ac09b168",
+      "summary": "Requires reviewed manifest, backup, hash revalidation, and exact cleanup confirmation."
+    },
+    {
+      "path": "scripts/render-auth-identity-retirement-plan.mjs",
+      "bytes": 15685,
+      "sha256": "9f21a84a4c0c59ace9a456a9f572ad92c5780fcd6a6daadf3b5dfcdd3cd65917",
+      "summary": "Renders review-only Auth identity retirement candidates with protected unions and blockers."
+    },
+    {
+      "path": "scripts/render-demo-cleanup-sql.mjs",
+      "bytes": 16005,
+      "sha256": "09190a47e3bc0c387d359543f94a32fc6329a063bf83791148deecb865595c9e",
+      "summary": "Renders fingerprint-guarded child-first business cleanup SQL with candidate-safe blocker snapshots."
+    },
+    {
+      "path": "supabase/migrations/20261121215614_safe_demo_cleanup_workflow.sql",
+      "bytes": 35233,
+      "sha256": "a07caedc6ec8189e4b0ddea24082784640c90bf621978508c55e04f87422fbd7",
+      "summary": "Service-role-only read-only cleanup preview and conservative dependency policy."
+    },
+    {
+      "path": "supabase/migrations/20261123072926_inventory_delete_audit_fk_safety.sql",
+      "bytes": 4857,
+      "sha256": "875c150b526bb66cc27cbcc4dead3a86cab42f37c2abaf02ec21de4e67a7e652",
+      "summary": "Audit trigger fix that preserves delete snapshots while nulling stale nullable FKs."
+    },
+    {
+      "path": "supabase/tests/demo_cleanup_workflow.sql",
+      "bytes": 7347,
+      "sha256": "0300f8c3741c77f1cf9ad096f02099b9d1c6b0f5ab7bc8d2c5470b29085bbb04",
+      "summary": "Rollback-only cleanup preview contract and protected-row regression suite."
+    },
+    {
+      "path": "supabase/tests/inventory_delete_audit_fk_safety.sql",
+      "bytes": 7434,
+      "sha256": "44e50a39fb80e110541b2feca0dc7f245d698235c9af150caea5a255ec01ca82",
+      "summary": "Rollback-only audit FK regression suite covering child-first deletes and fail-closed cascades."
+    },
+    {
+      "path": "tests/auth-identity-retirement-plan.test.mjs",
+      "bytes": 6170,
+      "sha256": "cc9f47a7dfb8428a4cd5600fac87b23a8a2ba318872edf37f2028ab57aa98179",
+      "summary": "Contract tests for review-only Auth identity retirement rendering and safety boundaries."
+    },
+    {
+      "path": "tests/demo-cleanup-workflow.test.mjs",
+      "bytes": 14726,
+      "sha256": "d1d612240662f8e1090f2a2102e00852a59454faf59ef5cce75a424740a042ba",
+      "summary": "Contract tests for reviewed cleanup manifests, backup guards, SQL ordering, and Auth separation."
+    },
+    {
+      "path": "supabase/tests/demo_cleanup_blocker_snapshot.sql",
+      "bytes": 5242,
+      "sha256": "3b6c8e952ad85721023b21a5c0d8be279b4ebc9d01484e0a31be591464478590",
+      "summary": "Rollback-only sibling blocker snapshot and transaction restoration regression suite."
     }
   ],
   "generated_by": "codex-init",

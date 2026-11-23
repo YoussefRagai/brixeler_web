@@ -1,5 +1,11 @@
 # Repo Summary: brixeler-web
 
+## 2026-11-23 final cleanup receipt
+
+- Dashboard template/feedback source `49e8bff` remains the released app snapshot; hosted invite correction was verified separately and no new app/mobile deployment is part of this handoff.
+- Canonical migrations `20261121215614_safe_demo_cleanup_workflow.sql` and `20261123072926_inventory_delete_audit_fk_safety.sql` are live and root-validated with rollback-only SQL coverage. After fail-closed review, the final conservative business transaction committed 38 rows across 17 groups. Readback found 38/38 candidates absent, 32/32 protected business rows unchanged, 7 admins, 11 profiles, and 26 protected Auth IDs intact; 81 business rows remain: 49 FK-blocked, 24 operator-retained (one company plus 23 inventory), and 8 recent/unknown. Auth remains one supported-API deletion with two blocked super-admin memberships; Storage deletion remains 0 with 135 objects preserved. This is a partial cleanup result with no blanket all-old-data-removed claim.
+- Auth receipt remains one supported-Admin-API deletion with 7 admins, 11 mobile profiles, and protected Auth union 26 intact; two old super-admin memberships remain blocked. Storage deletion remains 0, with 135 objects preserved and 26 ambiguous developer-media objects awaiting attribution and byte-level backup. Focused cleanup/identity tests pass 7/7 and the full JavaScript suite passes 191/191. No blanket demo-cleanup-complete claim.
+
 ## 2026-11-19 current admin patch verification
 
 - The local-only admin access patch remains uncommitted and undeployed: `20261117194804_admin_access_scope.sql`, `supabase/tests/admin_access_scope.sql`, and `supabase/tests/agent_access_restore.sql`. The companion coverage report is `docs/admin-action-sweep-2026-11-17.md`; the production browser boundary remains documented in `docs/admin-live-sweep-2026-11-17.md`.

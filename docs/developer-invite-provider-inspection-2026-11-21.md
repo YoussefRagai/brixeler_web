@@ -2,22 +2,16 @@
 
 ## Scope
 
-Read-only inspection of the Brixeler Supabase Auth invite configuration. No
-email was sent, no invitation was created, and no provider or production
-configuration was changed.
+Inspection and minimal provider correction of the Brixeler Supabase Auth invite
+configuration. No email was sent and no invitation was created.
 
 ## Surface reached
 
 - The infrastructure skill identifies the authoritative project as Supabase
   project `Brixeler`, ref `zihysavpjeyurshpohqf`.
-- The stored infrastructure Supabase access token is present but rejected as
-  invalid by the Supabase CLI.
-- The Supabase Dashboard Auth → Email Templates URL redirected to sign-in.
-  The ChatGPT account chooser showed stored Youssef Ragai profiles, but the
-  user confirmed those accounts are not the Brixeler Supabase account. No
-  verification code was accessed or entered, and account guessing stopped.
-- The project data-plane endpoint exposes general Auth settings only; it does
-  not expose the hosted email-template HTML or management redirect allowlist.
+- The verified existing Safari session reached the Brixeler Supabase Auth
+  Emails → Invite user surface. No account guessing, sign-in, verification
+  code, or new access grant was used.
 
 ## Repository evidence
 
@@ -29,27 +23,21 @@ repository.
 
 The repository now canonicalizes known Brixeler portal aliases to
 `https://admin.brixeler.com/developer/accept`, preserving the developer ID,
-name, and email query parameters. This verifies the app-supplied redirect
-contract but cannot prove the current hosted Invite template body.
+name, and email query parameters. The hosted provider receipt below verifies
+the complementary Invite-template body and redirect configuration.
 
-## Provider change pending verified access
+## Verified provider change
 
-Do not apply until the matching Brixeler Supabase account is available and the
-current values are captured:
+Only the displayed `{{ .SiteURL }}` occurrence in the Invite user sentence was
+replaced with the literal `https://admin.brixeler.com`.
 
-1. Auth → URL Configuration: add the exact redirect URL
-   `https://admin.brixeler.com/developer/accept`; do not change the shared
-   mobile/app Site URL.
-2. Auth → Email Templates → Invite user: preserve the existing copy and
-   metadata, but replace only any hardcoded apex CTA/URL with a token-preserving
-   CTA such as:
-
-   ```html
-   <a href="{{ .ConfirmationURL }}">Accept developer invitation</a>
-   ```
-
-   The body sentence should name `https://admin.brixeler.com/developer`.
-3. Do not change the shared Reset Password template, SMTP sender, or unrelated
-   mobile auth wording.
-4. Render/preview the Invite template and verify the generated URL retains the
-   token/code and lands on `/developer/accept`; do not send a live invitation.
+- The CTA remains token-preserving: `<a href="{{ .ConfirmationURL }}">`.
+- Subject, heading, CTA label, SMTP settings, shared Site URL
+  (`https://brixeler.com`), Reset Password, and the other templates were
+  unchanged.
+- The eight existing redirect entries were unchanged.
+- Save, reload, and provider preview showed the literal admin domain and
+  preserved the `{{ .ConfirmationURL }}` placeholder. No invitation or email
+  was sent.
+- Mode-600 rollback/readback evidence is retained privately at
+  `.local/provider-20261121/invite-template-change.md`.
