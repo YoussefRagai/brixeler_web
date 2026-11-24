@@ -34,7 +34,7 @@ test("signed uploads require bounded Storage limits and exact MIME allowlists", 
 });
 
 test("the additive bucket migration raises only general media limits", () => {
-  const migration = read("../supabase/migrations/20261124215507_increase_developer_media_bucket_limits.sql");
+  const migration = read("../supabase/migrations/20261124220551_increase_developer_media_bucket_limits.sql");
   assert.match(migration, /developer-project-brochures/);
   assert.match(migration, /developer-project-voice-notes/);
   assert.match(migration, /file_size_limit\s*=\s*52428800/);

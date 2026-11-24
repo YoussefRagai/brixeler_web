@@ -1,10 +1,10 @@
 # Repo Summary: brixeler-web
 
-## 2026-11-24 Developer upload limit patch (local, pending rollout)
+## 2026-11-25 Developer upload limit release receipt
 
 - `src/lib/storageUploadRules.mjs` is the shared browser/server-safe upload contract. General developer brochures and voice notes are 50 MiB; project/unit images are 10 MiB; logos/icons are 5 MiB; project videos remain 100 MiB. The signed route uses direct Supabase uploads and requires a bounded Storage limit no looser than the rule, while `DeveloperMediaField` rejects oversized picker/drop files before signing. All current media field names are explicitly mapped.
-- Additive migration `supabase/migrations/20261124215507_increase_developer_media_bucket_limits.sql` raises only brochures and voice notes to 52,428,800 bytes and preserves existing MIME allowlists and stricter type-specific limits. Live read-only baseline before rollout remains brochures/voice 25 MiB, images 10 MiB, videos 100 MiB, with logos/unit-image bucket limits requiring separate verification; no live write or deployment occurred. Roll out app code first, then the Storage migration, so the new bounded signer remains compatible with the existing stricter buckets throughout the transition.
-- Focused upload tests pass 5/5, typecheck passes, lint has no errors and six pre-existing warnings, and the parent full release gate passes 193/193 with build/diff checks. An isolated temporary PostgreSQL fixture applied the actual migration and confirmed target-only size changes plus MIME preservation; it was not a full Supabase replay. Live migration and bucket readback remain coordinated rollout gates.
+- App source `149121e` was deployed first as Railway deployment `38ba7675-7e91-4765-9847-de9bdb2f9506`; the additive migration was then applied via canonical Supabase MCP as ledger version `20261124220551`. Live readback confirms brochures/voice notes `52428800`, images `10485760`, videos `104857600`, and unchanged MIME allowlists. Public developer login returned 200 and admin login returned 307. No real authenticated boundary upload has been performed yet.
+- Focused upload tests pass 5/5, typecheck passes, lint has no errors and six pre-existing warnings, and the parent full release gate passes 193/193 with build/diff checks. An isolated temporary PostgreSQL fixture applied the actual migration and confirmed target-only size changes plus MIME preservation; it was not a full Supabase replay. No further production writes occurred.
 
 ## 2026-11-23 final cleanup receipt
 

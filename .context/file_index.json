@@ -8,10 +8,10 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 45771,
+      "bytes": 45746,
       "path": ".context/repo_summary.md",
-      "sha256": "fe0396696303e3d1b9757ea033ca3f0aa125e22a57c66e0a0b838ea08fe84141",
-      "summary": "Compressed repository state including the 2026-11-24 local upload-limit patch and 2026-11-23 partial cleanup receipt."
+      "sha256": "643cba729aa4c6148f68bf586d4ca00a4872ab37d517c65107e51716128c05ca",
+      "summary": "Compressed repository state including the 2026-11-25 upload-limit release receipt and 2026-11-23 partial cleanup receipt."
     },
     {
       "bytes": 1503,
@@ -62,10 +62,10 @@
       "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
     },
     {
-      "bytes": 25367,
+      "bytes": 25366,
       "path": "PROJECT_MAP.md",
-      "sha256": "2f95db873577abb73b520e95724f5b9c9ce2b0c26d8f19753e93033e51d52c13",
-      "summary": "Repository map including the shared upload-limit contract and current dashboard/partial-cleanup handoff paths."
+      "sha256": "5c3238fa08feb4cacd6ad63a4deccc5d6240d1efd0237a1269a1a56956c49a58",
+      "summary": "Repository map including the released shared upload-limit contract and current dashboard/partial-cleanup handoff paths."
     },
     {
       "bytes": 768,
@@ -80,10 +80,10 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 124378,
+      "bytes": 125644,
       "path": "TASK_LOG.md",
-      "sha256": "18abad8cb7f820b0e4618b1284c6857223cd1f10735e757fcbd21ba7e3327b00",
-      "summary": "Task outcomes and verification history, including the 2026-11-24 upload-limit patch and final safe38 cleanup receipt."
+      "sha256": "b415dea45e839ee1a8b39b367756e8d4b6292f242d2c885ab9fc5d89d8613316",
+      "summary": "Task outcomes and verification history, including the 2026-11-25 upload-limit release receipt and final safe38 cleanup receipt."
     },
     {
       "bytes": 378,
@@ -2109,7 +2109,7 @@
     },
     {
       "bytes": 279,
-      "path": "supabase/migrations/20261124215507_increase_developer_media_bucket_limits.sql",
+      "path": "supabase/migrations/20261124220551_increase_developer_media_bucket_limits.sql",
       "sha256": "8c6b3b2919aa32fcc134cfc3c5717ffbf56edf7e6e61c7d1148187e39f32add1",
       "summary": "Raises brochure and voice-note Storage limits to 50 MiB without changing MIME or stricter type limits."
     },
@@ -2356,7 +2356,7 @@
     {
       "bytes": 4677,
       "path": "tests/project-media-upload.test.mjs",
-      "sha256": "bb498bbc4e098f960fac38d4da16b930cdaca9fba4a78b726d0fe9e39fcd6785",
+      "sha256": "7d9b0dca47e3b76892aa3d2d2caa5eee6f7adea5b463b7e17abca206600fcdf1",
       "summary": "Project media per-bucket limits, signer safety, migration scope, preflight and draft regression tests."
     },
     {
