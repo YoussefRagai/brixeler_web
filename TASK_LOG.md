@@ -1,5 +1,11 @@
 # Task Log
 
+## 2026-11-25 — Final exact developer cleanup receipt
+
+- After a rollback-only rehearsal exposed two agent-owned properties linked through target project/phase parents, root reran the guarded canonical Supabase transaction with the graph correction. The exact 12-company complement was removed: 12 developer rows, 9 memberships, 21 projects, 25 phases, 20 unit types, 2 variants, and 10 company-owned properties. Two agent-owned properties were retained; their full rows and all non-parent fields remained unchanged apart from the expected automatic `updated_at` timestamp, with only `project_id`/`phase_id` nulled to detach removed parents. Six non-demo target memberships used the designed service-role flag-only path for the valid prelaunch batch.
+- Final readback shows only the two exact protected companies, 2 protected memberships, 3 projects, and 3 phases; 7 central admins and 11 mobile profiles remain. The 9 target memberships reconciled to 9 distinct Auth IDs: one mobile-linked identity was retained, and 8 exclusive identities were retired one at a time through the supported Auth Admin API `deleteUser` boundary after fresh preservation checks. No direct `auth.*` SQL delete, trigger/FK disablement, persistent grant, or unrelated app change occurred.
+- The transaction passed 148 protected business fingerprints, full 11-profile/7-admin row checks, retained-property checks, and `expected_updated_at` guards. Storage was intentionally not deleted: 83 target-related object bytes (60,788,829 bytes) were privately backed up and SHA-256 verified; shared-reference ownership review remains separate. Private recovery material is outside Git at `.local/developer-cleanup-20261124/`, mode 0700/0600, with backup SHA-256 `d870f618cc9e8a601996557a8c7f5dd0c4d463f4994881058ce33748cf25029f`. Auth recovery requires supported provider recreation and explicit membership remapping; database row/object restore should be staged in an isolated project first.
+
 ## 2026-11-25 — Developer media upload-limit release receipt
 
 - Source `149121e` was committed/pushed to `main` and deployed app-first as Railway deployment `38ba7675-7e91-4765-9847-de9bdb2f9506`; Safari verified the deployment active and successful. The app-first order kept existing 25 MiB bucket uploads usable because the bounded signer accepts stricter configured limits.

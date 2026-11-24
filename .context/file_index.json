@@ -8,10 +8,10 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 45746,
+      "bytes": 47253,
       "path": ".context/repo_summary.md",
-      "sha256": "643cba729aa4c6148f68bf586d4ca00a4872ab37d517c65107e51716128c05ca",
-      "summary": "Compressed repository state including the 2026-11-25 upload-limit release receipt and 2026-11-23 partial cleanup receipt."
+      "sha256": "2abad7e1c064d85e1da3318a7461b21941656c176c3a074c3eb9d73c491035d3",
+      "summary": "Compressed repository state including the 2026-11-25 final exact developer cleanup and upload-limit release receipts."
     },
     {
       "bytes": 1503,
@@ -80,10 +80,10 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 125644,
+      "bytes": 127609,
       "path": "TASK_LOG.md",
-      "sha256": "b415dea45e839ee1a8b39b367756e8d4b6292f242d2c885ab9fc5d89d8613316",
-      "summary": "Task outcomes and verification history, including the 2026-11-25 upload-limit release receipt and final safe38 cleanup receipt."
+      "sha256": "843e5661025ffc7f6d6422a2fd2feedaf4e2fb08e493c806cf64c8cb02808552",
+      "summary": "Task outcomes and verification history, including the 2026-11-25 final exact developer cleanup and upload-limit release receipts."
     },
     {
       "bytes": 378,

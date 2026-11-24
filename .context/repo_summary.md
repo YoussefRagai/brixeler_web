@@ -1,5 +1,11 @@
 # Repo Summary: brixeler-web
 
+## 2026-11-25 final exact developer cleanup receipt
+
+- Root completed the exact canonical cleanup after a rollback-only FK rehearsal and graph correction. The 12 non-protected developer rows, 9 memberships, 21 projects, 25 phases, 20 unit types, 2 variants, and 10 company-owned properties were removed. Two agent-owned properties were retained with full-row checks; only their removed project/phase references were nulled, apart from the expected automatic `updated_at` timestamp. Six non-demo target memberships used the designed service-role flag-only path for the valid prelaunch batch.
+- Final live counts: two protected developer companies, 2 memberships, 3 projects, 3 phases, 7 central admins, and 11 mobile profiles. Auth reconciliation was 9 target Auth IDs: one mobile-linked identity retained and 8 exclusive identities retired through supported `deleteUser`, with per-identity preservation checks. No direct Auth SQL, trigger/FK bypass, persistent grant, or app change.
+- Protected business fingerprints (148), all profile/admin full rows, retained-property invariants, and timestamp guards passed. Storage deletion is 0; 83 object bytes (60,788,829 bytes) were SHA-256 verified in the private mode-0700/0600 recovery directory `.local/developer-cleanup-20261124/` (backup digest `d870f618cc9e8a601996557a8c7f5dd0c4d463f4994881058ce33748cf25029f`). Storage shared-reference review and any restore remain separate; Auth recovery requires provider recreation plus explicit membership remapping.
+
 ## 2026-11-25 Developer upload limit release receipt
 
 - `src/lib/storageUploadRules.mjs` is the shared browser/server-safe upload contract. General developer brochures and voice notes are 50 MiB; project/unit images are 10 MiB; logos/icons are 5 MiB; project videos remain 100 MiB. The signed route uses direct Supabase uploads and requires a bounded Storage limit no looser than the rule, while `DeveloperMediaField` rejects oversized picker/drop files before signing. All current media field names are explicitly mapped.
