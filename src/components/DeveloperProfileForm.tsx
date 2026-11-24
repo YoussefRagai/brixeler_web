@@ -75,7 +75,7 @@ export function DeveloperProfileForm({
       setUploadError(
         !allowedLogoTypes.has(file.type)
           ? "Choose a PNG, JPG, or WebP image."
-          : "Choose an image smaller than 5 MB.",
+          : "Choose an image smaller than 5 MiB.",
       );
       return;
     }
@@ -231,7 +231,7 @@ export function DeveloperProfileForm({
 
           <DeveloperMediaField
             label={onboarding ? "Company logo" : "Company logo (optional)"}
-            description={onboarding ? "Required to unlock the workspace. Upload a PNG, JPG, or WebP logo up to 5 MB." : "Upload a PNG, JPG, or WebP logo up to 5 MB. The current logo stays in place when you submit without a new file."}
+            description={onboarding ? "Required to unlock the workspace. Upload a PNG, JPG, or WebP logo up to 5 MiB." : "Upload a PNG, JPG, or WebP logo up to 5 MiB. The current logo stays in place when you submit without a new file."}
             fileName="logo_file"
             urlName="logo_url"
             urlLabel="Or paste a supported logo URL"

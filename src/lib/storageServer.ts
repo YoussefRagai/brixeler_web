@@ -1,4 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { formatUploadSize, getStorageUploadRule } from "./storageUploadRules.mjs";
+
+export { DEFAULT_UPLOAD_MAX_BYTES, STORAGE_UPLOAD_RULES } from "./storageUploadRules.mjs";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -133,23 +136,7 @@ export const uploadContentType = (file: Pick<File, "name" | "type">) =>
     ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     : undefined);
 
-const uploadRules: Record<string, { maxBytes: number; mimeTypes: string[]; extensions?: string[] }> = {
-  [STORAGE_BUCKETS.developerLogos]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
-  [STORAGE_BUCKETS.projectImages]: { maxBytes: 10 * 1024 * 1024, mimeTypes: ["image/*"] },
-  [STORAGE_BUCKETS.projectUnitImages]: { maxBytes: 10 * 1024 * 1024, mimeTypes: ["image/*"] },
-  [STORAGE_BUCKETS.projectBrochures]: {
-    maxBytes: 25 * 1024 * 1024,
-    mimeTypes: ["application/pdf", "image/*", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
-    extensions: ["xlsx"],
-  },
-  [STORAGE_BUCKETS.projectVoiceNotes]: { maxBytes: 25 * 1024 * 1024, mimeTypes: ["audio/*"] },
-  [STORAGE_BUCKETS.projectVideos]: { maxBytes: 100 * 1024 * 1024, mimeTypes: ["video/*"] },
-  [STORAGE_BUCKETS.badgeIcons]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
-  [STORAGE_BUCKETS.tierIcons]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
-  [STORAGE_BUCKETS.giftIcons]: { maxBytes: 5 * 1024 * 1024, mimeTypes: ["image/*"] },
-};
-
-function isAllowedMimeType(file: Pick<File, "name" | "type">, rule: (typeof uploadRules)[string]) {
+function isAllowedMimeType(file: Pick<File, "name" | "type">, rule: NonNullable<ReturnType<typeof getStorageUploadRule>>) {
   const mimeType = file.type.toLowerCase();
   if (rule.mimeTypes.some((allowed) => allowed.endsWith("/*") ? mimeType.startsWith(allowed.slice(0, -1)) : mimeType === allowed)) {
     return true;
@@ -159,10 +146,10 @@ function isAllowedMimeType(file: Pick<File, "name" | "type">, rule: (typeof uplo
 }
 
 export function validateStorageUpload(bucket: string, file: Pick<File, "name" | "type" | "size">) {
-  const rule = uploadRules[bucket];
+  const rule = getStorageUploadRule(bucket);
   if (!rule) throw new Error("Uploads are not enabled for this storage bucket.");
   if (file.size <= 0 || file.size > rule.maxBytes) {
-    throw new Error(`File is too large. Maximum allowed size is ${Math.floor(rule.maxBytes / (1024 * 1024))} MB.`);
+    throw new Error(`File is too large. Maximum allowed size is ${formatUploadSize(rule.maxBytes)}.`);
   }
   if (!isAllowedMimeType(file, rule)) throw new Error("File type is not allowed for this upload.");
 }

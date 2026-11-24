@@ -1,5 +1,5 @@
 {
-  "file_count": 414,
+  "file_count": 416,
   "files": [
     {
       "bytes": 10244,
@@ -8,10 +8,10 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 44380,
+      "bytes": 45771,
       "path": ".context/repo_summary.md",
-      "sha256": "9addbd6f8c6a7600650f99bc7f3f9b6316a47406770403884c14bef0bee53cf1",
-      "summary": "Compressed repository state including the 2026-11-23 committed partial cleanup receipt and release handoff."
+      "sha256": "fe0396696303e3d1b9757ea033ca3f0aa125e22a57c66e0a0b838ea08fe84141",
+      "summary": "Compressed repository state including the 2026-11-24 local upload-limit patch and 2026-11-23 partial cleanup receipt."
     },
     {
       "bytes": 1503,
@@ -50,9 +50,9 @@
       "summary": "# Council Protocol Use external agents for bounded, cheap, or repetitive work. Codex keeps final architecture, safety, and integration judgment."
     },
     {
-      "bytes": 22120,
+      "bytes": 22881,
       "path": "DECISIONS.md",
-      "sha256": "37c5f9ec282324c985d07739de9eb1b048b411335343ed83f38de8c666ef443f",
+      "sha256": "74b2f8d874e489e2e1d2b08a37c474d46274f0901318262285930aafc7b24668",
       "summary": "Architecture decisions, including fail-closed cleanup ordering, retained parents, and release state."
     },
     {
@@ -62,10 +62,10 @@
       "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
     },
     {
-      "bytes": 25030,
+      "bytes": 25367,
       "path": "PROJECT_MAP.md",
-      "sha256": "39b9f6135d7c08d69d7926f55dea9e7b084e8b40a417e01fbcf74e93b7beab99",
-      "summary": "Repository map and current dashboard/partial-cleanup handoff paths."
+      "sha256": "2f95db873577abb73b520e95724f5b9c9ce2b0c26d8f19753e93033e51d52c13",
+      "summary": "Repository map including the shared upload-limit contract and current dashboard/partial-cleanup handoff paths."
     },
     {
       "bytes": 768,
@@ -80,10 +80,10 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 122220,
+      "bytes": 124378,
       "path": "TASK_LOG.md",
-      "sha256": "1d144386315f9442e4d24f963803e03074cd2d4f7450df21288ef29447db82ce",
-      "summary": "Task outcomes and verification history, including final safe38 cleanup receipt."
+      "sha256": "18abad8cb7f820b0e4618b1284c6857223cd1f10735e757fcbd21ba7e3327b00",
+      "summary": "Task outcomes and verification history, including the 2026-11-24 upload-limit patch and final safe38 cleanup receipt."
     },
     {
       "bytes": 378,
@@ -656,10 +656,10 @@
       "summary": "import { NextResponse, type NextRequest } from \"next/server\"; import { logAdminActivity } from \"@/lib/adminQueries\"; import {"
     },
     {
-      "bytes": 3755,
+      "bytes": 3443,
       "path": "src/app/api/developer/project-media/sign/route.ts",
-      "sha256": "225efc9c61d1e1fc4225a9f6c5adabd2797997dca045a89c970ad10dac3dbad9",
-      "summary": "Authenticated signed project media upload; fails closed until bucket limits exist."
+      "sha256": "b4e12660e6c1b8704af45457764838808d50bb01f63b96e06e48ceef94d8334f",
+      "summary": "Authenticated signed project media upload with bounded Storage byte and exact MIME checks."
     },
     {
       "bytes": 546,
@@ -1136,10 +1136,10 @@
       "summary": "\"use client\"; import { useEffect, useRef, useState } from \"react\";"
     },
     {
-      "bytes": 10724,
+      "bytes": 11531,
       "path": "src/components/DeveloperMediaField.tsx",
-      "sha256": "82fa66d49aca41b4a419a283ad2a4285edf8087a28b57a653a4f15b7e12f1d26",
-      "summary": "Direct signed upload for project and phase fields with URL fallback."
+      "sha256": "24e225a294bc6049f1700f939aa70812c76fabd3a99652ceb113e25634c3c42a",
+      "summary": "Direct signed project/phase upload with shared per-field MiB preflight and URL fallback."
     },
     {
       "bytes": 5568,
@@ -1166,9 +1166,9 @@
       "summary": "import type { DeveloperPropertyPriceHistory } from \"@/lib/developerQueries\"; export function DeveloperPriceHistoryPanel({ history }: { history: DeveloperPropertyPriceHistory[] }) {"
     },
     {
-      "bytes": 12483,
+      "bytes": 13479,
       "path": "src/components/DeveloperProfileForm.tsx",
-      "sha256": "99ec8595f22191671323df5e912d43b59871f3a47ee2f936f06529ae58440333",
+      "sha256": "9e6414df18752d885e673e5457b33b947a47232a06f38ae2517cd185eb80f5bc",
       "summary": "\"use client\"; import { useEffect, useId, useState } from \"react\";"
     },
     {
@@ -1670,10 +1670,16 @@
       "summary": "import type { NextRequest } from \"next/server\"; export function getRequestBaseUrl(request: NextRequest) {"
     },
     {
-      "bytes": 7337,
+      "bytes": 6482,
       "path": "src/lib/storageServer.ts",
-      "sha256": "94fd948a35568dbd84b3a383470ea733fd1535f794dc9b0745f72921a9a2b7d6",
-      "summary": "Storage upload validation and content-type normalization."
+      "sha256": "f47ab311f9deb730df1b0369a02526d92f2aa703fa363f69fb1b8728b80711a2",
+      "summary": "Storage upload validation using shared per-bucket byte and MIME rules."
+    },
+    {
+      "bytes": 2955,
+      "path": "src/lib/storageUploadRules.mjs",
+      "sha256": "e1cc1e2f11bd6470871ec112ad5d7109f7966610c1e3bfb0d2869a75c20e2059",
+      "summary": "Browser/server-safe per-bucket and DeveloperMediaField upload size/MIME rules."
     },
     {
       "bytes": 1926,
@@ -2102,6 +2108,12 @@
       "summary": "Storage byte and MIME limits for signed project media uploads."
     },
     {
+      "bytes": 279,
+      "path": "supabase/migrations/20261124215507_increase_developer_media_bucket_limits.sql",
+      "sha256": "8c6b3b2919aa32fcc134cfc3c5717ffbf56edf7e6e61c7d1148187e39f32add1",
+      "summary": "Raises brochure and voice-note Storage limits to 50 MiB without changing MIME or stricter type limits."
+    },
+    {
       "path": "supabase/migrations/20261111141109_agent_lifetime_resume.sql",
       "summary": "Current implementation or regression contract; see TASK_LOG.md.",
       "bytes": 10105,
@@ -2342,10 +2354,10 @@
       "sha256": "b94fd3543825bc10a50c8f63e232c5226ce468e9dbb639904834f98a7a783a91"
     },
     {
-      "bytes": 2353,
+      "bytes": 4677,
       "path": "tests/project-media-upload.test.mjs",
-      "sha256": "7f738cf726f290b51e1f8d71c84db528560b3a9d48079440d26a6cdbf7f03e6d",
-      "summary": "Project media validation, signer safety and draft regression tests."
+      "sha256": "bb498bbc4e098f960fac38d4da16b930cdaca9fba4a78b726d0fe9e39fcd6785",
+      "summary": "Project media per-bucket limits, signer safety, migration scope, preflight and draft regression tests."
     },
     {
       "bytes": 2030,

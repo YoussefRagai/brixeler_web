@@ -2,11 +2,14 @@
 
 import { useEffect, useId, useRef, useState, type Ref } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { DEVELOPER_MEDIA_FIELD_MAX_BYTES, formatUploadSize, maxBytesForDeveloperMediaField } from "@/lib/storageUploadRules.mjs";
+
+type DeveloperMediaFieldName = keyof typeof DEVELOPER_MEDIA_FIELD_MAX_BYTES;
 
 type DeveloperMediaFieldProps = {
   label: string;
   description?: string;
-  fileName: string;
+  fileName: DeveloperMediaFieldName;
   urlName?: string;
   urlLabel?: string;
   accept: string;
@@ -56,6 +59,7 @@ export function DeveloperMediaField({
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [dropError, setDropError] = useState("");
+  const maxFileBytes = maxBytesForDeveloperMediaField(fileName);
 
   useEffect(() => {
     if (!directUpload) return;
@@ -78,6 +82,14 @@ export function DeveloperMediaField({
       const message = "That file type is not supported here.";
       setDropError(message);
       onError?.(message);
+      return;
+    }
+    const oversized = allowed.filter((file) => file.size > maxFileBytes);
+    if (oversized.length) {
+      const message = `${oversized.length === 1 ? "This file is" : "These files are"} too large. Maximum allowed size is ${formatUploadSize(maxFileBytes)}.`;
+      setDropError(message);
+      onError?.(message);
+      if (inputRef.current) inputRef.current.value = "";
       return;
     }
     const selected = multiple ? allowed : allowed.slice(0, 1);
@@ -200,8 +212,8 @@ export function DeveloperMediaField({
           className="sr-only"
         />
       </label>
-      <p aria-live="polite" data-media-uploading={uploading ? "true" : undefined} className={`mt-2 text-xs ${dropError.startsWith("Upload failed") || dropError.startsWith("Wait") ? "text-rose-700" : "text-neutral-600"}`}>
-        {dropError || (currentValue ? `Current file: ${currentValue}` : `Accepted: ${accept}`)}
+      <p aria-live="polite" data-media-uploading={uploading ? "true" : undefined} className={`mt-2 text-xs ${dropError.startsWith("Upload failed") || dropError.startsWith("Wait") || dropError.includes("too large") ? "text-rose-700" : "text-neutral-600"}`}>
+        {dropError || (currentValue ? `Current file: ${currentValue} · Maximum ${formatUploadSize(maxFileBytes)}` : `Accepted: ${accept} · Maximum ${formatUploadSize(maxFileBytes)}`)}
       </p>
       {urlName ? (
         <label className="mt-4 block">

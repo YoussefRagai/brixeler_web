@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DeveloperCapabilityError, requireDeveloperCapability } from "@/lib/developerAuth";
 import { STORAGE_BUCKETS, storageServer, validateStorageUpload } from "@/lib/storageServer";
+import { getStorageUploadRule } from "@/lib/storageUploadRules.mjs";
 
 const fieldBuckets: Record<string, string> = {
   project_logo: STORAGE_BUCKETS.projectImages,
@@ -13,13 +14,6 @@ const fieldBuckets: Record<string, string> = {
   phaseHeroImage: STORAGE_BUCKETS.projectImages,
   phaseMasterplan: STORAGE_BUCKETS.projectBrochures,
 };
-const bucketLimits: Record<string, { bytes: number; mimeTypes: string[] }> = {
-  [STORAGE_BUCKETS.projectImages]: { bytes: 10 * 1024 * 1024, mimeTypes: ["image/*"] },
-  [STORAGE_BUCKETS.projectBrochures]: { bytes: 25 * 1024 * 1024, mimeTypes: ["application/pdf", "image/*", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] },
-  [STORAGE_BUCKETS.projectVoiceNotes]: { bytes: 25 * 1024 * 1024, mimeTypes: ["audio/*"] },
-  [STORAGE_BUCKETS.projectVideos]: { bytes: 100 * 1024 * 1024, mimeTypes: ["video/*"] },
-};
-
 export async function POST(request: Request) {
   try {
     const session = await requireDeveloperCapability("manage_projects");
@@ -37,12 +31,14 @@ export async function POST(request: Request) {
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid file." }, { status: 400 });
     }
-    // A signed token lets the browser choose the actual bytes. Refuse to sign
-    // until the bucket itself enforces the same limits as the metadata check.
+    // A signed token lets the browser choose the actual bytes. Require a
+    // bounded bucket that is no looser than the application rule. A stricter
+    // live bucket remains safe during rollout; the metadata check still keeps
+    // the application contract at the intended per-file maximum.
     const { data: bucketConfig, error: bucketError } = await storageServer.storage.getBucket(bucket);
-    const limit = bucketLimits[bucket];
+    const limit = getStorageUploadRule(bucket);
     if (bucketError || !bucketConfig || !limit ||
-      !bucketConfig.file_size_limit || bucketConfig.file_size_limit > limit.bytes ||
+      !bucketConfig.file_size_limit || bucketConfig.file_size_limit > limit.maxBytes ||
       !bucketConfig.allowed_mime_types ||
       bucketConfig.allowed_mime_types.length !== limit.mimeTypes.length ||
       !limit.mimeTypes.every((mimeType) => bucketConfig.allowed_mime_types?.includes(mimeType))) {
