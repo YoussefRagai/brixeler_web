@@ -42,3 +42,9 @@ test("empty inventory creates a phase first and shared-detail links retain conte
   assert.match(projectSetupAction({ projectId: "p", missing: ["Unit inventory"], activePhaseCount: 0 }).href, /phase=new/);
   assert.match(projectSetupAction({ projectId: "p", missing: ["Hero media"], activePhaseCount: 1, selectedPhaseId: "phase-2" }).href, /phase=phase-2/);
 });
+
+test("malformed unit-type imports return visible feedback instead of failing silently", () => {
+  assert.match(projectsPage, /The import payload is invalid\. Upload the workbook again\./);
+  assert.match(projectsPage, /The import must include a unit type and at least one variant\./);
+  assert.match(projectsPage, /Array\.isArray\(payload\.variants\)/);
+});

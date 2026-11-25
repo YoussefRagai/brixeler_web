@@ -50,6 +50,10 @@ test("publication checks cover completeness, media, duplicates, project state, a
   assert.match(approvalQueue, /qualityIssues/);
   assert.match(approvalQueue, /isActive/);
   assert.match(approvalQueue, /response\.ok/);
+  assert.match(approvalQueue, /feedbackIsError/);
+  assert.match(approvalQueue, /role=\{feedbackIsError \? "alert" : "status"\}/);
+  assert.match(approvalQueue, /minLength=\{5\}/);
+  assert.match(approvalQueue, /reason\.trim\(\)\.length < 5/);
 });
 
 test("property CSV import validates rows before commit and keeps imports pending/inactive", () => {

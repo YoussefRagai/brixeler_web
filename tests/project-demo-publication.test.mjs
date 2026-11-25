@@ -15,7 +15,7 @@ function loadFunctions(path, names) {
   return new Function(`${code}\nreturn { ${names.join(", ")} };`)();
 }
 
-const { getProjectMobileStatus, getProjectPublicationStatus } = loadFunctions("src/app/developer/projects/page.tsx", ["getProjectMobileStatus", "getProjectPublicationStatus"]);
+const { getProjectMobileStatus, getProjectPublicationStatus, getProjectReadiness } = loadFunctions("src/app/developer/projects/page.tsx", ["getProjectMobileStatus", "getProjectPublicationStatus", "getProjectReadiness"]);
 const { projectStatus, isProjectMobileVisible } = loadFunctions("src/components/AdminDevelopersTable.tsx", ["projectStatus", "isProjectMobileVisible"]);
 const published = { approval_status: "approved", lifecycle_state: "published", published_at: "2026-09-08T12:00:00Z" };
 const { publicProfileStatus, publicProfileNote } = loadFunctions("src/app/developer/profile/page.tsx", ["publicProfileStatus", "publicProfileNote"]);
@@ -61,6 +61,27 @@ test("published project without phase joins does not infer inventory visibility"
   assert.equal(status.directoryVisible, true);
   assert.equal(status.inventoryVisibility, "unknown");
   assert.match(status.message, /Inventory visibility is evaluated separately/);
+});
+
+test("project mobile status honors the developer publication gate", () => {
+  const unpublishedDeveloper = { is_active: true, lifecycle_state: "draft", published_at: null };
+  const status = getProjectMobileStatus(published, false, unpublishedDeveloper);
+  assert.equal(status.directoryVisible, false);
+  assert.equal(status.inventoryVisibility, "unknown");
+  assert.match(status.message, /developer profile is inactive or unpublished/);
+  assert.equal(getProjectPublicationStatus({ ...published, publication_status: "published" }, false, unpublishedDeveloper).label, "Not visible in mobile directory");
+});
+
+test("local readiness does not count unscoped inventory without an active phase", () => {
+  const project = {
+    name: "Mivida Gardens",
+    description: "A complete project brief.",
+    location: "New Cairo",
+    hero_media: { heroImageUrl: "https://images.unsplash.com/hero" },
+    developer_project_phases: [],
+    project_unit_types: [{ phase_id: null, label: "Apartment", min_price: 1000000 }],
+  };
+  assert.deepEqual(getProjectReadiness(project).missing, ["Unit inventory", "Unit details"]);
 });
 
 test("prepared phase inventory does not claim individual properties are mobile-visible", () => {

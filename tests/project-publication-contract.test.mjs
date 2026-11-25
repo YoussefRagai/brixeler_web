@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const migration = readFileSync(new URL("../supabase/migrations/20261125123000_relax_project_type_publication_requirement.sql", import.meta.url), "utf8");
+const propertiesPage = readFileSync(new URL("../src/app/properties/page.tsx", import.meta.url), "utf8");
 
 test("project publication treats unit inventory as the mobile type contract", () => {
   assert.match(migration, /^begin;/);
@@ -21,4 +22,16 @@ test("project publication treats unit inventory as the mobile type contract", ()
   assert.match(migration, /revoke all on function public\.developer_project_publication_check\(uuid\)/);
   assert.match(migration, /grant execute on function public\.developer_project_publication_check\(uuid\) to service_role/);
   assert.match(migration, /\ncommit;\s*$/);
+});
+
+test("admin project review mirrors the phase-scoped publication contract", () => {
+  assert.match(propertiesPage, /developer_project_phases/);
+  assert.match(propertiesPage, /phase_id, label, min_price, archived_at/);
+  assert.match(propertiesPage, /lifecycle_state, archived_at/);
+  assert.match(propertiesPage, /lifecycle_state != null/);
+  assert.match(propertiesPage, /lifecycle_state !== "archived"/);
+  assert.match(propertiesPage, /Number\(unit\.min_price\) > 0/);
+  assert.doesNotMatch(propertiesPage, /project\.project_types\?\.length/);
+  assert.doesNotMatch(propertiesPage, /unit\.unit_area_min/);
+  assert.doesNotMatch(propertiesPage, /unit\.description\?\.trim\(\)/);
 });

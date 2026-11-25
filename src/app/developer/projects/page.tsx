@@ -233,6 +233,13 @@ type ProjectPublicationInput = {
   }> | null;
 };
 
+type DeveloperMobilePublicationInput = {
+  is_active?: boolean | null;
+  is_demo?: boolean | null;
+  lifecycle_state?: string | null;
+  published_at?: string | null;
+};
+
 type ProjectReadinessInput = ProjectPublicationInput & {
   name?: string | null;
   description?: string | null;
@@ -256,8 +263,12 @@ type ProjectMobileStatus = {
   nextAction: string | null;
 };
 
-const getProjectMobileStatus = (project: ProjectPublicationInput, developerIsDemo = false): ProjectMobileStatus => {
-  const isDemo = Boolean(project.is_demo || developerIsDemo);
+const getProjectMobileStatus = (
+  project: ProjectPublicationInput,
+  developerIsDemo = false,
+  developer?: DeveloperMobilePublicationInput,
+): ProjectMobileStatus => {
+  const isDemo = Boolean(project.is_demo || developerIsDemo || developer?.is_demo);
   if (isDemo) {
     return {
       label: "Hidden from mobile · demo",
@@ -267,6 +278,21 @@ const getProjectMobileStatus = (project: ProjectPublicationInput, developerIsDem
       visible: false,
       blocker: null,
       nextAction: null,
+    };
+  }
+
+  // Mobile filters projects through the developer's active, published,
+  // non-demo profile as well as the project row. Keep the portal from calling
+  // a project customer-visible when the company gate is not satisfied.
+  if (developer && (developer.is_active !== true || developer.lifecycle_state !== "published" || !developer.published_at)) {
+    return {
+      label: "Developer not visible in mobile",
+      message: "This project cannot appear in mobile while the developer profile is inactive or unpublished.",
+      directoryVisible: false,
+      inventoryVisibility: "unknown",
+      visible: false,
+      blocker: "Complete developer publication",
+      nextAction: "Review developer profile",
     };
   }
 
@@ -360,10 +386,14 @@ const getProjectMobileStatus = (project: ProjectPublicationInput, developerIsDem
   };
 };
 
-const getProjectPublicationStatus = (project: ProjectPublicationInput, developerIsDemo = false) => {
+const getProjectPublicationStatus = (
+  project: ProjectPublicationInput,
+  developerIsDemo = false,
+  developer?: DeveloperMobilePublicationInput,
+) => {
   if (project.lifecycle_state === "archived") return { label: "Archived", tone: "bg-neutral-200 text-neutral-700" };
-  const mobileStatus = getProjectMobileStatus(project, developerIsDemo);
-  const published = project.is_demo || developerIsDemo
+  const mobileStatus = getProjectMobileStatus(project, developerIsDemo, developer);
+  const published = project.is_demo || developerIsDemo || developer?.is_demo
     ? { label: "Published · demo hidden", tone: "bg-amber-100 text-amber-800" }
     : mobileStatus.directoryVisible
       ? { label: "Project visible in mobile directory", tone: "bg-emerald-100 text-emerald-800" }
@@ -401,7 +431,7 @@ const getProjectReadiness = (project: ProjectReadinessInput) => {
   );
   const unitTypes = (project.project_unit_types ?? []).filter((unit) => {
     if (unit.archived_at) return false;
-    return !activePhaseIds.size || activePhaseIds.has(unit.phase_id ?? "");
+    return activePhaseIds.has(unit.phase_id ?? "");
   });
   const checks = [
     ["Project name", Boolean(project.name?.trim())],
@@ -539,6 +569,15 @@ export default async function DeveloperProjectsPage({
     fetchDeveloperProfile(session.developerId),
     currentDeveloperImpersonation(),
   ]);
+  // A failed profile lookup must fail closed for customer-visibility labels.
+  // The mobile app requires all four fields below before it can return a
+  // developer's projects.
+  const developerPublication: DeveloperMobilePublicationInput = profile ?? {
+    is_active: false,
+    is_demo: false,
+    lifecycle_state: "draft",
+    published_at: null,
+  };
   const resolvedSearchParams = (await searchParams) ?? {};
   const activeProjectId =
     typeof resolvedSearchParams?.project === "string" ? resolvedSearchParams.project : null;
@@ -646,13 +685,13 @@ export default async function DeveloperProjectsPage({
   );
   const portfolioProjects: DeveloperPortfolioProject[] = statusFilteredProjects.map((project) => {
     const readiness = getProjectReadiness(project);
-    const publication = getProjectPublicationStatus(project, Boolean(profile?.is_demo));
+    const publication = getProjectPublicationStatus(project, Boolean(profile?.is_demo), developerPublication);
     const heroMedia = (project.hero_media as ProjectMedia | null) ?? null;
     const imageUrl = heroMedia?.heroImageUrl ?? heroMedia?.hero_image_url ?? (Array.isArray(heroMedia?.images) ? heroMedia.images[0] : null) ?? null;
     const phases = (project.developer_project_phases ?? []).filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived").length;
     const activeUnitTypes = (project.project_unit_types ?? []).filter((unit) => !unit.archived_at);
     const stockCount = activeUnitTypes.reduce((total, unit) => total + (unit.project_unit_variants ?? []).filter((variant) => !variant.archived_at).reduce((variantTotal, variant) => variantTotal + Math.max(0, Number(variant.stock_count ?? 0)), 0), 0);
-    const mobileStatus = getProjectMobileStatus(project, Boolean(profile?.is_demo));
+    const mobileStatus = getProjectMobileStatus(project, Boolean(profile?.is_demo), developerPublication);
     const publicationAttention = publication.label === "Changes requested";
     const blocker = publicationAttention
       ? "Review requested changes"
@@ -694,7 +733,8 @@ export default async function DeveloperProjectsPage({
   });
   const selectedReadiness = selectedProject ? getProjectReadiness(selectedProject) : null;
   const incompleteUnitType = selectedProject?.project_unit_types?.find((unit) =>
-    !unit.label?.trim() || Number(unit.min_price) <= 0,
+    activeProjectPhases.some((phase) => phase.id === unit.phase_id) &&
+    (!unit.label?.trim() || Number(unit.min_price) <= 0),
   );
   const selectedSetupAction = selectedProject && selectedReadiness
     ? projectSetupAction({
@@ -707,8 +747,8 @@ export default async function DeveloperProjectsPage({
         incompleteUnitTypeArchived: Boolean(incompleteUnitType?.archived_at),
       })
     : null;
-  const selectedPublication = selectedProject ? getProjectPublicationStatus(selectedProject, Boolean(profile?.is_demo)) : null;
-  const selectedMobileStatus = selectedProject ? getProjectMobileStatus(selectedProject, Boolean(profile?.is_demo)) : null;
+  const selectedPublication = selectedProject ? getProjectPublicationStatus(selectedProject, Boolean(profile?.is_demo), developerPublication) : null;
+  const selectedMobileStatus = selectedProject ? getProjectMobileStatus(selectedProject, Boolean(profile?.is_demo), developerPublication) : null;
   const selectedMobileAction = selectedProjectId && selectedMobileStatus?.nextAction && (
     !selectedMobileStatus.directoryVisible || selectedMobileStatus.inventoryVisibility === "missing"
   )
@@ -716,7 +756,9 @@ export default async function DeveloperProjectsPage({
       ? { label: "Create a release phase", href: `/developer/projects?project=${selectedProjectId}&${projectSectionQuery("phases", { phaseId: "new" })}#new-project-phase` }
       : selectedMobileStatus.nextAction === "Open phase inventory"
         ? { label: "Open phase inventory", href: `/developer/projects?project=${selectedProjectId}&${projectSectionQuery("inventory", { inventoryView: "types", phaseId: selectedPhaseId })}#add-property-types` }
-        : { label: selectedMobileStatus.nextAction, href: `/developer/projects?project=${selectedProjectId}&${projectSectionQuery("review", { phaseId: selectedPhaseId })}#project-review` }
+        : selectedMobileStatus.nextAction === "Review developer profile"
+          ? { label: selectedMobileStatus.nextAction, href: "/developer/profile" }
+          : { label: selectedMobileStatus.nextAction, href: `/developer/projects?project=${selectedProjectId}&${projectSectionQuery("review", { phaseId: selectedPhaseId })}#project-review` }
     : null;
   const selectedHeroMedia = selectedProject?.hero_media as ProjectMedia | null | undefined;
   const selectedHeroImage = selectedHeroMedia?.heroImageUrl ?? selectedHeroMedia?.hero_image_url ?? (Array.isArray(selectedHeroMedia?.images) ? selectedHeroMedia.images[0] : null) ?? null;
@@ -1322,7 +1364,7 @@ export default async function DeveloperProjectsPage({
               (!selectedProjectId || !selectedPhaseId || unit.phase_id === selectedPhaseId) &&
               shouldShowInventoryUnitType(unit, showArchivedInventory),
             ) ?? [];
-            const publicationStatus = getProjectPublicationStatus(project, Boolean(profile?.is_demo));
+            const publicationStatus = getProjectPublicationStatus(project, Boolean(profile?.is_demo), developerPublication);
             const readiness = getProjectReadiness(project);
             return (
             <article key={project.id} className="contents">
@@ -2899,7 +2941,10 @@ async function importTypeWithVariantsAction(formData: FormData) {
   const projectId = formData.get("projectId")?.toString();
   const phaseId = formData.get("phaseId")?.toString() || undefined;
   const payloadRaw = formData.get("payload")?.toString();
-  if (!projectId || !payloadRaw) return;
+  if (!projectId || !payloadRaw) {
+    if (projectId) redirect(`${inventoryWorkspaceHref(projectId, phaseId, "types")}&error=${encodeURIComponent("Choose an inventory type to import.")}`);
+    return;
+  }
   if (!phaseId) {
     redirect(`${inventoryWorkspaceHref(projectId, null, "types")}&error=${encodeURIComponent("Choose a release phase before importing inventory.")}`);
   }
@@ -2927,10 +2972,12 @@ async function importTypeWithVariantsAction(formData: FormData) {
   try {
     payload = JSON.parse(payloadRaw);
   } catch {
-    return;
+    redirect(`${inventoryWorkspaceHref(projectId, phaseId, "types")}&error=${encodeURIComponent("The import payload is invalid. Upload the workbook again.")}`);
   }
 
-  if (!payload?.baseType || !payload.variants?.length) return;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) || typeof payload.baseType !== "string" || !payload.baseType.trim() || !Array.isArray(payload.variants) || !payload.variants.length) {
+    redirect(`${inventoryWorkspaceHref(projectId, phaseId, "types")}&error=${encodeURIComponent("The import must include a unit type and at least one variant.")}`);
+  }
 
   const strictNumericFields = ["bedrooms", "bathrooms", "areaMin", "areaMax", "downPayment", "installmentYears", "stockCount"] as const;
   const invalidVariant = payload.variants.some((variant) => {

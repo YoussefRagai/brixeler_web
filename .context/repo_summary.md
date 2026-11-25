@@ -277,3 +277,7 @@ The developer portal uses one canonical `developer_super_admin` role for every c
 ## 2026-11-25 Project publication type contract
 
 The pending additive migration `20261125123000_relax_project_type_publication_requirement.sql` replaces the shared project publication check. Active unit types in non-archived phases remain required and must have a label and positive price; area and description are optional to match the save/mobile contract. The redundant project-level `project_types` array no longer blocks readiness, while `checks.project_types` remains as a compatibility alias of unit-inventory readiness. Existing rejected checklists are intentionally not backfilled; resubmission after rollout recalculates the checklist and clears rejection state through the existing service RPC. No live migration or data mutation was performed.
+
+## 2026-11-25 Mivida publication and release receipt
+
+The Mivida exception was approved through the review RPC. Project and Phase 1 are approved/published, and anonymous mobile reads now show the project, Phase 1, and its unit type. Individual property visibility remains 0 because property approval is a separate boundary. `npm run release:check` passed end-to-end, including 209 tests and the production build. The dashboard deployment remains pending; parent owns deployment and post-deploy browser confirmation.

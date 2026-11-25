@@ -656,3 +656,26 @@ Append meaningful work after each task.
 - Result: Published projects now report directory visibility from the same project-level approved/published predicates used by mobile project-directory queries. Missing phase joins remain unknown; missing or pending phase inventory is shown as `No mobile-visible inventory yet`; prepared unit types do not claim that individual properties are visible because property approval is separate. Reviewer notes are compared with the current saved checklist and retain the resubmission/edit path.
 - Verification: `node --test tests/project-demo-publication.test.mjs`; `node --test tests/developer-submission-ux.test.mjs`; `npm run test:project-flow` 48/48; focused ESLint, TypeScript, and `git diff --check` pass. The live publication migration is applied and Mivida Gardens reports `ready=true`, `issues=[]`, `unit_count=1`; dashboard deployment remains pending.
 - Confidence: 0.94 for source/contracts; live browser and production migration verification remain outside this pass.
+
+## 2026-11-25 — Central moderation checklist alignment
+
+- Task: Audit central project/listing review against the phase-scoped publication contract and make reviewer feedback failure-aware.
+- Files: `src/app/properties/page.tsx`, `src/components/PropertyApprovalQueue.tsx`, `tests/project-publication-contract.test.mjs`, and `tests/inventory-contracts.test.mjs`.
+- Result: Project approval now counts only non-archived unit types attached to non-archived phases, requires only active-inventory label/positive-price readiness, and no longer blocks valid submissions on optional project-level property types or legacy area/description thresholds. Listing review reasons enforce the database's five-character minimum in the control and failed mutations render as alerts.
+- Verification: Focused inventory/publication contracts 7/7, focused ESLint, TypeScript, and `git diff --check` pass. No live data, migration, deployment, or mobile changes.
+- Risks/follow-ups: The full release gate and rendered admin browser confirmation remain parent-owned; database review RPCs remain the final authorization/publication boundary. Confidence 0.93.
+
+## 2026-11-25 — Developer dashboard publication truthfulness audit
+
+- Task: Audit project/phase/inventory readiness, access, and mobile visibility against the phase-scoped publication and mobile developer gates.
+- Files: `src/app/developer/projects/page.tsx`, `tests/project-demo-publication.test.mjs`, and `tests/project-workspace-flow.test.mjs`.
+- Result: Local readiness now counts only active unit types attached to active phases, matching the server publication RPC; project mobile labels now include the developer's active/published/non-demo gate and fail closed when the profile lookup is unavailable; incomplete-unit guidance is scoped to active phases; malformed inventory imports now return visible feedback instead of failing silently.
+- Verification: Focused publication/workspace tests 17/17, targeted TypeScript, and `git diff --check` pass. No live data, migration, deployment, or mobile changes.
+- Risks/follow-ups: Parent should include the focused web changes with the concurrent moderation dashboard patch and run the full release gate. Confidence 0.93.
+
+## 2026-11-25 — Mivida publication and release receipt
+
+- Task: Record the final Mivida exception approval and release-gate evidence after the project/publication contract correction.
+- Result: The Mivida exception was approved through the review RPC. The project and Phase 1 are both approved and published; anonymous mobile reads now show the project, Phase 1, and its unit type. Individual property visibility remains at 0, as expected because property approval is separate.
+- Verification: `npm run release:check` passed end-to-end, including 209 tests and the production build. The dashboard deployment is still pending; no additional live data or deployment was performed in this receipt.
+- Follow-up: Parent owns dashboard deployment and post-deploy browser confirmation. Confidence 0.95.

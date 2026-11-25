@@ -61,6 +61,7 @@ export function PropertyApprovalQueue({ entries, activeTab: initialTab = "Propos
   const [actionType, setActionType] = useState<"request" | "reject" | null>(null);
   const [busyPropertyId, setBusyPropertyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackIsError, setFeedbackIsError] = useState(false);
   const [isPending, startTransition] = useTransition();
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -112,6 +113,7 @@ export function PropertyApprovalQueue({ entries, activeTab: initialTab = "Propos
   const updateStatus = async (propertyId: string, status: string, reasonText?: string) => {
     setBusyPropertyId(propertyId);
     setFeedback(null);
+    setFeedbackIsError(false);
     try {
       const response = await fetch("/api/properties/update-status", {
         method: "POST",
@@ -121,9 +123,11 @@ export function PropertyApprovalQueue({ entries, activeTab: initialTab = "Propos
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error ?? "Unable to update this listing.");
       setFeedback(status === "approved" ? "Listing approved and published to the mobile catalog." : "Listing review updated.");
+      setFeedbackIsError(false);
       router.refresh();
     } catch (error) {
       setFeedback((error as Error).message);
+      setFeedbackIsError(true);
     } finally {
       setBusyPropertyId(null);
     }
@@ -151,7 +155,7 @@ export function PropertyApprovalQueue({ entries, activeTab: initialTab = "Propos
       </div>
 
       <div className="mt-6 space-y-4">
-        {feedback ? <p role="status" className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">{feedback}</p> : null}
+        {feedback ? <p role={feedbackIsError ? "alert" : "status"} className={clsx("rounded-2xl border px-4 py-3 text-sm", feedbackIsError ? "border-rose-200 bg-rose-50 text-rose-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}>{feedback}</p> : null}
         {filtered.map((property) => (
           <article key={property.id} className="rounded-2xl border border-black/5 bg-black/5 p-4 text-sm text-neutral-800">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -231,6 +235,7 @@ export function PropertyApprovalQueue({ entries, activeTab: initialTab = "Propos
           <textarea
             value={reason}
             onChange={(event) => setReason(event.target.value)}
+            minLength={5}
             rows={3}
             placeholder={actionType === "reject" ? "Explain why this listing is rejected" : "Describe the changes needed"}
             className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm text-neutral-900"
@@ -239,10 +244,15 @@ export function PropertyApprovalQueue({ entries, activeTab: initialTab = "Propos
             <button
               type="button"
               className="rounded-full bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
-              disabled={busyPropertyId !== null || !reason.trim()}
+              disabled={busyPropertyId !== null || reason.trim().length < 5}
               onClick={() => {
-                if (!reason.trim()) return;
-                updateStatus(actionId, actionType === "reject" ? "rejected" : "pending", reason.trim());
+                const nextReason = reason.trim();
+                if (nextReason.length < 5) {
+                  setFeedback("Enter a review reason of at least 5 characters.");
+                  setFeedbackIsError(true);
+                  return;
+                }
+                updateStatus(actionId, actionType === "reject" ? "rejected" : "pending", nextReason);
                 setActionId(null);
                 setActionType(null);
                 setReason("");

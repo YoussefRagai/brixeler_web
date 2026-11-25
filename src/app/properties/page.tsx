@@ -60,7 +60,6 @@ type ProjectQueueRow = {
   description: string | null;
   location: string | null;
   hero_media: Record<string, unknown> | null;
-  project_types: string[] | null;
   inventory_url: string | null;
   approval_status: string | null;
   rejection_reason: string | null;
@@ -71,14 +70,26 @@ type ProjectQueueRow = {
   developers: DeveloperRelation | DeveloperRelation[] | null;
 };
 
+type ProjectPhaseRow = {
+  id: string;
+  project_id: string;
+  lifecycle_state: string | null;
+  archived_at: string | null;
+};
+
 type ProjectUnitRow = {
   id: string;
   project_id: string;
+  phase_id: string | null;
   label: string | null;
   min_price: number | null;
-  unit_area_min: number | null;
-  description: string | null;
-  hero_image_url: string | null;
+  archived_at: string | null;
+};
+
+type ProjectQueueEntry = ProjectQueueRow & {
+  units: ProjectUnitRow[];
+  activePhaseCount: number;
+  checklist: ProjectChecklist;
 };
 
 type PageResult<T> = {
@@ -213,25 +224,29 @@ function projectHeroImage(media: Record<string, unknown> | null) {
   return null;
 }
 
-function projectChecklist(project: ProjectQueueRow, units: ProjectUnitRow[]): ProjectChecklist {
+function projectChecklist(project: ProjectQueueRow, units: ProjectUnitRow[], phases: ProjectPhaseRow[]): ProjectChecklist {
   const heroImageUrl = projectHeroImage(project.hero_media);
-  const unitReady = units.length > 0 && units.every((unit) => Boolean(
-    unit.label?.trim() && Number(unit.min_price) >= 100000 && Number(unit.unit_area_min) >= 10 && unit.description?.trim(),
-  ));
+  const activePhaseIds = new Set(
+    phases
+      .filter((phase) => !phase.archived_at && phase.lifecycle_state != null && phase.lifecycle_state !== "archived")
+      .map((phase) => phase.id),
+  );
+  const activeUnits = units.filter((unit) => !unit.archived_at && unit.phase_id && activePhaseIds.has(unit.phase_id));
+  const unitReady = activeUnits.length > 0 && activeUnits.every((unit) => Boolean(unit.label?.trim() && Number(unit.min_price) > 0));
   const items = [
     { label: "Project name and description", ready: Boolean(project.name.trim() && project.description?.trim()) },
-    { label: "Location and property types", ready: Boolean(project.location?.trim() && project.project_types?.length) },
+    { label: "Project location", ready: Boolean(project.location?.trim()) },
     { label: "Hero media for mobile preview", ready: Boolean(heroImageUrl) },
-    { label: "At least one complete unit type", ready: unitReady },
+    { label: "At least one complete active unit type", ready: unitReady },
     { label: "Active developer association", ready: Boolean(project.developer_id && one(project.developers)?.is_active === true) },
   ];
   return { items, issues: items.filter((item) => !item.ready).map((item) => item.label), ready: items.every((item) => item.ready), heroImageUrl };
 }
 
-async function loadProjectQueue(status: ProjectStatus, page: number, search: string): Promise<PageResult<ProjectQueueRow & { units: ProjectUnitRow[]; checklist: ProjectChecklist }>> {
+async function loadProjectQueue(status: ProjectStatus, page: number, search: string): Promise<PageResult<ProjectQueueEntry>> {
   let query = supabaseServer
     .from("developer_projects")
-    .select("id, developer_id, name, description, location, hero_media, project_types, inventory_url, approval_status, rejection_reason, lifecycle_state, published_at, is_demo, updated_at, developers(name, is_active)", { count: "exact" });
+    .select("id, developer_id, name, description, location, hero_media, inventory_url, approval_status, rejection_reason, lifecycle_state, published_at, is_demo, updated_at, developers(name, is_active)", { count: "exact" });
   if (status === "review") query = query.in("approval_status", ["pending", "rejected"]);
   else if (status !== "all") query = query.eq("approval_status", status);
   if (search) query = query.ilike("name", `%${escapeLike(search)}%`);
@@ -241,17 +256,51 @@ async function loadProjectQueue(status: ProjectStatus, page: number, search: str
   if (error) return { entries: [], total: 0, page, pageSize: PROJECT_PAGE_SIZE, hasNext: false, error: error.message };
   const rows = (data ?? []) as unknown as ProjectQueueRow[];
   const projectIds = rows.map((project) => project.id);
-  const { data: unitRows, error: unitError } = projectIds.length
-    ? await supabaseServer.from("project_unit_types").select("id, project_id, label, min_price, unit_area_min, description, hero_image_url").in("project_id", projectIds)
-    : { data: [], error: null };
-  if (unitError) return { entries: [], total: 0, page, pageSize: PROJECT_PAGE_SIZE, hasNext: false, error: unitError.message };
+  const [{ data: unitRows, error: unitError }, { data: phaseRows, error: phaseError }] = projectIds.length
+    ? await Promise.all([
+        supabaseServer.from("project_unit_types").select("id, project_id, phase_id, label, min_price, archived_at").in("project_id", projectIds),
+        supabaseServer.from("developer_project_phases").select("id, project_id, lifecycle_state, archived_at").in("project_id", projectIds),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
+  if (unitError || phaseError) {
+    return {
+      entries: [],
+      total: 0,
+      page,
+      pageSize: PROJECT_PAGE_SIZE,
+      hasNext: false,
+      error: unitError?.message ?? phaseError?.message ?? "Unable to load project inventory.",
+    };
+  }
   const unitsByProject = new Map<string, ProjectUnitRow[]>();
   for (const unit of (unitRows ?? []) as ProjectUnitRow[]) {
     const list = unitsByProject.get(unit.project_id) ?? [];
     list.push(unit);
     unitsByProject.set(unit.project_id, list);
   }
-  const entries = rows.map((project) => ({ ...project, units: unitsByProject.get(project.id) ?? [], checklist: projectChecklist(project, unitsByProject.get(project.id) ?? []) }));
+  const phasesByProject = new Map<string, ProjectPhaseRow[]>();
+  for (const phase of (phaseRows ?? []) as ProjectPhaseRow[]) {
+    const list = phasesByProject.get(phase.project_id) ?? [];
+    list.push(phase);
+    phasesByProject.set(phase.project_id, list);
+  }
+  const entries = rows.map((project) => {
+    const phases = phasesByProject.get(project.id) ?? [];
+    const activePhaseIds = new Set(
+      phases
+        .filter((phase) => !phase.archived_at && phase.lifecycle_state != null && phase.lifecycle_state !== "archived")
+        .map((phase) => phase.id),
+    );
+    const activeUnits = (unitsByProject.get(project.id) ?? []).filter(
+      (unit) => !unit.archived_at && unit.phase_id && activePhaseIds.has(unit.phase_id),
+    );
+    return {
+      ...project,
+      units: activeUnits,
+      activePhaseCount: activePhaseIds.size,
+      checklist: projectChecklist(project, activeUnits, phases),
+    };
+  });
   const total = count ?? entries.length;
   return { entries, total, page, pageSize: PROJECT_PAGE_SIZE, hasNext: offset + entries.length < total, error: null };
 }
@@ -285,7 +334,7 @@ export default async function PropertiesPage({ searchParams }: { searchParams?: 
   const projectSearch = feedback.projectSearch?.trim() ?? "";
 
   const emptyProperties = { entries: [], total: 0, page: propertyPage, pageSize: PROPERTY_PAGE_SIZE, hasNext: false, error: null } as PageResult<PropertyApprovalEntry>;
-  const emptyProjects = { entries: [], total: 0, page: projectPage, pageSize: PROJECT_PAGE_SIZE, hasNext: false, error: null } as PageResult<ProjectQueueRow & { units: ProjectUnitRow[]; checklist: ProjectChecklist }>;
+  const emptyProjects = { entries: [], total: 0, page: projectPage, pageSize: PROJECT_PAGE_SIZE, hasNext: false, error: null } as PageResult<ProjectQueueEntry>;
   const [propertyPages, projectQueue, importOptions] = ui.hasAccess
     ? await Promise.all([
         Promise.all(PROPERTY_TABS.map((tab) => loadPropertyQueue(tab, tab === propertyTab ? propertyPage : 1, propertySearch))),
@@ -356,7 +405,7 @@ export default async function PropertiesPage({ searchParams }: { searchParams?: 
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-neutral-900">{project.name}</h3>{project.is_demo ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">DEMO</span> : null}<span className={`rounded-full px-3 py-1 text-xs font-semibold ${project.approval_status === "approved" ? "bg-emerald-100 text-emerald-800" : project.approval_status === "rejected" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>{project.approval_status ?? "pending"}</span></div>
-                        <p className="text-xs text-neutral-500">{developer?.name ?? "Developer"} · {project.location ?? "Location not set"} · {project.units.length} unit type{project.units.length === 1 ? "" : "s"}</p>
+                        <p className="text-xs text-neutral-500">{developer?.name ?? "Developer"} · {project.location ?? "Location not set"} · {project.activePhaseCount} active phase{project.activePhaseCount === 1 ? "" : "s"} · {project.units.length} active unit type{project.units.length === 1 ? "" : "s"}</p>
                         <p className="mt-2 max-w-3xl text-sm text-neutral-700">{project.description ?? "No description provided."}</p>
                         {project.rejection_reason ? <p className="mt-2 text-xs text-rose-700">Reviewer note: {project.rejection_reason}</p> : null}
                       </div>

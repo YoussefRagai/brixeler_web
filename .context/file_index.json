@@ -8,10 +8,10 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 49241,
+      "bytes": 49758,
       "path": ".context/repo_summary.md",
-      "sha256": "9f0a2ed20e6101e7d5cd31496a7e868807ff99242c2ea63d902479bd1a8343e9",
-      "summary": "Compressed repository state including 2026-11-25 developer cleanup, publication-type correction, and submission UX release receipts."
+      "sha256": "7b4d11a7dae53b4fb5aba7152e04475af44466452c0f4dbe2b0bb1bc728a78fe",
+      "summary": "Compressed repository state including 2026-11-25 developer cleanup, publication-type correction, submission UX, and Mivida release receipts."
     },
     {
       "bytes": 1503,
@@ -80,10 +80,10 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 134406,
+      "bytes": 137419,
       "path": "TASK_LOG.md",
-      "sha256": "c02b5f0cce396b9cb6644146bb403dc47fb2258e81f686e366f33a0ae2a7e4db",
-      "summary": "Task outcomes and verification history, including 2026-11-25 publication contract and submission UX receipts."
+      "sha256": "0ec8a6f23ce3d7ed2d9f934843223bca31d1925e883cb5cc3191a4531ba9794a",
+      "summary": "Task outcomes and verification history, including 2026-11-25 publication, dashboard audit, and Mivida release receipts."
     },
     {
       "bytes": 640,
@@ -866,10 +866,10 @@
       "summary": "import DeveloperProjectsPage from \"../page\"; export const dynamic = \"force-dynamic\";"
     },
     {
-      "bytes": 190171,
+      "bytes": 192522,
       "path": "src/app/developer/projects/page.tsx",
-      "sha256": "7b650c8899cf3809a6cafd2f49b7d65b2f8cd053184090d329cd23457592b2dc",
-      "summary": "Developer project portal, phase/inventory workspace, publication readiness/status, mobile-directory messaging, and feedback routing."
+      "sha256": "4e312fb654ffa2075bf9c512adcc0992134ceca24c3a47c40db22361d4b1090e",
+      "summary": "Developer project portal, phase/inventory workspace, phase-scoped readiness, developer/project mobile gates, import feedback, and review routing."
     },
     {
       "path": "src/app/developer/support/[ticketId]/page.tsx",
@@ -962,10 +962,10 @@
       "summary": "import Link from \"next/link\"; import { notFound } from \"next/navigation\"; import { AdminLayout } from \"@/components/AdminLayout\";"
     },
     {
-      "bytes": 27701,
+      "bytes": 29194,
       "path": "src/app/properties/page.tsx",
-      "sha256": "c6d1060bc8d9b6cef42931090cba17d7257480c31749820f7bac5ba64e2744de",
-      "summary": "import Link from \"next/link\"; import { AdminLayout } from \"@/components/AdminLayout\"; import { AdminAccessDenied } from \"@/components/AdminAccessDenied\";"
+      "sha256": "d02674fa595e69df3d3b50cd3c3ee08ee21989dbca71e30d720ff587804b3087",
+      "summary": "Admin property/project approval queue aligned with phase-scoped inventory publication readiness."
     },
     {
       "bytes": 8115,
@@ -1352,10 +1352,10 @@
       "sha256": "51b9287bb408de31055d00cd8ac1587178b5bb611dfb2031a2d537cda05c8cc8"
     },
     {
-      "bytes": 18153,
+      "bytes": 18680,
       "path": "src/components/PropertyApprovalQueue.tsx",
-      "sha256": "75ac773c43b4227177c3950779690bd30c8c8981f67e8bdc029bb14a3a56cd2c",
-      "summary": "\"use client\"; import { useEffect, useMemo, useRef, useState, useTransition } from \"react\";"
+      "sha256": "6fd67fcacd7853673dd8ca41ba1bbc773373fa90a7e97337c7d14babc74a8917",
+      "summary": "Client-side property approval queue with validation, pending states, and visible review errors."
     },
     {
       "bytes": 9744,
@@ -2336,10 +2336,10 @@
       "summary": "import assert from \"node:assert/strict\"; import { readFileSync, existsSync } from \"node:fs\"; import test from \"node:test\";"
     },
     {
-      "bytes": 6628,
+      "bytes": 6872,
       "path": "tests/inventory-contracts.test.mjs",
-      "sha256": "cf79626aa1e045c5d34c0da3c398215cbe7c68fc30d18e761f66f162e1680ec8",
-      "summary": "import assert from \"node:assert/strict\"; import { readFileSync, existsSync } from \"node:fs\"; import test from \"node:test\";"
+      "sha256": "3294e79dedc06c34e060325cefd7af6ecf9541c7c2cce62b62f1807e58d159b6",
+      "summary": "Inventory and phase-scoped publication contract assertions."
     },
     {
       "bytes": 8141,
@@ -2362,8 +2362,8 @@
     {
       "path": "tests/project-demo-publication.test.mjs",
       "summary": "Developer project publication/demo and mobile-directory status contracts.",
-      "bytes": 8161,
-      "sha256": "07164d3ca026cc605a3b8d4c40d25aea833a11ede09ff211ccecc11a954cf25e"
+      "bytes": 9319,
+      "sha256": "27afb315160ba7d0ca058b6da675ea28a3898720add39326906e3c23fe6f4746"
     },
     {
       "path": "tests/project-inventory-flow.test.mjs",
@@ -2403,9 +2403,9 @@
     },
     {
       "path": "tests/project-workspace-flow.test.mjs",
-      "summary": "Developer project-flow revamp; see 2026-09-08 task log.",
-      "bytes": 2963,
-      "sha256": "97e5ca5689e5d57142a547ad7fb1f5b3f2dac614978deb7c198593af816cd990"
+      "summary": "Developer project-flow, inventory destination, and malformed-import feedback contracts.",
+      "bytes": 3322,
+      "sha256": "97c98d7dacbb8044f23a9f85566ab8a363ea4d14700a39b67ffb788e417d45ec"
     },
     {
       "bytes": 1731,
@@ -2529,8 +2529,8 @@
     },
     {
       "path": "tests/project-publication-contract.test.mjs",
-      "bytes": 1563,
-      "sha256": "e912f62466b31b26e5151e3f06029eefc68078c63fae03ea8ba8239ba72c418e",
+      "bytes": 2354,
+      "sha256": "f53003812ece9c300872798a820a3dc6d71f47d3109c75751610626a6c965179",
       "summary": "SQL contract test for the project publication checklist and active phase-scoped unit inventory."
     }
   ],
