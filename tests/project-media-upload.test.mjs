@@ -2,21 +2,26 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { STORAGE_BUCKETS, STORAGE_UPLOAD_RULES, validateStorageUpload } from "../src/lib/storageServer.ts";
-import { DEFAULT_UPLOAD_MAX_BYTES, DEVELOPER_MEDIA_FIELD_MAX_BYTES, formatUploadSize } from "../src/lib/storageUploadRules.mjs";
+import { DEFAULT_UPLOAD_MAX_BYTES, DEVELOPER_MEDIA_FIELD_MAX_BYTES, DEVELOPER_MEDIA_MAX_BYTES, formatUploadSize } from "../src/lib/storageUploadRules.mjs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("project media uploads enforce bucket-specific file limits and types", () => {
-  assert.doesNotThrow(() => validateStorageUpload(STORAGE_BUCKETS.projectImages, { name: "cover.png", type: "image/png", size: 1024 }));
-  assert.throws(() => validateStorageUpload(STORAGE_BUCKETS.projectImages, { name: "cover.png", type: "image/png", size: 11 * 1024 * 1024 }), /Maximum allowed size is 10 MiB/);
-  assert.equal(STORAGE_UPLOAD_RULES[STORAGE_BUCKETS.projectBrochures].maxBytes, 50 * 1024 * 1024);
-  assert.equal(STORAGE_UPLOAD_RULES[STORAGE_BUCKETS.projectVoiceNotes].maxBytes, 50 * 1024 * 1024);
-  assert.doesNotThrow(() => validateStorageUpload(STORAGE_BUCKETS.projectBrochures, { name: "brochure.pdf", type: "application/pdf", size: 50 * 1024 * 1024 }));
-  assert.throws(() => validateStorageUpload(STORAGE_BUCKETS.projectBrochures, { name: "brochure.pdf", type: "application/pdf", size: 50 * 1024 * 1024 + 1 }), /Maximum allowed size is 50 MiB/);
-  assert.doesNotThrow(() => validateStorageUpload(STORAGE_BUCKETS.projectVoiceNotes, { name: "note.m4a", type: "audio/mp4", size: 50 * 1024 * 1024 }));
+  const developerMediaFiles = [
+    [STORAGE_BUCKETS.developerLogos, { name: "logo.png", type: "image/png" }],
+    [STORAGE_BUCKETS.projectImages, { name: "cover.png", type: "image/png" }],
+    [STORAGE_BUCKETS.projectUnitImages, { name: "unit.png", type: "image/png" }],
+    [STORAGE_BUCKETS.projectBrochures, { name: "brochure.pdf", type: "application/pdf" }],
+    [STORAGE_BUCKETS.projectVoiceNotes, { name: "note.m4a", type: "audio/mp4" }],
+    [STORAGE_BUCKETS.projectVideos, { name: "launch.mp4", type: "video/mp4" }],
+  ];
+  for (const [bucket, file] of developerMediaFiles) {
+    assert.equal(STORAGE_UPLOAD_RULES[bucket].maxBytes, DEVELOPER_MEDIA_MAX_BYTES);
+    assert.doesNotThrow(() => validateStorageUpload(bucket, { ...file, size: DEVELOPER_MEDIA_MAX_BYTES }));
+    assert.throws(() => validateStorageUpload(bucket, { ...file, size: DEVELOPER_MEDIA_MAX_BYTES + 1 }), /Maximum allowed size is 200 MiB/);
+  }
   assert.throws(() => validateStorageUpload(STORAGE_BUCKETS.projectVideos, { name: "bad.txt", type: "text/plain", size: 1024 }), /File type is not allowed/);
-  assert.doesNotThrow(() => validateStorageUpload(STORAGE_BUCKETS.projectVideos, { name: "launch.mp4", type: "video/mp4", size: 100 * 1024 * 1024 }));
-  assert.throws(() => validateStorageUpload(STORAGE_BUCKETS.projectVideos, { name: "launch.mp4", type: "video/mp4", size: 100 * 1024 * 1024 + 1 }), /Maximum allowed size is 100 MiB/);
+  assert.equal(STORAGE_UPLOAD_RULES[STORAGE_BUCKETS.badgeIcons].maxBytes, 5 * 1024 * 1024);
 });
 
 test("signed uploads require bounded Storage limits and exact MIME allowlists", () => {
@@ -42,6 +47,22 @@ test("the additive bucket migration raises only general media limits", () => {
   assert.doesNotMatch(migration, /developer-project-videos/);
 });
 
+test("the 200 MiB bucket migration covers every developer media bucket", () => {
+  const migration = read("../supabase/migrations/20261125110000_raise_developer_media_bucket_limits.sql");
+  for (const bucket of [
+    STORAGE_BUCKETS.developerLogos,
+    STORAGE_BUCKETS.projectImages,
+    STORAGE_BUCKETS.projectUnitImages,
+    STORAGE_BUCKETS.projectBrochures,
+    STORAGE_BUCKETS.projectVoiceNotes,
+    STORAGE_BUCKETS.projectVideos,
+  ]) {
+    assert.match(migration, new RegExp(`'${bucket}'`));
+  }
+  assert.match(migration, /file_size_limit\s*=\s*209715200/);
+  assert.doesNotMatch(migration, /badge-icons|tier-icons|gift-icons/);
+});
+
 test("project forms upload media separately and preserve draft creation", () => {
   const field = read("../src/components/DeveloperMediaField.tsx");
   const wizard = read("../src/components/ProjectWizard.tsx");
@@ -55,11 +76,16 @@ test("project forms upload media separately and preserve draft creation", () => 
 
 test("browser media preflight shares the server limits and clear MiB copy", () => {
   const field = read("../src/components/DeveloperMediaField.tsx");
-  assert.equal(DEFAULT_UPLOAD_MAX_BYTES, 50 * 1024 * 1024);
+  const profile = read("../src/components/DeveloperProfileForm.tsx");
+  assert.equal(DEFAULT_UPLOAD_MAX_BYTES, 200 * 1024 * 1024);
+  assert.equal(DEVELOPER_MEDIA_MAX_BYTES, 200 * 1024 * 1024);
   assert.equal(DEVELOPER_MEDIA_FIELD_MAX_BYTES.project_brochure, DEFAULT_UPLOAD_MAX_BYTES);
   assert.equal(DEVELOPER_MEDIA_FIELD_MAX_BYTES.voice_notes, DEFAULT_UPLOAD_MAX_BYTES);
-  assert.equal(DEVELOPER_MEDIA_FIELD_MAX_BYTES.project_videos, 100 * 1024 * 1024);
-  assert.equal(formatUploadSize(DEFAULT_UPLOAD_MAX_BYTES), "50 MiB");
+  assert.equal(DEVELOPER_MEDIA_FIELD_MAX_BYTES.project_images, DEFAULT_UPLOAD_MAX_BYTES);
+  assert.equal(DEVELOPER_MEDIA_FIELD_MAX_BYTES.logo_file, DEFAULT_UPLOAD_MAX_BYTES);
+  assert.equal(DEVELOPER_MEDIA_FIELD_MAX_BYTES.project_videos, DEFAULT_UPLOAD_MAX_BYTES);
+  assert.equal(formatUploadSize(DEFAULT_UPLOAD_MAX_BYTES), "200 MiB");
   assert.match(field, /file\.size > maxFileBytes/);
   assert.match(field, /Maximum allowed size is \$\{formatUploadSize\(maxFileBytes\)\}/);
+  assert.match(profile, /200 MiB/);
 });

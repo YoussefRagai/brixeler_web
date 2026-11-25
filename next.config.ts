@@ -13,8 +13,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
-    // The largest supported upload is a 100 MB video; leave multipart overhead headroom.
-    serverActions: { bodySizeLimit: "110mb" },
+    // The largest supported single upload is 200 MiB; leave multipart overhead headroom.
+    serverActions: { bodySizeLimit: "220mb" },
   },
   async headers() {
     return [

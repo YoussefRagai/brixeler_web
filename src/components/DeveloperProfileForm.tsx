@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Building2, Check } from "lucide-react";
 import { DeveloperMediaField } from "@/components/DeveloperMediaField";
 import { FeedbackBanner } from "@/components/FeedbackBanner";
+import { DEVELOPER_MEDIA_MAX_BYTES } from "@/lib/storageUploadRules.mjs";
 
 export type ProfileActionState = {
   status: "idle" | "success" | "error";
@@ -26,7 +27,7 @@ type Props = {
   isDemo?: boolean;
 };
 
-const MAX_LOGO_BYTES = 5 * 1024 * 1024;
+const MAX_LOGO_BYTES = DEVELOPER_MEDIA_MAX_BYTES;
 const allowedLogoTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 export function DeveloperProfileForm({
@@ -75,7 +76,7 @@ export function DeveloperProfileForm({
       setUploadError(
         !allowedLogoTypes.has(file.type)
           ? "Choose a PNG, JPG, or WebP image."
-          : "Choose an image smaller than 5 MiB.",
+          : "Choose an image smaller than 200 MiB.",
       );
       return;
     }
@@ -231,7 +232,7 @@ export function DeveloperProfileForm({
 
           <DeveloperMediaField
             label={onboarding ? "Company logo" : "Company logo (optional)"}
-            description={onboarding ? "Required to unlock the workspace. Upload a PNG, JPG, or WebP logo up to 5 MiB." : "Upload a PNG, JPG, or WebP logo up to 5 MiB. The current logo stays in place when you submit without a new file."}
+            description={onboarding ? "Required to unlock the workspace. Upload a PNG, JPG, or WebP logo up to 200 MiB." : "Upload a PNG, JPG, or WebP logo up to 200 MiB. The current logo stays in place when you submit without a new file."}
             fileName="logo_file"
             urlName="logo_url"
             urlLabel="Or paste a supported logo URL"

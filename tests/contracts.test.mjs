@@ -64,7 +64,7 @@ test("global response headers and upload body limits are production-safe", () =>
   assert.match(config, /X-Frame-Options.*DENY/);
   assert.match(config, /Permissions-Policy.*camera=\(\), microphone=\(\), geolocation=\(\)/);
   assert.match(config, /Strict-Transport-Security.*max-age=31536000/);
-  assert.match(config, /bodySizeLimit:\s*["']110mb["']/);
+  assert.match(config, /bodySizeLimit:\s*["']220mb["']/);
   assert.doesNotMatch(config, /Content-Security-Policy/);
 });
 
