@@ -1,5 +1,5 @@
 {
-  "file_count": 416,
+  "file_count": 417,
   "files": [
     {
       "bytes": 10244,
@@ -8,9 +8,9 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 47253,
+      "bytes": 48431,
       "path": ".context/repo_summary.md",
-      "sha256": "2abad7e1c064d85e1da3318a7461b21941656c176c3a074c3eb9d73c491035d3",
+      "sha256": "5a12e532737225888d576b28e5816cb6573099efb9c5c5aa58189b35d0fd00b",
       "summary": "Compressed repository state including the 2026-11-25 final exact developer cleanup and upload-limit release receipts."
     },
     {
@@ -50,9 +50,9 @@
       "summary": "# Council Protocol Use external agents for bounded, cheap, or repetitive work. Codex keeps final architecture, safety, and integration judgment."
     },
     {
-      "bytes": 22881,
+      "bytes": 23368,
       "path": "DECISIONS.md",
-      "sha256": "74b2f8d874e489e2e1d2b08a37c474d46274f0901318262285930aafc7b24668",
+      "sha256": "458f8aef569801962caa64f51f2dd95880630fafce2a11c01ad9f684fc865874",
       "summary": "Architecture decisions, including fail-closed cleanup ordering, retained parents, and release state."
     },
     {
@@ -62,9 +62,9 @@
       "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
     },
     {
-      "bytes": 25366,
+      "bytes": 26354,
       "path": "PROJECT_MAP.md",
-      "sha256": "5c3238fa08feb4cacd6ad63a4deccc5d6240d1efd0237a1269a1a56956c49a58",
+      "sha256": "0af8784986a0b76856fe6074888f71c096521107534c121cd7dba7dbb9213e6c",
       "summary": "Repository map including the released shared upload-limit contract and current dashboard/partial-cleanup handoff paths."
     },
     {
@@ -80,9 +80,9 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 127609,
+      "bytes": 129462,
       "path": "TASK_LOG.md",
-      "sha256": "843e5661025ffc7f6d6422a2fd2feedaf4e2fb08e493c806cf64c8cb02808552",
+      "sha256": "aa899897782d841c63b93133a3d4123f0c6babe44c1a17af1f7364975110fa71",
       "summary": "Task outcomes and verification history, including the 2026-11-25 final exact developer cleanup and upload-limit release receipts."
     },
     {
@@ -890,9 +890,9 @@
       "summary": "import { redirect } from \"next/navigation\"; import { DeveloperTeamManager } from \"@/components/DeveloperTeamManager\"; import { DeveloperLayout } from \"@/components/DeveloperLayout\";"
     },
     {
-      "bytes": 42717,
+      "bytes": 58180,
       "path": "src/app/developers/page.tsx",
-      "sha256": "773cde10b01283add9b2ead4e4469ea480644d7aec4462dea70992dc293bcd83",
+      "sha256": "115ac54a68972b68033e3cff900f3a06f31d2c2a8d3ba7e6de93c69865479366",
       "summary": "import { revalidatePath } from \"next/cache\"; import Link from \"next/link\"; import { AdminAccessDenied } from \"@/components/AdminAccessDenied\";"
     },
     {
@@ -1574,9 +1574,9 @@
       "summary": "Browser-safe shared unit-type and individual-unit workbook/CSV parsers and exact import column contracts."
     },
     {
-      "bytes": 3047,
+      "bytes": 3555,
       "path": "src/lib/developerRbac.ts",
-      "sha256": "f17f5fc961c7ac782e09e5056bf83855b6e23c823ebd8b0f1bbff97a6c46ce2a",
+      "sha256": "9f85c6756774c2662de736b0dfcd076e637d02c17fdc8382471b26cb7b901399",
       "summary": "/** * The developer portal has one closed role vocabulary.  Keep this module free * of database and Next.js imports so it can be used by server actions, route"
     },
     {
@@ -2138,6 +2138,12 @@
       "sha256": "b893f5f5290909db5752c72f60df0530fa6e12ebdf0c5887bb2594c8be37ea96"
     },
     {
+      "bytes": 6772,
+      "path": "supabase/migrations/20261125084445_developer_single_role.sql",
+      "sha256": "58fb61c8fe2914dff79f21e18720b1fdd9679af5b6158d2390319332258be0d6",
+      "summary": "Canonical developer super-admin role normalization, tenant/final-admin guards, and JSON JWT moderation dispatch."
+    },
+    {
       "path": "supabase/tests/agent_resume_contracts.sql",
       "summary": "Current implementation or regression contract; see TASK_LOG.md.",
       "bytes": 4243,
@@ -2192,9 +2198,9 @@
       "sha256": "8eaea5589329a835692ce7333ab39314ce1290934dbd6c67ed0ba62c5773eb2a"
     },
     {
-      "bytes": 4055,
+      "bytes": 7730,
       "path": "supabase/tests/developer_team_rbac_contracts.sql",
-      "sha256": "a12b350d1015cb457f637c59ceef66c5adf1cd94d9de03d179bb825013e6f2b4",
+      "sha256": "ff654c9b5020d29dd152bebbd941c011026fa0980664af021b2348efe76966b5",
       "summary": "begin; do $$"
     },
     {
@@ -2306,9 +2312,9 @@
       "summary": "import assert from \"node:assert/strict\"; import { readFile } from \"node:fs/promises\"; import test from \"node:test\";"
     },
     {
-      "bytes": 5360,
+      "bytes": 8649,
       "path": "tests/developer-team-rbac-contracts.test.mjs",
-      "sha256": "d85a591a199b08431c66faaae9a159835eb302ad76101bfdce707e043e5186de",
+      "sha256": "b92a9ba788fbf468101a4afd2d9e54761438400143c80d08a92c904b55a1ce69",
       "summary": "import assert from \"node:assert/strict\"; import { existsSync, readFileSync } from \"node:fs\"; import test from \"node:test\";"
     },
     {

@@ -1,5 +1,23 @@
 begin;
 
+-- Keep the JWT/RPC regression self-contained. This fixture is rolled back with
+-- the suite and must not depend on whichever central admins exist in the
+-- target database.
+create temporary table developer_rbac_claim_fixture (
+  admin_id uuid primary key
+) on commit drop;
+
+insert into developer_rbac_claim_fixture (admin_id)
+values (extensions.uuid_generate_v4());
+
+insert into auth.users (id, email)
+select admin_id, format('developer-rbac-claims-%s@example.invalid', admin_id)
+from developer_rbac_claim_fixture;
+
+insert into public.admins (id, role, roles, is_active)
+select admin_id, 'super_admin', array['super_admin'::public.admin_role], true
+from developer_rbac_claim_fixture;
+
 do $$
 declare
   required_roles text[] := array['developer_super_admin'];
@@ -121,16 +139,9 @@ begin
     raise exception 'JSON service-role claim was not recognized';
   end if;
 
-  select admin.id
+  select fixture.admin_id
     into central_admin_id
-  from public.admins admin
-  where admin.is_active = true
-    and (
-      admin.role::text in ('listing_admin', 'super_admin')
-      or 'listing_admin' = any(coalesce(admin.roles::text[], '{}'::text[]))
-      or 'super_admin' = any(coalesce(admin.roles::text[], '{}'::text[]))
-    )
-  order by admin.id
+  from developer_rbac_claim_fixture fixture
   limit 1;
   if central_admin_id is null then
     raise exception 'No active central listing admin is available for the JSON claim regression test';
