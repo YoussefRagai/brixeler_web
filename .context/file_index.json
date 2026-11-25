@@ -1,5 +1,5 @@
 {
-  "file_count": 418,
+  "file_count": 419,
   "files": [
     {
       "bytes": 10244,
@@ -8,9 +8,9 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 48264,
+      "bytes": 48484,
       "path": ".context/repo_summary.md",
-      "sha256": "fcd6cafdf5d681629691b876f7faf0716a7b86d905df5d175c357bbaa07d77b1",
+      "sha256": "1e767c0560c194393dc18b245f71895bdd67777e857959df556d17f83be464de",
       "summary": "Compressed repository state including the 2026-11-25 final exact developer cleanup and upload-limit release receipts."
     },
     {
@@ -50,9 +50,9 @@
       "summary": "# Council Protocol Use external agents for bounded, cheap, or repetitive work. Codex keeps final architecture, safety, and integration judgment."
     },
     {
-      "bytes": 23917,
+      "bytes": 24106,
       "path": "DECISIONS.md",
-      "sha256": "079d3afb3c3bd91f81d0d13daa0c1bea6b1e3713bad8ff3c8951cf2d6f430bbb",
+      "sha256": "7eaa55a726b508bca69099926779f7b958d5e3287b33b069b638c87d8ef1aba6",
       "summary": "Architecture decisions, including fail-closed cleanup ordering, retained parents, and release state."
     },
     {
@@ -62,9 +62,9 @@
       "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
     },
     {
-      "bytes": 26372,
+      "bytes": 26480,
       "path": "PROJECT_MAP.md",
-      "sha256": "ba6a7e18d8e5d5ab2747a17b9703792708c17b1cafd0425628d082ca30a7c7b0",
+      "sha256": "58c208138f4c6f8e281e4f6948ec165e8ab16e0b32dd0355d16c59dec7ad5f8e",
       "summary": "Repository map including the released shared upload-limit contract and current dashboard/partial-cleanup handoff paths."
     },
     {
@@ -80,9 +80,9 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 130458,
+      "bytes": 131108,
       "path": "TASK_LOG.md",
-      "sha256": "af0569eb17f014bc35e7733476c44db26379dd7f027a04d014348c998223939e",
+      "sha256": "5caa98605b19e5977dc01575a3de5d1c9c69d7484d4227c416a7bb6750e0a63c",
       "summary": "Task outcomes and verification history, including the 2026-11-25 final exact developer cleanup and upload-limit release receipts."
     },
     {
@@ -2120,6 +2120,12 @@
       "summary": "Raises all six developer media Storage buckets to 200 MiB while preserving MIME allowlists."
     },
     {
+      "bytes": 231,
+      "path": "supabase/migrations/20261125111500_preserve_non_developer_storage_caps.sql",
+      "sha256": "67269d6c76e830d161004c595e2cfa6d9c0a6d102ba63e85fbd041433b406a9b",
+      "summary": "Makes the former 50 MiB cap explicit for existing NULL non-developer Storage buckets."
+    },
+    {
       "path": "supabase/migrations/20261111141109_agent_lifetime_resume.sql",
       "summary": "Current implementation or regression contract; see TASK_LOG.md.",
       "bytes": 10105,
@@ -2366,9 +2372,9 @@
       "sha256": "b94fd3543825bc10a50c8f63e232c5226ce468e9dbb639904834f98a7a783a91"
     },
     {
-      "bytes": 5355,
+      "bytes": 5685,
       "path": "tests/project-media-upload.test.mjs",
-      "sha256": "51cb21dd00a94fe5d055f859be43dbca187041e680e9b75e76159c2ef047edc7",
+      "sha256": "52599e6362abcc73059dd3ff34eb3c1630171ebdb464ccc47af10fc3131bd883",
       "summary": "Project media per-bucket limits, signer safety, migration scope, preflight and draft regression tests."
     },
     {

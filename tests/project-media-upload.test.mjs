@@ -63,6 +63,12 @@ test("the 200 MiB bucket migration covers every developer media bucket", () => {
   assert.doesNotMatch(migration, /badge-icons|tier-icons|gift-icons/);
 });
 
+test("the follow-up migration preserves the former cap for NULL non-developer buckets", () => {
+  const migration = read("../supabase/migrations/20261125111500_preserve_non_developer_storage_caps.sql");
+  assert.match(migration, /file_size_limit\s*=\s*52428800/);
+  assert.match(migration, /where file_size_limit is null/i);
+});
+
 test("project forms upload media separately and preserve draft creation", () => {
   const field = read("../src/components/DeveloperMediaField.tsx");
   const wizard = read("../src/components/ProjectWizard.tsx");

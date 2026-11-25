@@ -9,8 +9,8 @@
 ## 2026-11-25 Developer upload limit contract (pending rollout)
 
 - `src/lib/storageUploadRules.mjs` is the shared browser/server-safe upload contract. All developer media buckets (logos, project/unit images, brochures, voice notes, and videos) now use a 200 MiB per-file limit; non-developer reward icons remain 5 MiB. The signed route still requires bounded Storage and exact MIME allowlists, while `DeveloperMediaField` rejects oversized picker/drop files before signing. The profile logo preview uses the same shared 200 MiB constant.
-- `next.config.ts` raises the Server Action body ceiling to 220 MB for multipart overhead. Additive migration `supabase/migrations/20261125110000_raise_developer_media_bucket_limits.sql` raises all six developer media buckets to `209715200` bytes without changing MIME allowlists. No live migration, deployment, or authenticated boundary upload has been performed in this pass.
-- Focused contracts pass 26/26; typecheck, lint, build, and `git diff --check` pass locally. The full release gate and any live rollout remain parent-owned follow-ups. The prior `20261124220551` rollout receipt remains historical and is superseded by this pending 200 MiB contract.
+- `next.config.ts` raises the Server Action body ceiling to 220 MB for multipart overhead. Additive migration `supabase/migrations/20261125110000_raise_developer_media_bucket_limits.sql` raises all six developer media buckets to `209715200` bytes without changing MIME allowlists. Follow-up migration `supabase/migrations/20261125111500_preserve_non_developer_storage_caps.sql` makes the former 50 MiB project-wide cap explicit for existing NULL non-developer buckets before the global cap is raised. No live migration, deployment, or authenticated boundary upload has been performed in this pass.
+- Focused contracts pass 27/27; typecheck, lint, build, and `git diff --check` pass locally. The full release gate and any live rollout remain parent-owned follow-ups. The prior `20261124220551` rollout receipt remains historical and is superseded by this pending 200 MiB contract.
 
 ## 2026-11-23 final cleanup receipt
 

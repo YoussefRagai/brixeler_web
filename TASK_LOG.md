@@ -12,6 +12,11 @@
 - Raised the Next Server Action body ceiling to 220 MB for multipart overhead and added `supabase/migrations/20261125110000_raise_developer_media_bucket_limits.sql`, which sets all six developer media buckets to `209715200` bytes while preserving existing MIME allowlists.
 - Verification: `node --experimental-strip-types --test tests/project-media-upload.test.mjs tests/contracts.test.mjs` passes 26/26; `npx tsc --noEmit --pretty false`, `npm run lint -- --quiet`, `npm run build`, and `git diff --check` also pass. Live migration, deployment, and authenticated 200 MiB boundary uploads remain parent-owned follow-ups; no production write or secret access occurred.
 
+## 2026-11-25 — Preserve non-developer Storage caps (pending rollout)
+
+- Added additive migration `supabase/migrations/20261125111500_preserve_non_developer_storage_caps.sql`. It sets `file_size_limit` to `52428800` only for existing Storage buckets still using `NULL`, preserving their former project-wide 50 MiB effective cap before the global Supabase setting is raised to 200 MiB. The already-applied developer-media migration remains unchanged.
+- Verification: focused upload/contracts tests pass 27/27; no live database write or global Storage setting change was performed here. The parent owns the Supabase UI update and follow-up release.
+
 ## 2026-11-25 — Developer media upload-limit release receipt
 
 - Source `149121e` was committed/pushed to `main` and deployed app-first as Railway deployment `38ba7675-7e91-4765-9847-de9bdb2f9506`; Safari verified the deployment active and successful. The app-first order kept existing 25 MiB bucket uploads usable because the bounded signer accepts stricter configured limits.
