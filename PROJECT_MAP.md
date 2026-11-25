@@ -1,6 +1,7 @@
 # Project Map: brixeler-web
 
 - Current cross-surface contracts: `supabase/migrations/20261111141109_agent_lifetime_resume.sql` owns private resume rows, document storage, and redacted share RPCs; `src/app/resume/[token]/page.tsx` bridges share links into the app. `supabase/migrations/20261111142652_transactional_notification_pushes.sql` queues and safely retries opt-in deal/support Expo pushes. `src/lib/externalMediaUrl.ts` validates pasted developer media; `src/proxy.ts` preserves the public developer inventory template asset. `DeveloperProjectCreateForm.tsx` and `src/app/developer/projects/page.tsx` capture extended structured payment-plan terms.
+- Project publication contract: `supabase/migrations/20261125123000_relax_project_type_publication_requirement.sql` treats phase-scoped active `project_unit_types` as the mobile inventory type requirement; the optional project-level `project_types` marketing array no longer blocks project submission/publication, while active-developer, description, location, hero, phase, and label/positive-price checks remain enforced. Unit area and description remain optional, matching the save/mobile contract.
 
 - Handover entry points: `README.md` and `HANDOVER.md` describe the two dashboards, database ownership, required environment names, verification and external provider transfers.
 

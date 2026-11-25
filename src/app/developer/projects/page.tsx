@@ -215,6 +215,22 @@ type ProjectPublicationInput = {
   lifecycle_state?: string | null;
   published_at?: string | null;
   publication_status?: string | null;
+  developer_project_phases?: Array<{
+    id?: string | null;
+    approval_status?: string | null;
+    lifecycle_state?: string | null;
+    published_at?: string | null;
+    archived_at?: string | null;
+  }> | null;
+  project_unit_types?: Array<{
+    phase_id?: string | null;
+    category?: string | null;
+    label?: string | null;
+    min_price?: number | null;
+    unit_area_min?: number | null;
+    description?: string | null;
+    archived_at?: string | null;
+  }> | null;
 };
 
 type ProjectReadinessInput = ProjectPublicationInput & {
@@ -223,22 +239,135 @@ type ProjectReadinessInput = ProjectPublicationInput & {
   location?: string | null;
   project_types?: string[] | null;
   hero_media?: ProjectMedia | null;
-  project_unit_types?: Array<{
-    label?: string | null;
-    min_price?: number | null;
-    unit_area_min?: number | null;
-    description?: string | null;
-    archived_at?: string | null;
-  }> | null;
   quality_score?: number | null;
   quality_issues?: string[] | null;
 };
 
+type ProjectMobileStatus = {
+  label: string;
+  message: string;
+  /** Project-level visibility in the mobile directory. */
+  directoryVisible: boolean;
+  /** Inventory is evaluated after the project card is visible. */
+  inventoryVisibility: "unknown" | "missing" | "prepared";
+  /** @deprecated Use directoryVisible. Kept for callers that still read the old flag. */
+  visible: boolean;
+  blocker: string | null;
+  nextAction: string | null;
+};
+
+const getProjectMobileStatus = (project: ProjectPublicationInput, developerIsDemo = false): ProjectMobileStatus => {
+  const isDemo = Boolean(project.is_demo || developerIsDemo);
+  if (isDemo) {
+    return {
+      label: "Hidden from mobile · demo",
+      message: "Demo projects stay hidden from customers, including after approval.",
+      directoryVisible: false,
+      inventoryVisibility: "unknown",
+      visible: false,
+      blocker: null,
+      nextAction: null,
+    };
+  }
+
+  // The mobile directory query gates on the project itself. It does not join
+  // phases or unit types, so missing phase data must not make a published
+  // project look absent from the directory.
+  const projectDirectoryVisible = project.approval_status === "approved" && project.lifecycle_state === "published" && Boolean(project.published_at);
+  if (!projectDirectoryVisible) {
+    return {
+      label: "Not visible in mobile directory",
+      message: "Customer visibility starts after the project is approved and published.",
+      directoryVisible: false,
+      inventoryVisibility: "unknown",
+      visible: false,
+      blocker: "Submit the project for publication",
+      nextAction: "Submit for publication",
+    };
+  }
+
+  // Phase/unit joins are optional on the project list. When they are not
+  // present, report the directory state and leave inventory visibility
+  // unknown instead of inferring that inventory is missing.
+  const hasInventoryContext = Array.isArray(project.developer_project_phases) || Array.isArray(project.project_unit_types);
+  if (!hasInventoryContext) {
+    return {
+      label: "Project visible in mobile directory",
+      message: "The project card is visible in mobile. Inventory visibility is evaluated separately.",
+      directoryVisible: true,
+      inventoryVisibility: "unknown",
+      visible: true,
+      blocker: null,
+      nextAction: null,
+    };
+  }
+
+  const activePhases = (project.developer_project_phases ?? []).filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived");
+  const activePhaseIds = new Set(activePhases.map((phase) => phase.id).filter((id): id is string => Boolean(id)));
+  const activeUnitTypes = (project.project_unit_types ?? []).filter((unit) => {
+    if (unit.archived_at) return false;
+    return !activePhaseIds.size || activePhaseIds.has(unit.phase_id ?? "");
+  });
+  if (!activePhases.length) {
+    return {
+      label: "Project visible in mobile directory",
+      message: "The project card is visible in mobile. No mobile-visible inventory yet. Create a release phase to organize the inventory.",
+      directoryVisible: true,
+      inventoryVisibility: "missing",
+      visible: true,
+      blocker: "Add a release phase",
+      nextAction: "Create a release phase",
+    };
+  }
+
+  const publishedPhaseWithInventory = activePhases.some((phase) =>
+    phase.approval_status === "approved" &&
+    phase.lifecycle_state === "published" &&
+    Boolean(phase.published_at) &&
+    activeUnitTypes.some((unit) => unit.phase_id === phase.id),
+  );
+  if (publishedPhaseWithInventory) {
+    return {
+      label: "Project visible in mobile directory",
+      message: "The project card is visible in mobile. A mobile-visible unit type is prepared; individual property visibility is approved separately.",
+      directoryVisible: true,
+      inventoryVisibility: "prepared",
+      visible: true,
+      blocker: null,
+      nextAction: null,
+    };
+  }
+
+  if (!activeUnitTypes.length) {
+    return {
+      label: "Project visible in mobile directory",
+      message: "The project card is visible in mobile. No mobile-visible inventory yet. Add at least one active unit type to a release phase.",
+      directoryVisible: true,
+      inventoryVisibility: "missing",
+      visible: true,
+      blocker: "Add an active unit type to a release phase",
+      nextAction: "Open phase inventory",
+    };
+  }
+  return {
+    label: "Project visible in mobile directory",
+    message: "The project card is visible in mobile. No mobile-visible inventory yet; submit a release phase and its inventory for review.",
+    directoryVisible: true,
+    inventoryVisibility: "missing",
+    visible: true,
+    blocker: "Submit a release phase and its inventory for review",
+    nextAction: "Open review",
+  };
+};
+
 const getProjectPublicationStatus = (project: ProjectPublicationInput, developerIsDemo = false) => {
   if (project.lifecycle_state === "archived") return { label: "Archived", tone: "bg-neutral-200 text-neutral-700" };
+  const mobileStatus = getProjectMobileStatus(project, developerIsDemo);
   const published = project.is_demo || developerIsDemo
     ? { label: "Published · demo hidden", tone: "bg-amber-100 text-amber-800" }
-    : { label: "Published to mobile", tone: "bg-emerald-100 text-emerald-800" };
+    : mobileStatus.directoryVisible
+      ? { label: "Project visible in mobile directory", tone: "bg-emerald-100 text-emerald-800" }
+      : { label: "Not visible in mobile directory", tone: "bg-amber-100 text-amber-800" };
   if (project.publication_status === "published") return published;
   if (project.publication_status === "changes_requested") return { label: "Changes requested", tone: "bg-rose-100 text-rose-800" };
   if (project.publication_status === "submitted") return { label: "Submitted for review", tone: "bg-amber-100 text-amber-800" };
@@ -260,16 +389,26 @@ const getProjectReadiness = (project: ProjectReadinessInput) => {
       (Array.isArray(heroMedia?.images) && heroMedia.images.length),
   );
   // Keep the local checklist aligned with developer_project_publication_check:
-  // the current database contract counts every project_unit_types row,
-  // including archived rows, until the server function is changed.
-  const unitTypes = project.project_unit_types ?? [];
+  // only active unit types in active phases are part of the publication
+  // contract. Project-level property type labels are optional marketing data;
+  // the phase-scoped unit type is the inventory contract mobile consumes.
+  const phases = project.developer_project_phases ?? [];
+  const activePhaseIds = new Set(
+    phases
+      .filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived")
+      .map((phase) => phase.id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const unitTypes = (project.project_unit_types ?? []).filter((unit) => {
+    if (unit.archived_at) return false;
+    return !activePhaseIds.size || activePhaseIds.has(unit.phase_id ?? "");
+  });
   const checks = [
     ["Project name", Boolean(project.name?.trim())],
     ["Description", Boolean(project.description?.trim())],
     ["Location", Boolean(project.location?.trim())],
-    ["Project type", Boolean(project.project_types?.length)],
     ["Unit inventory", unitTypes.length > 0],
-    ["Unit details", unitTypes.length > 0 && unitTypes.every((unit) => Boolean(unit.label?.trim()) && Number(unit.min_price) >= 100000 && Number(unit.unit_area_min) >= 10 && Boolean(unit.description?.trim()))],
+    ["Unit details", unitTypes.length > 0 && unitTypes.every((unit) => Boolean(unit.label?.trim()) && Number(unit.min_price) > 0)],
     ["Hero media", hasHero],
   ] as const;
   const complete = checks.filter(([, value]) => value).length;
@@ -513,26 +652,27 @@ export default async function DeveloperProjectsPage({
     const phases = (project.developer_project_phases ?? []).filter((phase) => !phase.archived_at && phase.lifecycle_state !== "archived").length;
     const activeUnitTypes = (project.project_unit_types ?? []).filter((unit) => !unit.archived_at);
     const stockCount = activeUnitTypes.reduce((total, unit) => total + (unit.project_unit_variants ?? []).filter((variant) => !variant.archived_at).reduce((variantTotal, variant) => variantTotal + Math.max(0, Number(variant.stock_count ?? 0)), 0), 0);
+    const mobileStatus = getProjectMobileStatus(project, Boolean(profile?.is_demo));
     const publicationAttention = publication.label === "Changes requested";
     const blocker = publicationAttention
       ? "Review requested changes"
       : readiness.missing.length
         ? `Missing ${readiness.missing[0].toLocaleLowerCase()}`
-        : null;
-    const publicationState: DeveloperPortfolioProject["publicationState"] = publication.label === "Published to mobile"
+        : mobileStatus.blocker;
+    const publicationState: DeveloperPortfolioProject["publicationState"] = mobileStatus.directoryVisible
       ? "published"
       : publicationAttention
         ? "attention"
         : "review";
     const nextAction = blocker
-      ? blocker
-      : publication.label === "Published to mobile"
-        ? "Live on mobile"
+      ? publicationAttention || readiness.missing.length ? blocker : mobileStatus.nextAction ?? blocker
+      : mobileStatus.directoryVisible
+        ? "Visible in mobile directory"
         : publication.label === "Submitted for review"
           ? "Awaiting admin review"
           : publication.label === "Published · demo hidden"
             ? "Demo hidden from customers"
-            : "Submit for publication";
+          : "Submit for publication";
     return {
       id: project.id,
       name: project.name,
@@ -554,7 +694,7 @@ export default async function DeveloperProjectsPage({
   });
   const selectedReadiness = selectedProject ? getProjectReadiness(selectedProject) : null;
   const incompleteUnitType = selectedProject?.project_unit_types?.find((unit) =>
-    !unit.label?.trim() || Number(unit.min_price) < 100000 || Number(unit.unit_area_min) < 10 || !unit.description?.trim(),
+    !unit.label?.trim() || Number(unit.min_price) <= 0,
   );
   const selectedSetupAction = selectedProject && selectedReadiness
     ? projectSetupAction({
@@ -568,6 +708,16 @@ export default async function DeveloperProjectsPage({
       })
     : null;
   const selectedPublication = selectedProject ? getProjectPublicationStatus(selectedProject, Boolean(profile?.is_demo)) : null;
+  const selectedMobileStatus = selectedProject ? getProjectMobileStatus(selectedProject, Boolean(profile?.is_demo)) : null;
+  const selectedMobileAction = selectedProjectId && selectedMobileStatus?.nextAction && (
+    !selectedMobileStatus.directoryVisible || selectedMobileStatus.inventoryVisibility === "missing"
+  )
+    ? selectedMobileStatus.nextAction === "Create a release phase"
+      ? { label: "Create a release phase", href: `/developer/projects?project=${selectedProjectId}&${projectSectionQuery("phases", { phaseId: "new" })}#new-project-phase` }
+      : selectedMobileStatus.nextAction === "Open phase inventory"
+        ? { label: "Open phase inventory", href: `/developer/projects?project=${selectedProjectId}&${projectSectionQuery("inventory", { inventoryView: "types", phaseId: selectedPhaseId })}#add-property-types` }
+        : { label: selectedMobileStatus.nextAction, href: `/developer/projects?project=${selectedProjectId}&${projectSectionQuery("review", { phaseId: selectedPhaseId })}#project-review` }
+    : null;
   const selectedHeroMedia = selectedProject?.hero_media as ProjectMedia | null | undefined;
   const selectedHeroImage = selectedHeroMedia?.heroImageUrl ?? selectedHeroMedia?.hero_image_url ?? (Array.isArray(selectedHeroMedia?.images) ? selectedHeroMedia.images[0] : null) ?? null;
   const [inventoryRows, impactSummary, projectFeedback, allProjectVersions, projectActivity, savedInventoryFilters, projectTemplates, priceHistory] = selectedProjectId
@@ -779,7 +929,7 @@ export default async function DeveloperProjectsPage({
 
           {workspaceSection === "review" ? (
             <section id="project-review" className="grid scroll-mt-24 gap-4 lg:grid-cols-2" aria-label="Project review details">
-              <DeveloperPublicationFeedbackPanel projectId={selectedProjectId} phaseId={selectedPhaseId} feedback={projectFeedback} resolveAction={resolveFeedbackAction} />
+              <DeveloperPublicationFeedbackPanel projectId={selectedProjectId} phaseId={selectedPhaseId} feedback={projectFeedback} resolveAction={resolveFeedbackAction} rejectionReason={selectedProject?.rejection_reason} readinessMissing={selectedReadiness?.missing} />
               <DeveloperVersionHistory projectId={selectedProjectId} phaseId={selectedPhaseId} versions={projectVersions} restoreAction={restoreInventoryVersionAction} />
             </section>
           ) : null}
@@ -848,13 +998,14 @@ export default async function DeveloperProjectsPage({
               <aside className="rounded-[1.6rem] border border-black/5 bg-white p-4 sm:p-5" aria-label="Project completion">
                 <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-neutral-400">Project completeness</p><p className="mt-1 text-2xl font-semibold text-neutral-950">{selectedReadiness.score}%</p></div><span className="grid size-11 place-items-center rounded-2xl bg-black text-white"><Smartphone aria-hidden="true" size={20} /></span></div>
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={selectedReadiness.score} aria-label="Project completion score"><span className={`block h-full rounded-full ${selectedReadiness.score >= 80 ? "bg-emerald-500" : selectedReadiness.score >= 50 ? "bg-amber-400" : "bg-rose-400"}`} style={{ width: `${selectedReadiness.score}%` }} /></div>
-                {selectedReadiness.missing.length && selectedSetupAction ? <div className="mt-4 flex gap-3 rounded-2xl bg-amber-50 p-3 text-amber-900"><CircleAlert aria-hidden="true" className="mt-0.5 shrink-0" size={17} /><div><p className="text-xs font-semibold">Next step</p><p className="mt-1 text-xs leading-5">Add {selectedReadiness.missing[0].toLocaleLowerCase()} to continue toward mobile publication.</p><a href={selectedSetupAction.href} className="mt-3 inline-flex min-h-9 items-center gap-1 rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white">{selectedSetupAction.label}<ChevronRight aria-hidden="true" size={13} /></a></div></div> : <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-xs font-medium text-emerald-800">All local readiness checks are complete. Open Review when you are ready to send the project to Brixeler.</p>}
+                {selectedReadiness.missing.length && selectedSetupAction ? <div className="mt-4 flex gap-3 rounded-2xl bg-amber-50 p-3 text-amber-900"><CircleAlert aria-hidden="true" className="mt-0.5 shrink-0" size={17} /><div><p className="text-xs font-semibold">Next step</p><p className="mt-1 text-xs leading-5">Add {selectedReadiness.missing[0].toLocaleLowerCase()} to continue toward mobile publication.</p><a href={selectedSetupAction.href} className="mt-3 inline-flex min-h-9 items-center gap-1 rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white">{selectedSetupAction.label}<ChevronRight aria-hidden="true" size={13} /></a></div></div> : selectedMobileAction ? <div className="mt-4 flex gap-3 rounded-2xl bg-amber-50 p-3 text-amber-900"><CircleAlert aria-hidden="true" className="mt-0.5 shrink-0" size={17} /><div><p className="text-xs font-semibold">Next step for mobile</p><p className="mt-1 text-xs leading-5">{selectedMobileStatus?.message}</p><a href={selectedMobileAction.href} className="mt-3 inline-flex min-h-9 items-center gap-1 rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white">{selectedMobileAction.label}<ChevronRight aria-hidden="true" size={13} /></a></div></div> : <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-xs font-medium text-emerald-800">All local readiness checks are complete. Open Review when you are ready to send the project to Brixeler.</p>}
                 <div className="mt-5 rounded-2xl border border-black/10 bg-[#f7f4ee] p-3">
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400">Mobile card</p>
                   <div className="mt-3 overflow-hidden rounded-xl bg-white shadow-sm">
                     {selectedHeroImage ? <div className="h-24 bg-cover bg-center" style={{ backgroundImage: `url(${selectedHeroImage})` }} /> : <div className="grid h-20 place-items-center bg-neutral-100 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-400">Hero media needed</div>}
                     <div className="p-3"><p className="truncate text-sm font-semibold text-neutral-900">{selectedProject?.name}</p><p className="mt-1 truncate text-xs text-neutral-500">{selectedProject?.location ?? selectedProject?.description}</p></div>
                   </div>
+                  {selectedMobileStatus ? <div className={`mt-3 rounded-xl border p-3 ${selectedMobileStatus.directoryVisible && selectedMobileStatus.inventoryVisibility !== "missing" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-950"}`}><p className="text-[10px] font-bold uppercase tracking-[0.16em]">Mobile directory</p><p className="mt-1 text-sm font-semibold">{selectedMobileStatus.label}</p><p className="mt-1 text-xs leading-5">{selectedMobileStatus.message}</p></div> : null}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <MobilePreviewButton formId={`project-preview-${selectedProjectId}`} titleField="name" bodyField="description" typeField="launchStatus" label="Preview mobile" initialDraft={{ title: selectedProject?.name ?? "Project preview", body: selectedProject?.description ?? "Add a project description to preview the mobile card.", type: getLaunchStatusLabel(selectedProject?.launch_status) }} imageUrl={selectedHeroImage} />

@@ -22,6 +22,8 @@ const STATES: Record<string, { label: string; stage: number; message: string }> 
   archived: { label: "Archived", stage: 0, message: "Restore this project before preparing it for review." },
 };
 
+const displayIssue = (issue: string) => issue === "Project type" ? "Property types" : issue;
+
 export function DeveloperPublicationWorkflow({ projectId, phaseId, status, readiness, markReadyAction, submitAction, isDemo = false }: Props) {
   // Unknown states are display-only: never offer a transition we cannot explain.
   const state = STATES[status ?? "draft"] ?? { label: "Status unavailable", stage: 0, message: "Refresh the project before submitting it for review." };
@@ -60,9 +62,9 @@ export function DeveloperPublicationWorkflow({ projectId, phaseId, status, readi
         <div role="progressbar" aria-label="Project completeness" aria-valuenow={score} aria-valuemin={0} aria-valuemax={100} className="mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-100"><span className="block h-full rounded-full bg-neutral-900" style={{ width: `${score}%` }} /></div>
         {blocked ? (
           <ul className="mt-3 divide-y divide-black/5">
-            {readiness.missing.map((issue) => <li key={issue}><a href={issueHref(issue)} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm text-neutral-700 hover:text-black"><span>{issue}</span><ChevronRight size={15} aria-hidden="true" /></a></li>)}
+            {readiness.missing.map((issue) => <li key={issue}><a href={issueHref(issue)} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm text-neutral-700 hover:text-black"><span>{displayIssue(issue)}</span><ChevronRight size={15} aria-hidden="true" /></a></li>)}
           </ul>
-        ) : <p className="mt-3 text-xs text-neutral-500">The server checks eligibility again when you submit. Saving changes does not publish them.</p>}
+        ) : <p className="mt-3 text-xs text-neutral-500">The server checks eligibility again when you submit. Saving changes does not publish them. Resubmitting keeps your saved project, phase, and inventory data.</p>}
       </div>
       {canPrepare ? <div className="mt-4 flex flex-wrap justify-end gap-2">
         {status !== "ready" ? <form action={markReadyAction}>

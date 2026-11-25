@@ -1,5 +1,5 @@
 {
-  "file_count": 419,
+  "file_count": 422,
   "files": [
     {
       "bytes": 10244,
@@ -8,10 +8,10 @@
       "summary": "\u0000\u0000\u0000\u0001Bud1\u0000\u0000 \u0000\u0000\u0000\b\u0000\u0000\u0000 \u0000\u0000\u0000\u0010 \u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000,\u0000\u0000\u0000\u0001\u0000\u0000\u0010\u0000\u0000.\u0000l\u0000o\u0000c\u0000a\u0000l\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
     },
     {
-      "bytes": 48484,
+      "bytes": 49241,
       "path": ".context/repo_summary.md",
-      "sha256": "1e767c0560c194393dc18b245f71895bdd67777e857959df556d17f83be464de",
-      "summary": "Compressed repository state including the 2026-11-25 final exact developer cleanup and upload-limit release receipts."
+      "sha256": "9f0a2ed20e6101e7d5cd31496a7e868807ff99242c2ea63d902479bd1a8343e9",
+      "summary": "Compressed repository state including 2026-11-25 developer cleanup, publication-type correction, and submission UX release receipts."
     },
     {
       "bytes": 1503,
@@ -50,10 +50,10 @@
       "summary": "# Council Protocol Use external agents for bounded, cheap, or repetitive work. Codex keeps final architecture, safety, and integration judgment."
     },
     {
-      "bytes": 24106,
+      "bytes": 24819,
       "path": "DECISIONS.md",
-      "sha256": "7eaa55a726b508bca69099926779f7b958d5e3287b33b069b638c87d8ef1aba6",
-      "summary": "Architecture decisions, including fail-closed cleanup ordering, retained parents, and release state."
+      "sha256": "8721c00da45b783aa6e19d642357f5e2dc339c6af86b07c8c0b5ebae4992eea1",
+      "summary": "Architecture decisions, including publication checklist semantics, fail-closed cleanup ordering, retained parents, and release state."
     },
     {
       "path": "HANDOVER.md",
@@ -62,10 +62,10 @@
       "sha256": "eda3c630c36e441caf39b4793345c295f8c9484a1521485ccedb8935aee3b8d1"
     },
     {
-      "bytes": 26480,
+      "bytes": 26981,
       "path": "PROJECT_MAP.md",
-      "sha256": "58c208138f4c6f8e281e4f6948ec165e8ab16e0b32dd0355d16c59dec7ad5f8e",
-      "summary": "Repository map including the released shared upload-limit contract and current dashboard/partial-cleanup handoff paths."
+      "sha256": "481f94592972d6c7981b86bca2ac6928805ba3448fae71cded932e22a0949e01",
+      "summary": "Repository map including project publication contracts, shared upload limits, and dashboard/partial-cleanup handoff paths."
     },
     {
       "bytes": 768,
@@ -80,10 +80,10 @@
       "summary": "# Security Scanning This repo is wired for practical vulnerability checks."
     },
     {
-      "bytes": 131108,
+      "bytes": 134406,
       "path": "TASK_LOG.md",
-      "sha256": "5caa98605b19e5977dc01575a3de5d1c9c69d7484d4227c416a7bb6750e0a63c",
-      "summary": "Task outcomes and verification history, including the 2026-11-25 final exact developer cleanup and upload-limit release receipts."
+      "sha256": "c02b5f0cce396b9cb6644146bb403dc47fb2258e81f686e366f33a0ae2a7e4db",
+      "summary": "Task outcomes and verification history, including 2026-11-25 publication contract and submission UX receipts."
     },
     {
       "bytes": 640,
@@ -866,10 +866,10 @@
       "summary": "import DeveloperProjectsPage from \"../page\"; export const dynamic = \"force-dynamic\";"
     },
     {
-      "bytes": 185499,
+      "bytes": 190171,
       "path": "src/app/developer/projects/page.tsx",
-      "sha256": "43c741f2f8935e8efa6b612e98df330514cb56c465e9cc30c57c8954077eaa67",
-      "summary": "Project portal, phase/inventory workspace, two template downloads, and feedback routing."
+      "sha256": "7b650c8899cf3809a6cafd2f49b7d65b2f8cd053184090d329cd23457592b2dc",
+      "summary": "Developer project portal, phase/inventory workspace, publication readiness/status, mobile-directory messaging, and feedback routing."
     },
     {
       "path": "src/app/developer/support/[ticketId]/page.tsx",
@@ -1185,9 +1185,9 @@
     },
     {
       "path": "src/components/DeveloperProjectPortfolioBoard.tsx",
-      "summary": "Developer portal reliability sweep: project, inventory, support, and permission contracts.",
-      "bytes": 11999,
-      "sha256": "9893733f005d73e774056883b7f4d44123cc327ca4c3bda119f0ece932d21f54"
+      "summary": "Compact developer project portfolio board with publication/readiness and next-action status.",
+      "bytes": 12000,
+      "sha256": "84f7f587f0cf3458b18fc40c93efe6544fc13a81e95e922efc89cfdc825bce00"
     },
     {
       "bytes": 2928,
@@ -1196,16 +1196,16 @@
       "summary": "\"use client\"; import { useEffect, useState, type ReactNode } from \"react\";"
     },
     {
-      "bytes": 2453,
+      "bytes": 6019,
       "path": "src/components/DeveloperPublicationFeedbackPanel.tsx",
-      "sha256": "d01275ece9cf1c06e443a736452726ee51dfcc53b4c9a7dc9b2341fd301e10ad",
-      "summary": "import type { DeveloperPublicationFeedback } from \"@/lib/developerQueries\"; type ServerAction = (formData: FormData) => void | Promise<void>;"
+      "sha256": "99133a9c4635bcd9ffc640d1ff30fd70ac36fa314f06da006878eda59b7b1931",
+      "summary": "Publication feedback panel with reviewer-reason alignment, stale-note detection, saved-field links, and resolution actions."
     },
     {
-      "bytes": 6177,
+      "bytes": 6351,
       "path": "src/components/DeveloperPublicationWorkflow.tsx",
-      "sha256": "9f92df31589c07e45362a550a6d86e04b8f6081badb78602033a8d65c5ada7b6",
-      "summary": "import type { DeveloperPublicationStatus } from \"@/lib/developerQueries\"; type ServerAction = (formData: FormData) => void | Promise<void>;"
+      "sha256": "2256f54ab04595a637e27d77b1c54f83962946120a17a1858e50be91bcb5c179",
+      "summary": "Publication workflow controls, readiness blockers, and resubmission/preservation messaging."
     },
     {
       "bytes": 9622,
@@ -2361,9 +2361,9 @@
     },
     {
       "path": "tests/project-demo-publication.test.mjs",
-      "summary": "See task log for scoped implementation and verification.",
-      "bytes": 6461,
-      "sha256": "68f9c31a010ad641375ac8bd58324e49c39e40fd99c2c142533156b5d621ae77"
+      "summary": "Developer project publication/demo and mobile-directory status contracts.",
+      "bytes": 8161,
+      "sha256": "07164d3ca026cc605a3b8d4c40d25aea833a11ede09ff211ccecc11a954cf25e"
     },
     {
       "path": "tests/project-inventory-flow.test.mjs",
@@ -2514,6 +2514,24 @@
       "bytes": 5242,
       "sha256": "3b6c8e952ad85721023b21a5c0d8be279b4ebc9d01484e0a31be591464478590",
       "summary": "Rollback-only sibling blocker snapshot and transaction restoration regression suite."
+    },
+    {
+      "path": "supabase/migrations/20261125123000_relax_project_type_publication_requirement.sql",
+      "bytes": 4650,
+      "sha256": "bb2b9be838380d0b1859837188333d69c0ca4046e3e44ad433bc79d8ab4d682e",
+      "summary": "Publication-check replacement that makes project-level property types optional and requires active phase-scoped unit inventory."
+    },
+    {
+      "path": "tests/developer-submission-ux.test.mjs",
+      "bytes": 2447,
+      "sha256": "04ed87b98402f585d8b8d2ffa9cb2161846491f9ed14895ced5ecc36db708098",
+      "summary": "Focused feedback-panel rendering contracts for stale reviewer notes and current blockers."
+    },
+    {
+      "path": "tests/project-publication-contract.test.mjs",
+      "bytes": 1563,
+      "sha256": "e912f62466b31b26e5151e3f06029eefc68078c63fae03ea8ba8239ba72c418e",
+      "summary": "SQL contract test for the project publication checklist and active phase-scoped unit inventory."
     }
   ],
   "generated_by": "codex-init",

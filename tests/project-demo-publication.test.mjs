@@ -15,7 +15,7 @@ function loadFunctions(path, names) {
   return new Function(`${code}\nreturn { ${names.join(", ")} };`)();
 }
 
-const { getProjectPublicationStatus } = loadFunctions("src/app/developer/projects/page.tsx", ["getProjectPublicationStatus"]);
+const { getProjectMobileStatus, getProjectPublicationStatus } = loadFunctions("src/app/developer/projects/page.tsx", ["getProjectMobileStatus", "getProjectPublicationStatus"]);
 const { projectStatus, isProjectMobileVisible } = loadFunctions("src/components/AdminDevelopersTable.tsx", ["projectStatus", "isProjectMobileVisible"]);
 const published = { approval_status: "approved", lifecycle_state: "published", published_at: "2026-09-08T12:00:00Z" };
 const { publicProfileStatus, publicProfileNote } = loadFunctions("src/app/developer/profile/page.tsx", ["publicProfileStatus", "publicProfileNote"]);
@@ -35,10 +35,43 @@ test("listing index describes approval without inferring mobile eligibility", ()
 
 test("published project and company demo flags hide both modern and legacy portfolio labels", () => {
   for (const project of [published, { ...published, publication_status: "published" }]) {
-    assert.equal(getProjectPublicationStatus(project).label, "Published to mobile");
+    assert.equal(getProjectPublicationStatus(project).label, "Project visible in mobile directory");
     assert.equal(getProjectPublicationStatus({ ...project, is_demo: true }).label, "Published · demo hidden");
     assert.equal(getProjectPublicationStatus(project, true).label, "Published · demo hidden");
   }
+});
+
+test("published projects with draft or empty phases keep directory visibility distinct from inventory", () => {
+  const project = {
+    ...published,
+    publication_status: "published",
+    developer_project_phases: [{ id: "phase-1", approval_status: "pending", lifecycle_state: "draft", published_at: null }],
+    project_unit_types: [],
+  };
+  const status = getProjectMobileStatus(project);
+  assert.equal(status.directoryVisible, true);
+  assert.equal(status.visible, true);
+  assert.equal(status.inventoryVisibility, "missing");
+  assert.match(status.message, /No mobile-visible inventory yet/);
+  assert.equal(getProjectPublicationStatus(project).label, "Project visible in mobile directory");
+});
+
+test("published project without phase joins does not infer inventory visibility", () => {
+  const status = getProjectMobileStatus(published);
+  assert.equal(status.directoryVisible, true);
+  assert.equal(status.inventoryVisibility, "unknown");
+  assert.match(status.message, /Inventory visibility is evaluated separately/);
+});
+
+test("prepared phase inventory does not claim individual properties are mobile-visible", () => {
+  const status = getProjectMobileStatus({
+    ...published,
+    developer_project_phases: [{ id: "phase-1", approval_status: "approved", lifecycle_state: "published", published_at: published.published_at }],
+    project_unit_types: [{ phase_id: "phase-1", label: "Apartment", min_price: 1000000 }],
+  });
+  assert.equal(status.directoryVisible, true);
+  assert.equal(status.inventoryVisibility, "prepared");
+  assert.match(status.message, /individual property visibility is approved separately/);
 });
 
 test("demo publication retains archived and review states", () => {
