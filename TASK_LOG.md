@@ -677,5 +677,5 @@ Append meaningful work after each task.
 
 - Task: Record the final Mivida exception approval and release-gate evidence after the project/publication contract correction.
 - Result: The Mivida exception was approved through the review RPC. The project and Phase 1 are both approved and published; anonymous mobile reads now show the project, Phase 1, and its unit type. Individual property visibility remains at 0, as expected because property approval is separate.
-- Verification: `npm run release:check` passed end-to-end, including 209 tests and the production build. The dashboard deployment is still pending; no additional live data or deployment was performed in this receipt.
-- Follow-up: Parent owns dashboard deployment and post-deploy browser confirmation. Confidence 0.95.
+- Verification: `npm run release:check` passed end-to-end, including 209 tests and the production build. Dashboard commit `6be9e2b` was pushed to `main`; Railway deployment `75bb8054-719f-490e-ba23-a87524ef20bf` is ACTIVE / Deployment successful.
+- Follow-up: Post-deploy browser confirmation remains the only release follow-up. No additional live data mutation was performed in this receipt. Confidence 0.97.

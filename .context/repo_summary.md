@@ -280,4 +280,4 @@ The pending additive migration `20261125123000_relax_project_type_publication_re
 
 ## 2026-11-25 Mivida publication and release receipt
 
-The Mivida exception was approved through the review RPC. Project and Phase 1 are approved/published, and anonymous mobile reads now show the project, Phase 1, and its unit type. Individual property visibility remains 0 because property approval is a separate boundary. `npm run release:check` passed end-to-end, including 209 tests and the production build. The dashboard deployment remains pending; parent owns deployment and post-deploy browser confirmation.
+The Mivida exception was approved through the review RPC. Project and Phase 1 are approved/published, and anonymous mobile reads now show the project, Phase 1, and its unit type. Individual property visibility remains 0 because property approval is a separate boundary. `npm run release:check` passed end-to-end, including 209 tests and the production build. Dashboard commit `6be9e2b` was pushed to `main`; Railway deployment `75bb8054-719f-490e-ba23-a87524ef20bf` is ACTIVE / Deployment successful. Post-deploy browser confirmation remains the only release follow-up.
