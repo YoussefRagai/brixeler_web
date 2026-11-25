@@ -106,16 +106,17 @@ test("team controls use isolated idempotent requests and expose load failures", 
   const manager = read("src/components/DeveloperTeamManager.tsx");
   const page = read("src/app/developer/team/page.tsx");
 
-  for (const path of ["/api/developer/team/invite", "/api/developer/team/resend", "/api/developer/team/role", "/api/developer/team/revoke"]) {
+  for (const path of ["/api/developer/team/invite", "/api/developer/team/resend", "/api/developer/team/revoke"]) {
     assert.match(manager, new RegExp(path.replaceAll("/", "\\/")));
   }
   assert.match(manager, /crypto\.randomUUID\(\)/);
   assert.match(manager, /window\.prompt/);
-  assert.match(manager, /role: nextRole/);
+  assert.doesNotMatch(manager, /role: nextRole/);
+  assert.doesNotMatch(manager, /team\/role/);
   assert.match(manager, /FeedbackBanner/);
   assert.match(manager, /tone=\{feedback\?\.kind === "error" \? "error" : "success"\}/);
   assert.match(manager, /Invitation submitted, but the team list could not refresh/);
-  assert.match(manager, /Member role updated, but the team list could not refresh/);
+  assert.doesNotMatch(manager, /Member role updated, but the team list could not refresh/);
   assert.match(page, /initialLoadError=\{loadError\}/);
   assert.match(page, /The team could not be loaded right now/);
 });

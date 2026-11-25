@@ -337,10 +337,6 @@ function LaunchFields({ templateProject }: { templateProject?: DeveloperProjectC
           <Field label="EOI value (Apt)" name="eoiValueApt" type="number" min="0" step="1" placeholder="100000" defaultValue={numberValue(templateProject?.eoi_value_apt)} />
           <Field label="EOI value (Villa)" name="eoiValueVilla" type="number" min="0" step="1" placeholder="250000" defaultValue={numberValue(templateProject?.eoi_value_villa)} />
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Commission rate (%)" name="commissionRate" type="number" min="0" max="100" step="0.01" placeholder="2.50" />
-          <Field label="Platform share (%)" name="platformShare" type="number" min="0" max="100" step="0.01" placeholder="0.25" />
-        </div>
       </div>
     </details>
   );

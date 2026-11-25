@@ -43,8 +43,6 @@ test("creation keeps existing server field names and moves inventory out of the 
     "launchDate",
     "eoiValueApt",
     "eoiValueVilla",
-    "commissionRate",
-    "platformShare",
   ]) {
     assert.match(createForm, new RegExp(`name=["']${fieldName}["']`), `missing ${fieldName}`);
   }
@@ -55,6 +53,8 @@ test("creation keeps existing server field names and moves inventory out of the 
   assert.match(createForm, /<DownPaymentStages prefix={`paymentPlan\$\{index\}`}/);
   assert.match(createForm, /name="offerTitle_0"/);
   assert.doesNotMatch(createForm, /fileName="project_inventory"/);
+  assert.doesNotMatch(createForm, /name="commissionRate"/);
+  assert.doesNotMatch(createForm, /name="platformShare"/);
   assert.match(createForm, /Inventory spreadsheets are added from the project workspace after creation/);
   assert.match(createForm, /ev_charger/);
 });

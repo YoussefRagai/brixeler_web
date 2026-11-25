@@ -217,7 +217,7 @@ test("The current-session boundary returns null after issuer revocation, allowin
   });
   assert.equal((await currentDeveloperSession()).role, "developer_super_admin");
   membership = { ...membership, role: "sales_manager" };
-  assert.equal((await currentDeveloperSession()).role, "sales_manager");
+  assert.equal((await currentDeveloperSession()).role, "developer_super_admin");
   membership = { ...membership, status: "revoked" };
   assert.equal(await currentDeveloperSession(), null);
   membership = { ...membership, status: "active" };

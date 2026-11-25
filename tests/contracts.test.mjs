@@ -178,8 +178,8 @@ test("developer invitations are transactional, idempotent, auditable, and demo-c
   assert.doesNotMatch(page, /developers[\s\S]*\.update\(\{ contact_email/);
   assert.match(form, /required=\{isCreating\}/);
   assert.match(form, /Contact details stay unchanged/);
-  assert.match(form, /name="isDemo"/);
-  assert.match(form, /name="demoBatch"/);
+  assert.doesNotMatch(form, /name="isDemo"/);
+  assert.doesNotMatch(form, /name="demoBatch"/);
   assert.match(table, /crypto\.randomUUID\(\)/);
   assert.match(table, /Network error/);
   assert.match(resend, /create_developer_account_invite/);

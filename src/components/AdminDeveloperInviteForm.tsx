@@ -27,7 +27,8 @@ type DemoBatchOption = {
 
 type Props = {
   developers: DeveloperOption[];
-  demoBatches: DemoBatchOption[];
+  /** Kept optional for the existing page contract; demo selection is server-owned. */
+  demoBatches?: DemoBatchOption[];
   canCreateDeveloper: boolean;
   action: DeveloperInviteAction;
 };
@@ -39,14 +40,12 @@ const initialFormValues = {
   contactEmail: "",
   contactPhone: "",
   memberEmail: "",
-  demoBatch: "",
 };
 
 type InviteFormValues = typeof initialFormValues;
 
-export function AdminDeveloperInviteForm({ developers, demoBatches, canCreateDeveloper, action }: Props) {
+export function AdminDeveloperInviteForm({ developers, canCreateDeveloper, action }: Props) {
   const [existingDeveloperId, setExistingDeveloperId] = useState("");
-  const [isDemo, setIsDemo] = useState(false);
   const [formValues, setFormValues] = useState<InviteFormValues>(initialFormValues);
   const requestIdSeed = useId();
   const requestIdInputRef = useRef<HTMLInputElement>(null);
@@ -61,7 +60,6 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, canCreateDev
     resetRequestId();
     setFormValues(initialFormValues);
     setExistingDeveloperId("");
-    setIsDemo(false);
   }, [resetRequestId]);
 
   const actionWithReset = useCallback(
@@ -116,46 +114,6 @@ export function AdminDeveloperInviteForm({ developers, demoBatches, canCreateDev
           ))}
         </select>
       </label>
-      {canCreateDeveloper ? <label className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 md:col-span-2">
-        <input
-          type="checkbox"
-          name="isDemo"
-          checked={isDemo}
-          onChange={(event) => {
-            resetRequestId();
-            setIsDemo(event.target.checked);
-          }}
-          disabled={!isCreating || demoBatches.length === 0}
-          className="h-4 w-4 accent-amber-700"
-        />
-        <span>
-          <span className="block font-semibold">Mark new developer as demo data</span>
-          <span className="block text-xs text-amber-800">
-            The invite still sends to the member email, but the records stay out of mobile and can be removed by batch.
-          </span>
-        </span>
-      </label> : null}
-      {isDemo && isCreating ? (
-        <label className="flex flex-col gap-1 md:col-span-2">
-          <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Demo batch</span>
-          <select
-            name="demoBatch"
-            required
-            value={formValues.demoBatch}
-            onChange={(event) => updateFormValue("demoBatch", event.target.value)}
-            className="rounded-2xl border border-amber-300 bg-white px-3 py-2 text-[#050505]"
-          >
-            <option value="" disabled>
-              Select an active batch
-            </option>
-            {demoBatches.map((batch) => (
-              <option key={batch.batch_key} value={batch.batch_key}>
-                {batch.label} ({batch.batch_key})
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
       {isCreating ? <label className="flex flex-col gap-1">
         <span className="text-xs uppercase tracking-[0.3em] text-neutral-500">Developer name</span>
         <input

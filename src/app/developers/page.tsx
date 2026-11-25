@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AdminAccessDenied } from "@/components/AdminAccessDenied";
 import { AdminDeveloperInviteForm } from "@/components/AdminDeveloperInviteForm";
 import type { DeveloperInviteActionState } from "@/components/AdminDeveloperInviteForm";
@@ -9,6 +10,7 @@ import { requireAdminRole } from "@/lib/adminAuth";
 import { canAccessScopedDeveloper, developerAdminScope } from "@/lib/adminRoles";
 import { buildAdminUi } from "@/lib/adminUi";
 import { fetchAdminActivity, logAdminActivity } from "@/lib/adminQueries";
+import { DEVELOPER_SUPER_ADMIN_ROLE } from "@/lib/developerRbac";
 import {
   compensateDeveloperInviteAuthUser,
   findAuthUserByEmail,
@@ -52,6 +54,15 @@ type Property = {
   publication_checklist?: Record<string, unknown> | null;
   quality_issues?: string[] | null;
   quality_score?: number | null;
+};
+
+type CommissionRule = {
+  id: string;
+  developer_id: string;
+  property_id: string | null;
+  commission_rate: number | null;
+  platform_share: number | null;
+  updated_at?: string | null;
 };
 
 type DeveloperProject = {
@@ -155,6 +166,9 @@ type DeveloperData = {
 
 const DEVELOPER_PAGE_SIZE = 25;
 const STALE_INVITE_DAYS = 7;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DEVELOPER_COMMISSION_RATE_MAX = 10;
+const PLATFORM_SHARE_MAX = 100;
 
 function safePage(value: string | undefined) {
   const parsed = Number(value);
@@ -558,8 +572,8 @@ async function inviteDeveloperMember(
     const contactPhoneInput = formData.get("contactPhone")?.toString().trim() ?? "";
     const memberEmail = formData.get("memberEmail")?.toString().trim().toLowerCase() ?? "";
     const inviteRequestId = formData.get("inviteRequestId")?.toString().trim() || crypto.randomUUID();
-    const isDemo = formData.get("isDemo") === "on";
-    const demoBatch = formData.get("demoBatch")?.toString().trim() || null;
+    const isDemo = false;
+    const demoBatch = null;
 
     if (!isValidEmail(memberEmail)) return inviteActionError("Enter a valid member email address.");
     if (inviteRequestId.length > 200) return inviteActionError("The invite request could not be identified. Refresh and try again.");
@@ -655,6 +669,7 @@ async function inviteDeveloperMember(
       developerId,
       developerName,
       inviteRequestId,
+      developerRole: DEVELOPER_SUPER_ADMIN_ROLE,
     }, existingAuthUser);
     if (inviteResult.error || !inviteResult.authUserId) {
       if (inviteResult.createdAuthUser && inviteResult.authUserId) {
@@ -709,6 +724,105 @@ async function inviteDeveloperMember(
   }
 }
 
+function commissionActionError(message: string): never {
+  redirect(`/developers?commissionError=${encodeURIComponent(message)}`);
+}
+
+function parseCommissionPercent(raw: string, label: string, maximum: number, required = true) {
+  const value = raw.trim();
+  if (!value && !required) return null;
+  const parsed = Number(value);
+  if (!value || !Number.isFinite(parsed) || parsed < 0 || parsed > maximum) {
+    commissionActionError(`${label} must be a finite percentage between 0 and ${maximum}.`);
+  }
+  return parsed;
+}
+
+async function saveDeveloperCommissionRule(formData: FormData) {
+  "use server";
+  const admin = await requireAdminRole(["developers_admin"]);
+  if (!admin?.adminId) commissionActionError("You do not have permission to manage developer commission rules.");
+
+  const developerId = formData.get("developerId")?.toString().trim() ?? "";
+  const propertyId = formData.get("propertyId")?.toString().trim() || null;
+  const commissionRateRaw = formData.get("commissionRate")?.toString() ?? "";
+  const platformShareRaw = formData.get("platformShare")?.toString() ?? "";
+  const scope = developerAdminScope(admin.roles, admin.developerIds);
+
+  if (!UUID_PATTERN.test(developerId) || !canAccessScopedDeveloper(scope, developerId)) {
+    commissionActionError("You are not assigned to that developer company.");
+  }
+  if (propertyId && !UUID_PATTERN.test(propertyId)) {
+    commissionActionError("Choose a valid property unit.");
+  }
+  const commissionRate = parseCommissionPercent(commissionRateRaw, "Commission rate", DEVELOPER_COMMISSION_RATE_MAX);
+  const requestedPlatformShare = parseCommissionPercent(platformShareRaw, "Platform share", PLATFORM_SHARE_MAX, false);
+
+  const { data: developer, error: developerError } = await supabaseServer
+    .from("developers")
+    .select("id")
+    .eq("id", developerId)
+    .maybeSingle();
+  if (developerError || !developer?.id) {
+    console.error("Failed to validate commission developer", developerError);
+    commissionActionError("The selected developer company could not be found.");
+  }
+
+  if (propertyId) {
+    const { data: property, error: propertyError } = await supabaseServer
+      .from("properties")
+      .select("id")
+      .eq("id", propertyId)
+      .eq("developer_id", developerId)
+      .maybeSingle();
+    if (propertyError || !property?.id) {
+      console.error("Failed to validate commission property", propertyError);
+      commissionActionError("Choose a property unit owned by the selected developer.");
+    }
+  }
+
+  let existingQuery = supabaseServer
+    .from("developer_commission_rules")
+    .select("id, platform_share")
+    .eq("developer_id", developerId);
+  existingQuery = propertyId ? existingQuery.eq("property_id", propertyId) : existingQuery.is("property_id", null);
+  const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+  if (existingError) {
+    console.error("Failed to load existing commission rule", existingError);
+    commissionActionError("The existing commission rule could not be loaded. Try again.");
+  }
+
+  const platformShare = requestedPlatformShare ?? existing?.platform_share ?? 0;
+  const record = {
+    developer_id: developerId,
+    property_id: propertyId,
+    commission_rate: commissionRate,
+    platform_share: platformShare,
+  };
+  const mutation = existing?.id
+    ? await supabaseServer.from("developer_commission_rules").update(record).eq("id", existing.id).select("id").single()
+    : await supabaseServer.from("developer_commission_rules").insert(record).select("id").single();
+  if (mutation.error || !mutation.data?.id) {
+    console.error("Failed to save commission rule", mutation.error);
+    commissionActionError("Commission rule could not be saved. Try again.");
+  }
+
+  await logAdminActivity({
+    adminId: admin.adminId,
+    action: existing?.id ? "developer_commission_rule.updated" : "developer_commission_rule.created",
+    resourceType: "developer_commission_rules",
+    resourceId: mutation.data.id,
+    metadata: {
+      developer_id: developerId,
+      property_id: propertyId,
+      commission_rate: commissionRate,
+      platform_share: platformShare,
+    },
+  });
+  revalidatePath("/developers");
+  redirect(`/developers?commissionSuccess=${encodeURIComponent(existing?.id ? "Commission rule updated." : "Commission rule created.")}`);
+}
+
 function projectIsMobileVisible(
   project: DeveloperProject,
   publicationContractAvailable: boolean,
@@ -746,16 +860,56 @@ function isStaleInvite(member: DeveloperMember) {
   return Date.now() - new Date(sentAt).getTime() > STALE_INVITE_DAYS * 24 * 60 * 60 * 1000;
 }
 
+function CommissionFields({ rule }: { rule?: CommissionRule }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="space-y-1.5 text-xs font-semibold text-neutral-600">
+        Commission rate (%)
+        <input
+          name="commissionRate"
+          required
+          type="number"
+          min={0}
+          max={DEVELOPER_COMMISSION_RATE_MAX}
+          step="0.01"
+          defaultValue={rule?.commission_rate ?? ""}
+          className="mt-1.5 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3.5 text-sm text-[#111]"
+        />
+      </label>
+      <label className="space-y-1.5 text-xs font-semibold text-neutral-600">
+        Platform share (%)
+        <input
+          name="platformShare"
+          type="number"
+          min={0}
+          max={PLATFORM_SHARE_MAX}
+          step="0.01"
+          defaultValue={rule?.platform_share ?? 0}
+          className="mt-1.5 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3.5 text-sm text-[#111]"
+        />
+      </label>
+    </div>
+  );
+}
+
 export default async function DevelopersPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ developerSearch?: string; developerPage?: string; developerFilter?: string }>;
+  searchParams?: Promise<{
+    developerSearch?: string;
+    developerPage?: string;
+    developerFilter?: string;
+    commissionSuccess?: string;
+    commissionError?: string;
+  }>;
 }) {
   const adminContext = await buildAdminUi(["developers_admin"]);
   const allowedDeveloperIds = developerAdminScope(adminContext.roles, adminContext.context.developerIds);
   const params = (await searchParams) ?? {};
   const developerSearch = params.developerSearch?.trim().slice(0, 100) ?? "";
   const developerPage = safePage(params.developerPage);
+  const commissionSuccess = params.commissionSuccess?.trim().slice(0, 240) ?? "";
+  const commissionError = params.commissionError?.trim().slice(0, 240) ?? "";
   const developerFilters = ["all", "attention", "access", "publication", "healthy"] as const;
   const developerFilter = developerFilters.includes(params.developerFilter as (typeof developerFilters)[number])
     ? params.developerFilter!
@@ -785,6 +939,18 @@ export default async function DevelopersPage({
         },
         developerError: null,
       } satisfies DeveloperData;
+
+  const commissionRuleData = adminContext.hasAccess && data.developers.length
+    ? await loadOptionalRows<CommissionRule>(
+        supabaseServer
+          .from("developer_commission_rules")
+          .select("id, developer_id, property_id, commission_rate, platform_share, updated_at")
+          .in("developer_id", data.developers.map((developer) => developer.id))
+          .order("updated_at", { ascending: false }),
+        "developer commission rules",
+      )
+    : { rows: [], available: true };
+  const commissionRules = commissionRuleData.rows;
 
   const canInvite = allowedDeveloperIds === null || data.developers.length > 0;
   const membersByDeveloperId = data.accounts.reduce<Record<string, DeveloperMember[]>>((acc, member) => {
@@ -860,12 +1026,10 @@ export default async function DevelopersPage({
       title="Developer operations"
       description="Run partner access, portfolio publication, and mobile visibility from one exception-driven console."
       actions={canInvite ? (
-        <a
-          href="#developer-invite"
-          className="inline-flex min-h-11 items-center rounded-full border border-black/10 bg-white px-5 py-2 text-sm font-semibold text-neutral-700 hover:bg-black/5"
-        >
-          Invite member
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <a href="#developer-commissions" className="inline-flex min-h-11 items-center rounded-full border border-black/10 bg-white px-5 py-2 text-sm font-semibold text-neutral-700 hover:bg-black/5">Commission rules</a>
+          <a href="#developer-invite" className="inline-flex min-h-11 items-center rounded-full border border-black/10 bg-white px-5 py-2 text-sm font-semibold text-neutral-700 hover:bg-black/5">Invite member</a>
+        </div>
       ) : null}
       navItems={adminContext.navItems}
       meta={adminContext.meta}
@@ -926,6 +1090,98 @@ export default async function DevelopersPage({
             pagination={{ page: data.developerPage, pageSize: data.developerPageSize, total: data.developerTotal, hasNext: data.developerHasNext }}
             availability={data.availability}
           />
+
+          {data.developers.length ? (
+            <section id="developer-commissions" className="scroll-mt-6 rounded-3xl border border-black/5 bg-white p-4 shadow-xl shadow-black/5 sm:p-6">
+              <header className="mb-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-500">Central commission controls</p>
+                <h2 className="mt-1 text-lg font-semibold text-[#050505]">Company defaults and property overrides</h2>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-neutral-600">
+                  These rules are managed by central admins. Developer portal users cannot create or change commission rates. Company defaults apply when no property-unit override exists; overrides target an actual property unit, not a project record.
+                </p>
+                {commissionError ? <p role="alert" className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{commissionError}</p> : null}
+                {commissionSuccess ? <p role="status" className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{commissionSuccess}</p> : null}
+              </header>
+              {!commissionRuleData.available ? (
+                <p role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Commission rules are temporarily unavailable. Existing values were not changed.</p>
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {data.developers.map((developer) => {
+                    const developerRules = commissionRules.filter((rule) => rule.developer_id === developer.id);
+                    const defaultRule = developerRules.find((rule) => rule.property_id === null);
+                    const propertyRules = developerRules.filter((rule) => rule.property_id !== null);
+                    const developerProperties = propertiesByDeveloperId[developer.id] ?? [];
+                    const configuredPropertyIds = new Set(propertyRules.map((rule) => rule.property_id));
+                    const projectNames = projectsByDeveloperId[developer.id] ?? [];
+                    const propertyLabel = (property: Property) => {
+                      const projectName = property.project_id ? projectNames.find((project) => project.id === property.project_id)?.name : null;
+                      return [property.property_name?.trim() || `Property unit ${property.id.slice(0, 8)}`, projectName].filter(Boolean).join(" · ");
+                    };
+                    return (
+                      <article key={developer.id} className="rounded-2xl border border-black/10 bg-neutral-50 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-semibold text-neutral-950">{developer.name}</h3>
+                            <p className="mt-1 text-xs text-neutral-500">{developerRules.length ? `${developerRules.length} configured rule${developerRules.length === 1 ? "" : "s"}` : "No commission rules configured"}</p>
+                          </div>
+                        </div>
+
+                        <form action={saveDeveloperCommissionRule} className="mt-4 space-y-3 rounded-2xl border border-black/10 bg-white p-3">
+                          <input type="hidden" name="developerId" value={developer.id} />
+                          <input type="hidden" name="propertyId" value="" />
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">Company default</p>
+                            <p className="mt-1 text-xs text-neutral-500">Commission rate is limited to 0–{DEVELOPER_COMMISSION_RATE_MAX}%; platform share accepts 0–{PLATFORM_SHARE_MAX}%.</p>
+                          </div>
+                          <CommissionFields rule={defaultRule} />
+                          <button type="submit" className="min-h-10 rounded-full bg-black px-4 py-2 text-xs font-semibold text-white hover:bg-neutral-800">Save company default</button>
+                        </form>
+
+                        {propertyRules.length ? (
+                          <div className="mt-4 space-y-3">
+                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">Property-unit overrides</p>
+                            {propertyRules.map((rule) => {
+                              const property = developerProperties.find((candidate) => candidate.id === rule.property_id);
+                              return (
+                                <form key={rule.id} action={saveDeveloperCommissionRule} className="space-y-3 rounded-2xl border border-black/10 bg-white p-3">
+                                  <input type="hidden" name="developerId" value={developer.id} />
+                                  <input type="hidden" name="propertyId" value={rule.property_id ?? ""} />
+                                  <p className="text-xs font-semibold text-neutral-800">{property ? propertyLabel(property) : `Property unit ${rule.property_id?.slice(0, 8) ?? "unknown"}`}</p>
+                                  <CommissionFields rule={rule} />
+                                  <button type="submit" className="min-h-10 rounded-full border border-black/15 px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-black/5">Save property override</button>
+                                </form>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+
+                        {developerProperties.some((property) => !configuredPropertyIds.has(property.id)) ? (
+                          <form action={saveDeveloperCommissionRule} className="mt-4 space-y-3 rounded-2xl border border-dashed border-black/20 bg-white p-3">
+                            <input type="hidden" name="developerId" value={developer.id} />
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">Add property-unit override</p>
+                              <p className="mt-1 text-xs text-neutral-500">Choose a real property unit. Project IDs are not valid commission targets.</p>
+                            </div>
+                            <label className="space-y-1.5 text-xs font-semibold text-neutral-600">
+                              Property unit
+                              <select name="propertyId" required defaultValue="" className="mt-1.5 min-h-11 w-full rounded-xl border border-black/10 bg-white px-3.5 text-sm text-[#111]">
+                                <option value="">Choose a property unit</option>
+                                {developerProperties.filter((property) => !configuredPropertyIds.has(property.id)).map((property) => (
+                                  <option key={property.id} value={property.id}>{propertyLabel(property)}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <CommissionFields />
+                            <button type="submit" className="min-h-10 rounded-full border border-black/15 px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-black/5">Save property override</button>
+                          </form>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ) : null}
 
           {canInvite ? (
             <section id="developer-invite" className="scroll-mt-6 rounded-3xl border border-black/5 bg-white p-4 shadow-xl shadow-black/5 sm:p-6">

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { normalizeDeveloperRole } from "../src/lib/developerRbac.ts";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), "utf8");
 const migration = read("supabase/migrations/20260830111500_developer_team_rbac.sql");
+const singleRoleMigration = read("supabase/migrations/20261125084445_developer_single_role.sql");
 const reliabilityMigration = read("supabase/migrations/20260830090000_developer_invitation_reliability.sql");
 const auth = read("src/lib/developerAuth.ts");
 const session = read("src/lib/developerSession.ts");
@@ -14,10 +16,11 @@ const teamQuery = read("src/lib/developerTeam.ts");
 
 test("developer RBAC is a closed, tenant-bound capability contract", () => {
   const rbac = read("src/lib/developerRbac.ts");
-  for (const role of ["developer_super_admin", "project_manager", "sales_manager"]) {
-    assert.match(rbac, new RegExp(`['\"]${role}['\"]`));
-    assert.match(migration, new RegExp(`['\"]${role}['\"]`));
-  }
+  assert.match(rbac, /DEVELOPER_ROLES = \[\s*"developer_super_admin",?\s*\]\s*as const/);
+  assert.match(rbac, /DEVELOPER_SUPER_ADMIN_ROLE/);
+  assert.match(singleRoleMigration, /role = 'developer_super_admin'/);
+  assert.doesNotMatch(rbac, /CAPABILITIES_BY_ROLE[\s\S]*project_manager:/);
+  assert.doesNotMatch(rbac, /CAPABILITIES_BY_ROLE[\s\S]*sales_manager:/);
   for (const capability of ["manage_company", "manage_team", "manage_projects", "manage_inventory", "view_contacts", "manage_contacts", "view_analytics", "manage_integrations"]) {
     assert.match(rbac, new RegExp(capability));
     assert.match(migration, new RegExp(capability));
@@ -30,6 +33,13 @@ test("developer RBAC is a closed, tenant-bound capability contract", () => {
   assert.match(session, /role\?: DeveloperRole/);
   assert.match(clientLayout, /href: "\/developer\/team"/);
   assert.match(profile, /requireDeveloperCapability\("manage_company"/);
+});
+
+test("role normalization rejects inherited prototype keys", () => {
+  for (const value of ["constructor", "__proto__", "toString", "unknown"]) {
+    assert.equal(normalizeDeveloperRole(value), null, `unexpected role alias: ${value}`);
+  }
+  assert.equal(normalizeDeveloperRole("project_manager"), "developer_super_admin");
 });
 
 test("database migration normalizes legacy memberships and protects the final super admin", () => {
@@ -45,6 +55,12 @@ test("database migration normalizes legacy memberships and protects the final su
   assert.match(migration, /new\.developer_id is distinct from old\.developer_id/);
   assert.match(migration, /new\.auth_user_id is distinct from old\.auth_user_id/);
   assert.match(migration, /before update or delete on public\.developer_accounts/);
+  assert.match(singleRoleMigration, /Unsupported developer membership role/);
+  assert.match(singleRoleMigration, /Unsupported developer membership status/);
+  assert.match(singleRoleMigration, /developer_accounts_role_canonicalize/);
+  assert.match(singleRoleMigration, /check \(role = 'developer_super_admin'\)/);
+  assert.match(singleRoleMigration, /developer_accounts_status_check/);
+  assert.match(singleRoleMigration, /public\.request_is_service_role\(\)/);
 });
 
 test("team lifecycle has explicit server routes, service-only RPCs, and no browser tenant selector", () => {
@@ -52,7 +68,6 @@ test("team lifecycle has explicit server routes, service-only RPCs, and no brows
     "src/app/api/developer/team/route.ts",
     "src/app/api/developer/team/invite/route.ts",
     "src/app/api/developer/team/resend/route.ts",
-    "src/app/api/developer/team/role/route.ts",
     "src/app/api/developer/team/revoke/route.ts",
   ];
   for (const path of routeFiles) {
@@ -62,9 +77,14 @@ test("team lifecycle has explicit server routes, service-only RPCs, and no brows
     assert.match(source, /session\.developerId/);
   }
   const invite = read("src/app/api/developer/team/invite/route.ts");
+  const adminResend = read("src/app/api/admin/developers/resend-invite/route.ts");
   assert.match(invite, /invite_developer_team_member/);
   assert.match(invite, /p_actor_account_id: session\.accountId/);
   assert.doesNotMatch(invite, /body\.developerId/);
+  assert.doesNotMatch(invite, /body\.role/);
+  assert.match(invite, /DEVELOPER_SUPER_ADMIN_ROLE/);
+  assert.match(adminResend, /developerRole: DEVELOPER_SUPER_ADMIN_ROLE/);
+  assert.equal(existsSync(new URL("src/app/api/developer/team/role/route.ts", root)), false);
   for (const fn of ["invite_developer_team_member", "resend_developer_team_invite", "update_developer_team_member_role", "revoke_developer_team_member"]) {
     assert.match(migration, new RegExp(`create or replace function public\\.${fn}`));
     assert.match(migration, new RegExp(`grant execute on function public\\.${fn}`));
@@ -74,10 +94,11 @@ test("team lifecycle has explicit server routes, service-only RPCs, and no brows
   assert.match(migration, /target_account\.developer_id <> actor_account\.developer_id/);
 });
 
-test("team lifecycle preserves admin invite compatibility and makes explicit roles available", () => {
+test("team lifecycle preserves admin invite compatibility while canonicalizing roles", () => {
   assert.match(migration, /historical 11-argument invitation RPC remains untouched/);
   assert.match(migration, /create or replace function public\.create_developer_account_invite\([\s\S]*p_role text/);
   assert.match(migration, /first member of a new developer company must be developer_super_admin/);
+  assert.match(singleRoleMigration, /future, explicitly migrated role tiers can be added/);
   const invites = read("src/lib/developerAccountInvites.ts");
   assert.match(invites, /developerRole\?: DeveloperRole/);
   assert.match(invites, /developer_role: params\.developerRole/);

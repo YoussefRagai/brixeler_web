@@ -5,7 +5,7 @@ import test from "node:test";
 const component = readFileSync(new URL("../src/components/AdminDeveloperInviteForm.tsx", import.meta.url), "utf8");
 
 test("developer invite form preserves retry inputs and resets only after success", () => {
-  for (const field of ["developerName", "contactEmail", "contactPhone", "memberEmail", "demoBatch"]) {
+  for (const field of ["developerName", "contactEmail", "contactPhone", "memberEmail"]) {
     assert.match(component, new RegExp(`value=\\{formValues\\.${field}\\}`));
     assert.match(component, new RegExp(`updateFormValue\\(\\"${field}\\"`));
   }
@@ -13,4 +13,7 @@ test("developer invite form preserves retry inputs and resets only after success
   assert.match(component, /requestIdRef\.current = null/);
   assert.match(component, /setFormValues\(initialFormValues\)/);
   assert.doesNotMatch(component, /defaultValue=""\s*\n\s*onChange=\{resetRequestId\}/);
+  assert.doesNotMatch(component, /name="isDemo"/);
+  assert.doesNotMatch(component, /name="demoBatch"/);
+  assert.doesNotMatch(component, /Mark new developer as demo data/);
 });

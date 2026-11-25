@@ -8,6 +8,7 @@ import { isDeveloperImpersonationAuthorized } from "./developerImpersonationAuth
 import {
   DEVELOPER_CAPABILITIES,
   DEVELOPER_ROLES,
+  DEVELOPER_SUPER_ADMIN_ROLE,
   hasDeveloperCapability,
   normalizeDeveloperRole,
   type DeveloperCapability,
@@ -17,6 +18,7 @@ import {
 export {
   DEVELOPER_CAPABILITIES,
   DEVELOPER_ROLES,
+  DEVELOPER_SUPER_ADMIN_ROLE,
   hasDeveloperCapability,
   normalizeDeveloperRole,
 };

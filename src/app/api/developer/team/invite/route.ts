@@ -4,7 +4,7 @@ import {
   boundedRequestId,
   normalizeDeveloperEmail,
 } from "@/lib/developerTeam";
-import { DEVELOPER_ROLES, isDeveloperRole } from "@/lib/developerRbac";
+import { DEVELOPER_SUPER_ADMIN_ROLE, normalizeDeveloperRole } from "@/lib/developerRbac";
 import {
   compensateDeveloperInviteAuthUser,
   findAuthUserByEmail,
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  let body: { email?: unknown; fullName?: unknown; role?: unknown; requestId?: unknown };
+  let body: { email?: unknown; fullName?: unknown; requestId?: unknown };
   try {
     const parsed = await request.json();
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -37,10 +37,9 @@ export async function POST(request: Request) {
 
   const email = normalizeDeveloperEmail(body.email);
   if (!email) return NextResponse.json({ error: "Enter a valid member email address." }, { status: 400 });
-  const role = typeof body.role === "string" && isDeveloperRole(body.role) ? body.role : null;
-  if (!role || !DEVELOPER_ROLES.includes(role)) {
-    return NextResponse.json({ error: "Choose one of the supported developer member roles." }, { status: 400 });
-  }
+  // Role tiers are deferred. Never accept a browser-supplied role; every
+  // developer-led invitation is a company-super-admin invitation for now.
+  const role = DEVELOPER_SUPER_ADMIN_ROLE;
   const fullName = typeof body.fullName === "string" ? body.fullName.trim() || null : null;
   if (fullName && fullName.length > 200) {
     return NextResponse.json({ error: "Member name must be 200 characters or fewer." }, { status: 400 });
@@ -78,11 +77,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Revoked developer access cannot be reactivated." }, { status: 409 });
     }
     if (membership?.status === "pending" && membership.invite_request_id === requestId) {
+      const normalizedMembershipRole = normalizeDeveloperRole(membership.role);
+      if (!normalizedMembershipRole) {
+        return NextResponse.json({ error: "This member has an unsupported role and needs administrator review." }, { status: 409 });
+      }
       return NextResponse.json({
         success: true,
         idempotent: true,
         memberId: membership.id,
-        role: membership.role,
+        role: normalizedMembershipRole,
         message: "This invitation request was already recorded. Access is pending.",
       });
     }

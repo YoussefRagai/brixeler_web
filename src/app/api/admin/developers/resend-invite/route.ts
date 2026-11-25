@@ -4,6 +4,7 @@ import { canAccessScopedDeveloper, developerAdminScope, hasAdminRole } from "@/l
 import { logAdminActivity } from "@/lib/adminQueries";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { resendDeveloperPortalInvite } from "@/lib/developerAccountInvites";
+import { DEVELOPER_SUPER_ADMIN_ROLE } from "@/lib/developerRbac";
 import { describePortalInviteDeliveryError, getPortalInviteSubmissionMessage } from "@/lib/portalInviteDelivery";
 
 export async function POST(request: Request) {
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
       developerId: member.developer_id,
       developerName,
       inviteRequestId: requestId,
+      developerRole: DEVELOPER_SUPER_ADMIN_ROLE,
     });
   } catch (error) {
     console.error("Failed to resend developer invite", error);

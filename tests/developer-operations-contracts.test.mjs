@@ -5,13 +5,11 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("developer roles expose the exact requested capability split", async () => {
+test("developer members expose the current company-wide capability contract", async () => {
   const rbac = await read("src/lib/developerRbac.ts");
-  assert.match(rbac, /developer_super_admin/);
-  assert.match(rbac, /project_manager: \["manage_projects", "manage_inventory", "view_analytics"\]/);
-  assert.match(rbac, /sales_manager: \["manage_inventory", "view_contacts", "manage_contacts"\]/);
-  assert.doesNotMatch(rbac, /sales_manager: \[[^\]]*manage_projects/);
-  assert.doesNotMatch(rbac, /project_manager: \[[^\]]*view_contacts/);
+  assert.match(rbac, /DEVELOPER_ROLES = \[\s*"developer_super_admin",?\s*\]\s*as const/);
+  assert.match(rbac, /developer_super_admin: DEVELOPER_CAPABILITIES/);
+  assert.match(rbac, /role tiers can (?:be )?(?:added|narrowed)/i);
 });
 
 test("team membership is tenant bound and protects the final super admin", async () => {

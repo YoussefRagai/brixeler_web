@@ -1,8 +1,7 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 import {
-  DEVELOPER_ROLES,
   normalizeDeveloperRole,
-  type DeveloperRole,
+  type CanonicalDeveloperRole,
 } from "@/lib/developerRbac";
 
 export type DeveloperTeamMember = {
@@ -10,7 +9,7 @@ export type DeveloperTeamMember = {
   developerId: string;
   email: string | null;
   fullName: string | null;
-  role: DeveloperRole | null;
+  role: CanonicalDeveloperRole | null;
   status: string;
   invitedAt: string | null;
   invitationSentAt: string | null;
@@ -19,9 +18,8 @@ export type DeveloperTeamMember = {
   lastLogin: string | null;
 };
 
-export function parseDeveloperRole(value: unknown): DeveloperRole | null {
-  const normalized = normalizeDeveloperRole(value);
-  return normalized && DEVELOPER_ROLES.includes(normalized) ? normalized : null;
+export function parseDeveloperRole(value: unknown): CanonicalDeveloperRole | null {
+  return normalizeDeveloperRole(value);
 }
 
 export function normalizeDeveloperEmail(value: unknown): string | null {

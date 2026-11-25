@@ -164,14 +164,6 @@ const AMENITIES = [
   { slug: "sea_view", label: "Sea View" },
 ];
 
-type CommissionRuleRow = {
-  id: string;
-  developer_id: string;
-  property_id: string | null;
-  commission_rate: number | null;
-  platform_share: number | null;
-};
-
 type ProjectMedia = {
   images?: string[];
   heroImageUrl?: string;
@@ -403,13 +395,9 @@ export default async function DeveloperProjectsPage({
   const session = await requireDeveloperSession();
   const canManageProjects = hasDeveloperCapability(session.role, "manage_projects");
   const canManageInventory = hasDeveloperCapability(session.role, "manage_inventory");
-  const [projects, profile, commissionRules, impersonation] = await Promise.all([
+  const [projects, profile, impersonation] = await Promise.all([
     fetchDeveloperProjects(session.developerId),
     fetchDeveloperProfile(session.developerId),
-    supabaseServer
-      .from("developer_commission_rules")
-      .select("id, developer_id, property_id, commission_rate, platform_share")
-      .eq("developer_id", session.developerId),
     currentDeveloperImpersonation(),
   ]);
   const resolvedSearchParams = (await searchParams) ?? {};
@@ -492,9 +480,6 @@ export default async function DeveloperProjectsPage({
   const selectedProjectUnitTypes = selectedProject?.project_unit_types?.filter((unit) =>
     (!selectedPhaseId || unit.phase_id === selectedPhaseId) && shouldShowInventoryUnitType(unit, showArchivedInventory),
   ) ?? [];
-  const projectCommissionRule = selectedProjectId
-    ? ((commissionRules.data ?? []) as CommissionRuleRow[]).find((rule) => rule.property_id === selectedProjectId)
-    : undefined;
   const visibleProjects = selectedProjectId
     ? projects.filter((project) => project.id === selectedProjectId)
     : statusFilteredProjects;
@@ -1044,28 +1029,6 @@ export default async function DeveloperProjectsPage({
                       step="1"
                       placeholder="250000"
                       defaultValue={selectedProject?.eoi_value_villa ?? ""}
-                    />
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Field
-                      label="Commission rate (%)"
-                      name="commissionRate"
-                      placeholder="2.50"
-                      defaultValue={
-                        projectCommissionRule?.commission_rate != null
-                          ? String(projectCommissionRule.commission_rate)
-                          : ""
-                      }
-                    />
-                    <Field
-                      label="Platform share (%)"
-                      name="platformShare"
-                      placeholder="0.25"
-                      defaultValue={
-                        projectCommissionRule?.platform_share != null
-                          ? String(projectCommissionRule.platform_share)
-                          : ""
-                      }
                     />
                   </div>
                   <DeveloperMediaField directUpload
@@ -1945,6 +1908,9 @@ async function upsertProjectAction(formData: FormData) {
   const invalidTarget = id
     ? projectPortalHref(id, projectSectionQuery(returnSection, { phaseId: returnPhaseId, inventoryView: returnInventoryView }))
     : "/developer/projects?create=1";
+  if (formData.has("commissionRate") || formData.has("platformShare")) {
+    redirect(`${invalidTarget}&error=${encodeURIComponent("Commission rates are managed by central admins.")}`);
+  }
   if (!name) {
     redirect(`${invalidTarget}&error=${encodeURIComponent("Add a project name before saving.")}`);
   }
@@ -1985,8 +1951,6 @@ async function upsertProjectAction(formData: FormData) {
   if (launchDate && Number.isNaN(Date.parse(`${launchDate}T00:00:00`))) {
     redirect(`${invalidTarget}&error=${encodeURIComponent("Enter a valid launch date.")}`);
   }
-  const commissionRateRaw = formData.get("commissionRate")?.toString() ?? null;
-  const platformShareRaw = formData.get("platformShare")?.toString() ?? null;
   const amenities = formData
     .getAll("projectAmenities")
     .map((value) => value.toString())
@@ -2208,15 +2172,6 @@ async function upsertProjectAction(formData: FormData) {
     amenities,
   });
   if (!error && data?.id) {
-    const commissionResult = await upsertProjectCommissionRule({
-      developerId: session.developerId,
-      projectId: data.id,
-      commissionRateRaw,
-      platformShareRaw,
-    });
-    if (commissionResult?.error) {
-      redirect(`${projectPortalHref(data.id, projectSectionQuery(returnSection, { phaseId: returnPhaseId, inventoryView: returnInventoryView }))}&error=${encodeURIComponent("Project saved, but the commission rule could not be saved. Please retry.")}`);
-    }
     const successSection = id ? returnSection : "overview";
     const successQuery = projectSectionQuery(successSection, {
       phaseId: id ? returnPhaseId : null,
@@ -2524,43 +2479,6 @@ async function markPhaseNewReleaseAction(formData: FormData) {
   if (result.error) redirect(`${phaseWorkspaceHref(projectId, phaseId)}&error=${encodeURIComponent(result.error.message)}`);
   revalidatePath("/developer/projects");
   redirect(`${phaseWorkspaceHref(projectId, phaseId)}&success=${encodeURIComponent("Phase marked as a new release. Submit the project for review before it becomes public.")}`);
-}
-
-async function upsertProjectCommissionRule(input: {
-  developerId: string;
-  projectId: string;
-  commissionRateRaw?: string | null;
-  platformShareRaw?: string | null;
-}) {
-  const commissionRateRaw = input.commissionRateRaw?.trim() ?? "";
-  const platformShareRaw = input.platformShareRaw?.trim() ?? "";
-  if (!commissionRateRaw && !platformShareRaw) return { error: null };
-
-  const commissionRate = Number(commissionRateRaw);
-  if (!Number.isFinite(commissionRate) || commissionRate <= 0) {
-    return { error: new Error("Enter a valid commission rate.") };
-  }
-  const platformShare = platformShareRaw.length ? Number(platformShareRaw) : null;
-
-  const { data: existing, error: lookupError } = await supabaseServer
-    .from("developer_commission_rules")
-    .select("id")
-    .eq("developer_id", input.developerId)
-    .eq("property_id", input.projectId)
-    .maybeSingle();
-  if (lookupError) return { error: lookupError };
-
-  const { error } = await supabaseServer.from("developer_commission_rules").upsert(
-    {
-      id: existing?.id,
-      developer_id: input.developerId,
-      property_id: input.projectId,
-      commission_rate: commissionRate,
-      platform_share: Number.isFinite(platformShare ?? NaN) ? platformShare : null,
-    },
-    { onConflict: "id" },
-  );
-  return { error };
 }
 
 async function upsertProjectUnitTypeAction(formData: FormData) {
